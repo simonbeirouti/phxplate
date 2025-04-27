@@ -1,0 +1,199 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Policy Management Guidelines
+
+## Current Policy State
+
+### User Policy
+```elixir
+defmodule Phxplate.Policy do
+  use LetMe.Policy
+
+  object :user do
+    # User registration is open to all
+    action :register do
+      allow true
+      desc "Register a new user"
+    end
+
+    # User profile viewing
+    action :view do
+      allow [:own_resource, role: :admin]
+      desc "View user profile"
+    end
+
+    # User profile editing
+    action :edit do
+      allow [:own_resource, role: :admin]
+      desc "Edit user profile"
+    end
+
+    # User account deletion
+    action :delete do
+      allow [:own_resource, role: :admin]
+      desc "Delete user account"
+    end
+  end
+end
+```
+
+### Policy Checks
+```elixir
+defmodule Phxplate.Policy.Checks do
+  alias Phxplate.Accounts.User
+
+  @doc """
+  Checks if the user is an admin
+  """
+  def role(%User{role: role}, _object, required_role) do
+    role == required_role
+  end
+
+  @doc """
+  Checks if the user owns the resource
+  """
+  def own_resource(%User{id: user_id}, %{user_id: user_id}, _opts) do
+    true
+  end
+  def own_resource(_, _, _), do: false
+end
+```
+
+## Policy Structure
+
+### Basic Policy Structure
+```elixir
+defmodule App.Policy do
+  use LetMe.Policy
+
+  object :resource_name do
+    action :action_name do
+      allow check1: value1
+      allow [check2: value2, check3: value3]
+      deny check4: value4
+      desc "Description of the action"
+    end
+  end
+end
+```
+
+### Policy Components
+1. **Objects**: Resources being protected
+2. **Actions**: Operations that can be performed
+3. **Checks**: Conditions for allowing/denying actions
+4. **Descriptions**: Documentation of policy rules
+
+## Best Practices
+
+### Policy Organization
+1. Group related policies by context
+2. Use descriptive action names
+3. Document all policy rules
+4. Keep policies focused and single-purpose
+5. Use consistent naming conventions
+
+### Check Implementation
+1. Keep checks simple and focused
+2. Document check behavior
+3. Use pattern matching effectively
+4. Handle edge cases explicitly
+5. Test checks thoroughly
+
+### Role Management
+1. Define clear role hierarchy
+2. Document role permissions
+3. Use role-based checks consistently
+4. Implement role inheritance carefully
+5. Review role assignments regularly
+
+## Common Patterns
+
+### Resource Ownership
+```elixir
+def own_resource(%User{id: user_id}, %{user_id: user_id}, _opts) do
+  true
+end
+```
+
+### Role-Based Access
+```elixir
+def role(%User{role: role}, _object, required_role) do
+  role == required_role
+end
+```
+
+### Composite Checks
+```elixir
+action :update do
+  allow [:own_resource, role: :admin]
+  allow [:own_resource, role: :editor]
+  deny :banned
+end
+```
+
+## Policy Updates
+
+### When to Update
+1. Adding new resources
+2. Modifying access patterns
+3. Changing role requirements
+4. Adding new roles
+5. Updating security requirements
+
+### Update Process
+1. Review current policies
+2. Document required changes
+3. Implement policy updates
+4. Test policy changes
+5. Update documentation
+
+## Documentation Requirements
+
+### Policy Documentation
+1. Document all objects
+2. Document all actions
+3. Document all checks
+4. Document role requirements
+5. Document special cases
+
+### Check Documentation
+1. Document check purpose
+2. Document parameters
+3. Document return values
+4. Document edge cases
+5. Document usage examples
+
+## Testing Guidelines
+
+### Policy Testing
+1. Test all policy rules
+2. Test edge cases
+3. Test role combinations
+4. Test denial cases
+5. Test special permissions
+
+### Check Testing
+1. Test all check functions
+2. Test parameter validation
+3. Test return values
+4. Test error cases
+5. Test performance
+
+## Security Considerations
+
+### Access Control
+1. Implement least privilege
+2. Review access patterns
+3. Monitor policy usage
+4. Audit policy changes
+5. Document security decisions
+
+### Role Management
+1. Limit role assignments
+2. Review role permissions
+3. Monitor role usage
+4. Document role changes
+5. Implement role audits

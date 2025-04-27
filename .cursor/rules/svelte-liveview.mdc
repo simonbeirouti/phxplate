@@ -1,0 +1,198 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Svelte-LiveView Integration Guidelines
+
+## Project Structure
+
+### File Organization
+- Keep Svelte components in `assets/svelte/` directory
+- Organize components by feature/domain
+- Use consistent naming conventions:
+  - Component files: `PascalCase.svelte`
+  - Component directories: `kebab-case/`
+  - Utility files: `camelCase.js`
+
+### Component Structure
+```svelte
+<script>
+  // Props should be reactive and documented
+  export let number = 1
+  export let live // LiveView socket connection
+
+  // Local state management
+  let localState = 0
+
+  // Event handlers
+  function handleEvent() {
+    // Push events to LiveView
+    live.pushEvent("event_name", { data: value }, () => {
+      // Optional callback
+    })
+  }
+</script>
+
+<!-- Template -->
+<div class="component-container">
+  <!-- Component content -->
+</div>
+
+<!-- Scoped styles -->
+<style>
+  .component-container {
+    /* Component-specific styles */
+  }
+</style>
+```
+
+## State Management
+
+### LiveView Integration
+- Use `live.pushEvent()` for server communication
+- Keep client-side state minimal
+- Leverage LiveView's real-time capabilities
+- Use proper event naming conventions:
+  - `handle_` prefix for event handlers
+  - `update_` prefix for state updates
+  - `sync_` prefix for data synchronization
+
+### Props Management
+```elixir
+# LiveView module
+def render(assigns) do
+  ~H"""
+  <.svelte 
+    name="ComponentName" 
+    props={%{
+      data: @data,
+      options: @options
+    }} 
+    socket={@socket} 
+  />
+  """
+end
+```
+
+## Performance Optimization
+
+### Component Loading
+- Use `:loading` slot for better UX
+- Implement proper loading states
+- Use SSR when possible
+- Optimize component initialization
+
+```svelte
+<.svelte name="Component" ssr={false}>
+  <:loading>
+    <div class="loading-state">
+      <!-- Loading content -->
+    </div>
+  </:loading>
+</.svelte>
+```
+
+### Event Handling
+- Implement proper event throttling
+- Use debouncing for search inputs
+- Optimize event payload size
+- Handle errors gracefully
+
+## Styling Guidelines
+
+### CSS Organization
+- Use scoped styles in components
+- Implement a consistent design system
+- Follow BEM naming convention
+- Use CSS variables for theming
+
+### Tailwind Integration
+- Configure Tailwind for Svelte components
+- Use utility classes consistently
+- Maintain a custom theme
+- Document custom utilities
+
+## Best Practices
+
+### Component Design
+1. Keep components focused and single-purpose
+2. Implement proper error boundaries
+3. Use TypeScript for type safety
+4. Document complex logic
+5. Test components thoroughly
+
+### LiveView Integration
+1. Use proper event naming
+2. Implement proper error handling
+3. Use PubSub for real-time updates
+4. Optimize data transfer
+5. Handle disconnections gracefully
+
+### Security
+1. Validate all user input
+2. Sanitize HTML output
+3. Implement proper authorization
+4. Use secure communication
+5. Handle sensitive data properly
+
+### Testing
+1. Test both client and server components
+2. Mock LiveView events
+3. Test error scenarios
+4. Verify real-time updates
+5. Test loading states
+
+## Development Workflow
+
+### Setup
+1. Install required dependencies
+2. Configure build process
+3. Set up development environment
+4. Configure testing framework
+5. Set up CI/CD pipeline
+
+### Deployment
+1. Build assets properly
+2. Handle environment variables
+3. Configure production settings
+4. Monitor performance
+5. Handle errors in production
+
+## Common Patterns
+
+### Data Synchronization
+```svelte
+<script>
+  export let data
+  export let live
+
+  function updateData(newData) {
+    live.pushEvent("update_data", { data: newData })
+  }
+</script>
+```
+
+### Real-time Updates
+```svelte
+<script>
+  export let live
+  
+  function subscribeToUpdates() {
+    live.pushEvent("subscribe", { topic: "updates" })
+  }
+</script>
+```
+
+### Error Handling
+```svelte
+<script>
+  export let live
+  let error = null
+
+  function handleError(err) {
+    error = err
+    live.pushEvent("error_occurred", { error: err.message })
+  }
+</script>
+```

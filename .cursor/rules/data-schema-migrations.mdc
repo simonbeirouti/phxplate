@@ -1,0 +1,201 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Data Schema Migration Guidelines
+
+## Current Schema State
+
+### Users Table
+```elixir
+# priv/repo/migrations/20250427232643_create_users_auth_tables.exs
+defmodule Phxplate.Repo.Migrations.CreateUsersAuthTables do
+  use Ecto.Migration
+
+  def change do
+    execute "CREATE EXTENSION IF NOT EXISTS citext", ""
+
+    create table(:users) do
+      add :email, :citext, null: false
+      add :hashed_password, :string, null: false
+      add :confirmed_at, :utc_datetime
+
+      timestamps(type: :utc_datetime)
+    end
+
+    create unique_index(:users, [:email])
+  end
+end
+```
+
+### User Tokens Table
+```elixir
+# priv/repo/migrations/20250427232643_create_users_auth_tables.exs
+defmodule Phxplate.Repo.Migrations.CreateUsersAuthTables do
+  use Ecto.Migration
+
+  def change do
+    # ... previous code ...
+
+    create table(:users_tokens) do
+      add :user_id, references(:users, on_delete: :delete_all), null: false
+      add :token, :binary, null: false
+      add :context, :string, null: false
+      add :sent_to, :string
+
+      timestamps(type: :utc_datetime, updated_at: false)
+    end
+
+    create index(:users_tokens, [:user_id])
+    create unique_index(:users_tokens, [:context, :token])
+  end
+end
+```
+
+## Schema Generation Commands
+
+### Basic Schema Generation
+```bash
+# Generate a new schema with fields
+mix phx.gen.schema SchemaName table_name field1:type field2:type
+
+# Example:
+mix phx.gen.schema User users name:string email:string
+```
+
+### Migration Commands
+```bash
+# Create a new migration
+mix ecto.gen.migration migration_name
+
+# Run migrations
+mix ecto.migrate
+
+# Rollback last migration
+mix ecto.rollback
+
+# Reset database (drop, create, migrate)
+mix ecto.reset
+```
+
+## Schema Best Practices
+
+### Field Types
+- Use `:citext` for case-insensitive text fields (like email)
+- Use `:utc_datetime` for timestamps
+- Use `:binary` for token storage
+- Use `:string` for hashed passwords
+- Use appropriate references for foreign keys
+
+### Indexes
+- Add unique indexes for unique fields
+- Add indexes for frequently queried fields
+- Add composite indexes for compound queries
+- Consider partial indexes for conditional queries
+
+### Constraints
+- Use `null: false` for required fields
+- Use `unique_constraint` for unique fields
+- Use `foreign_key_constraint` for relationships
+- Use `check_constraint` for value validation
+
+## Migration Guidelines
+
+### When to Create Migrations
+1. Adding new tables
+2. Modifying existing tables
+3. Adding/removing columns
+4. Changing column types
+5. Adding/removing indexes
+6. Adding/removing constraints
+
+### Migration Structure
+```elixir
+defmodule Phxplate.Repo.Migrations.MigrationName do
+  use Ecto.Migration
+
+  def change do
+    # Up migration
+    create table(:table_name) do
+      # Fields
+    end
+
+    # Down migration (automatically handled)
+  end
+end
+```
+
+### Common Migration Operations
+```elixir
+# Add column
+alter table(:table_name) do
+  add :column_name, :type
+end
+
+# Remove column
+alter table(:table_name) do
+  remove :column_name
+end
+
+# Rename column
+rename table(:table_name), :old_name, to: :new_name
+
+# Modify column
+alter table(:table_name) do
+  modify :column_name, :new_type
+end
+```
+
+## Schema Changeset Guidelines
+
+### Validation Rules
+1. Validate required fields
+2. Validate field formats
+3. Validate field lengths
+4. Validate uniqueness
+5. Validate relationships
+
+### Example Changeset
+```elixir
+def changeset(schema, attrs) do
+  schema
+  |> cast(attrs, [:field1, :field2])
+  |> validate_required([:field1, :field2])
+  |> validate_format(:field1, ~r/pattern/)
+  |> validate_length(:field2, min: 1, max: 100)
+  |> unique_constraint(:field1)
+end
+```
+
+## Documentation Requirements
+
+### Schema Documentation
+1. Document all fields and their types
+2. Document all relationships
+3. Document all validations
+4. Document all indexes
+5. Document all constraints
+
+### Migration Documentation
+1. Document purpose of migration
+2. Document affected tables
+3. Document data transformations
+4. Document rollback procedures
+5. Document any data migrations
+
+## Version Control
+
+### Migration Files
+1. Keep migrations in chronological order
+2. Use descriptive names
+3. Include timestamps in filenames
+4. Document changes in commit messages
+5. Review migrations in pull requests
+
+### Schema Changes
+1. Update schema documentation
+2. Update model documentation
+3. Update API documentation
+4. Update test documentation
+5. Update deployment documentation

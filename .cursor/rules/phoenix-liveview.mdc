@@ -1,0 +1,249 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Phoenix LiveView Development Guidelines
+
+## File Documentation
+
+### Module Documentation
+```elixir
+defmodule AppWeb.ExampleLive do
+  @moduledoc """
+  LiveView module for handling [Feature Name] functionality.
+
+  ## Responsibilities
+  - Handles real-time updates for [specific feature]
+  - Manages user interactions for [specific actions]
+  - Coordinates with [other modules] for [specific functionality]
+
+  ## State Management
+  - Maintains socket assigns for [specific data]
+  - Handles PubSub subscriptions for [specific topics]
+  - Manages form state for [specific forms]
+
+  ## Events
+  - `handle_event/3` for [specific user actions]
+  - `handle_info/2` for [specific messages]
+  - `handle_params/3` for [specific URL parameters]
+
+  ## Examples
+      # Example usage
+      {:ok, socket} = ExampleLive.mount(%{}, %{}, socket)
+  """
+
+  use AppWeb, :live_view
+  
+  # Mount callback should be lean and fast
+  def mount(_params, _session, socket) do
+    {:ok, assign(socket, :key, value)}
+  end
+  
+  # Handle events efficiently
+  def handle_event("event", params, socket) do
+    {:noreply, assign(socket, :key, value)}
+  end
+  
+  # Use handle_info for PubSub messages
+  def handle_info({:event, data}, socket) do
+    {:noreply, assign(socket, :key, data)}
+  end
+end
+```
+
+### Component Documentation
+```elixir
+defmodule AppWeb.Components.ExampleComponent do
+  @moduledoc """
+  LiveComponent for rendering [specific UI element].
+
+  ## Props
+  - `:data` - The data to display
+  - `:options` - Configuration options
+  - `:on_event` - Callback for user interactions
+
+  ## Examples
+      <.example_component data={@data} options={@options} />
+  """
+
+  use AppWeb, :live_component
+
+  def render(assigns) do
+    ~H"""
+    <!-- Component template -->
+    """
+  end
+end
+```
+
+## Performance Optimization
+
+### File Organization
+- Keep LiveView modules in `lib/app_web/live/` directory
+- Use `.ex` files for LiveView modules
+- Split complex LiveViews into smaller components using `live_component/3`
+- Keep templates in separate `.heex` files when they exceed 50 lines
+
+### LiveView Module Structure
+```elixir
+defmodule AppWeb.ExampleLive do
+  @moduledoc """
+  LiveView for [specific feature].
+  """
+
+  use AppWeb, :live_view
+  
+  # Mount callback should be lean and fast
+  def mount(_params, _session, socket) do
+    {:ok, assign(socket, :key, value)}
+  end
+  
+  # Handle events efficiently
+  def handle_event("event", params, socket) do
+    {:noreply, assign(socket, :key, value)}
+  end
+  
+  # Use handle_info for PubSub messages
+  def handle_info({:event, data}, socket) do
+    {:noreply, assign(socket, :key, data)}
+  end
+end
+```
+
+## Live Data Handling
+
+### PubSub Subscriptions
+- Use Phoenix.PubSub for real-time data updates
+- Subscribe in mount callback
+- Unsubscribe in terminate callback
+- Use topic-based subscriptions for targeted updates
+
+```elixir
+defmodule AppWeb.ExampleLive do
+  @moduledoc """
+  LiveView for real-time data updates using PubSub.
+  """
+
+  use AppWeb, :live_view
+
+  def mount(_params, _session, socket) do
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(App.PubSub, "topic")
+    end
+    {:ok, assign(socket, :data, initial_data)}
+  end
+
+  def handle_info({:new_data, data}, socket) do
+    {:noreply, assign(socket, :data, data)}
+  end
+end
+```
+
+### Optimizing Updates
+- Use `assign_new/3` for lazy loading
+- Implement `handle_params/3` for URL-based state
+- Use `push_patch/2` for URL updates without full page reload
+- Implement `update/2` for component updates
+
+### Performance Tips
+1. Minimize assigns in socket
+2. Use `phx-update="ignore"` for static content
+3. Implement `phx-throttle` for frequent events
+4. Use `phx-debounce` for search inputs
+5. Implement proper error handling with `handle_event/3`
+
+## Testing
+
+### LiveView Testing
+```elixir
+defmodule AppWeb.ExampleLiveTest do
+  @moduledoc """
+  Tests for ExampleLive module.
+  """
+
+  use AppWeb.ConnCase, async: true
+  import Phoenix.LiveViewTest
+
+  test "mounts successfully", %{conn: conn} do
+    {:ok, _view, _html} = live(conn, "/example")
+  end
+end
+```
+
+### Component Testing
+```elixir
+defmodule AppWeb.Components.ExampleComponentTest do
+  @moduledoc """
+  Tests for ExampleComponent module.
+  """
+
+  use AppWeb.ConnCase, async: true
+  import Phoenix.LiveViewTest
+
+  test "renders component", %{conn: conn} do
+    {:ok, _view, _html} = live_component(conn, ExampleComponent, data: %{})
+  end
+end
+```
+
+## Security
+
+### Input Validation
+```elixir
+defmodule AppWeb.ExampleLive do
+  @moduledoc """
+  LiveView with input validation.
+  """
+
+  use AppWeb, :live_view
+
+  def handle_event("validate", params, socket) do
+    changeset =
+      %Data{}
+      |> Data.changeset(params)
+      |> Map.put(:action, :validate)
+
+    {:noreply, assign(socket, changeset: changeset)}
+  end
+end
+```
+
+### Authorization
+```elixir
+defmodule AppWeb.ExampleLive do
+  @moduledoc """
+  LiveView with authorization checks.
+  """
+
+  use AppWeb, :live_view
+
+  def mount(_params, _session, socket) do
+    if authorized?(socket.assigns.current_user) do
+      {:ok, socket}
+    else
+      {:ok, redirect(socket, to: "/unauthorized")}
+    end
+  end
+end
+```
+
+## Best Practices
+
+### Module Organization
+1. Keep LiveViews focused and single-purpose
+2. Use components for reusable UI elements
+3. Implement proper error boundaries
+4. Use proper naming conventions
+5. Document complex business logic
+6. Monitor performance metrics
+7. Implement proper logging
+
+### Documentation Requirements
+1. Document module purpose
+2. Document state management
+3. Document event handling
+4. Document PubSub usage
+5. Document security measures
+6. Document performance considerations
+7. Document testing requirements

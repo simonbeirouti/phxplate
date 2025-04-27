@@ -1,0 +1,129 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Progress Tracking Guidelines
+
+## Project Structure Visualization
+
+### Tree Command Usage
+- Use `tree` command to visualize project structure
+- Exclude unnecessary directories for cleaner output
+- Update tracking file when making structural changes
+
+### Recommended Tree Command
+```bash
+tree -I '_build|deps|node_modules|.elixir_ls'
+```
+
+### Directories to Exclude
+- `_build` - Compiled artifacts
+- `deps` - Downloaded dependencies
+- `assets/node_modules` - Node.js dependencies
+- `.elixir_ls` - Language server cache
+
+## Project State Management
+
+### When to Update Tracking
+1. Adding new modules or components
+2. Creating new directories
+3. Moving files between directories
+4. Removing files or directories
+5. Major structural changes
+
+### Example Project Structure
+```
+.
+├── README.md
+├── config
+│   ├── config.exs
+│   ├── dev.exs
+│   └── test.exs
+├── lib
+│   ├── my_app
+│   │   ├── application.ex
+│   │   └── web
+│   │       ├── components
+│   │       ├── controllers
+│   │       ├── live
+│   │       └── views
+│   └── my_app.ex
+├── mix.exs
+├── mix.lock
+└── test
+    ├── support
+    │   └── conn_case.ex
+    ├── test_helper.exs
+    └── my_app_test.exs
+```
+
+## Best Practices
+
+### File Organization
+1. Keep related files in appropriate directories
+2. Follow naming conventions consistently
+3. Document directory purposes
+4. Maintain clear separation of concerns
+
+### State Updates
+1. Update tracking file immediately after changes
+2. Include brief description of changes
+3. Note any migration steps if needed
+4. Document breaking changes
+
+### Version Control
+1. Commit tracking file updates with related changes
+2. Include tree output in commit messages for major changes
+3. Keep tracking file in sync with actual structure
+4. Review tracking file during code reviews
+
+## Common Commands
+
+### Generate Tree Output
+```bash
+# Basic tree output
+tree
+
+# Exclude common directories
+tree -I '_build|deps|node_modules|.elixir_ls'
+
+# Save output to file
+tree -I '_build|deps|node_modules|.elixir_ls' > project_structure.txt
+```
+
+### Update Tracking File
+```bash
+# Generate and update tracking file
+tree -I '_build|deps|node_modules|.elixir_ls' > .cursor/rules/progress-tracking.mdc
+```
+
+## Monitoring Changes
+
+### Regular Checks
+1. Run tree command weekly
+2. Compare with tracking file
+3. Update if discrepancies found
+4. Document any structural changes
+
+### Change Log
+- Maintain a log of structural changes
+- Include date and description
+- Note affected components
+- Document migration steps if needed
+
+## Documentation
+
+### Required Information
+1. Current project structure
+2. Excluded directories
+3. Change history
+4. Migration notes
+5. Best practices
+
+### Update Process
+1. Generate new tree output
+2. Compare with existing structure
+3. Document changes
+4. Update tracking file
+5. Commit changes

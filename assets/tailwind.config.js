@@ -8,6 +8,7 @@ const path = require("path")
 module.exports = {
   content: [
     "./js/**/*.js",
+    "./svelte/**/*.svelte",
     "../lib/phxplate_web.ex",
     "../lib/phxplate_web/**/*.*ex"
   ],
