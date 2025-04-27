@@ -17,6 +17,8 @@ defmodule PhxplateWeb do
   those modules here.
   """
 
+  import LiveSvelte
+
   def static_paths, do: ~w(assets fonts images favicon.ico robots.txt)
 
   def router do

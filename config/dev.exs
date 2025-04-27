@@ -3,7 +3,7 @@ import Config
 # Configure your database
 config :phxplate, Phxplate.Repo,
   username: "postgres",
-  password: "postgres",
+  password: "123qwe!Q",
   hostname: "localhost",
   database: "phxplate_dev",
   stacktrace: true,
@@ -25,7 +25,8 @@ config :phxplate, PhxplateWeb.Endpoint,
   debug_errors: true,
   secret_key_base: "KIQGsjeTI3QiHFZgPl7ES96Ac+j7XXxOApLrx6YTU+5zuokuLt6kXOLzvv+U+jYL",
   watchers: [
-    esbuild: {Esbuild, :install_and_run, [:phxplate, ~w(--sourcemap=inline --watch)]},
+    node: ["build.js", "--watch", cd: Path.expand("../assets", __DIR__)],
+    # esbuild: {Esbuild, :install_and_run, [:phxplate, ~w(--sourcemap=inline --watch)]},
     tailwind: {Tailwind, :install_and_run, [:phxplate, ~w(--watch)]}
   ]
 
