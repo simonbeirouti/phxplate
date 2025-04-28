@@ -107,19 +107,28 @@ defmodule PhxplateWeb.Router do
     get "/", DashboardController, :index
   end
 
-  scope "/dashboard", PhxplateWeb do
+  scope "/dashboard/basic", PhxplateWeb do
     pipe_through [:browser, :require_authenticated_user, :basic]
-    get "/basic", DashboardController, :basic
+
+    get "/", DashboardController, :basic
+    get "/reports", DashboardController, :basic_reports
+    get "/settings", DashboardController, :basic_settings
   end
 
-  scope "/dashboard", PhxplateWeb do
+  scope "/dashboard/admin", PhxplateWeb do
     pipe_through [:browser, :require_authenticated_user, :admin]
-    get "/admin", DashboardController, :admin
+
+    get "/", DashboardController, :admin
+    get "/users", DashboardController, :admin_users
+    get "/settings", DashboardController, :admin_settings
   end
 
-  scope "/dashboard", PhxplateWeb do
+  scope "/dashboard/super_admin", PhxplateWeb do
     pipe_through [:browser, :require_authenticated_user, :super_admin]
-    get "/super_admin", DashboardController, :super_admin
+
+    get "/", DashboardController, :super_admin
+    get "/config", DashboardController, :super_admin_config
+    get "/audit", DashboardController, :super_admin_audit
   end
 
   scope "/admin", PhxplateWeb do

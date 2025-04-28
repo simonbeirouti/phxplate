@@ -55,7 +55,9 @@ defmodule PhxplateWeb.Components.DashboardLayout do
           </div>
         </div>
 
-        {@inner_content}
+        <div class="p-4">
+          {@inner_content}
+        </div>
       </.sidebar_inset>
     </.sidebar_provider>
     """
