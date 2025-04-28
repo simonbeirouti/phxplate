@@ -32,13 +32,6 @@ defmodule PhxplateWeb.DashboardLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <.dashboard_layout
-      current_path={@current_path}
-      navMain={@navMain}
-      companies={@companies}
-      user={@user}
-    >
-      <:inner_content>
       <div class="py-10">
         <header>
           <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -97,8 +90,6 @@ defmodule PhxplateWeb.DashboardLive do
           </div>
         </main>
       </div>
-      </:inner_content>
-    </.dashboard_layout>
     """
   end
 end

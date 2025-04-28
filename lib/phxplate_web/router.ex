@@ -1,5 +1,9 @@
+# lib/phxplate_web/router.ex
+# ##############################################################################
+# EDIT THIS FILE
+# ##############################################################################
 defmodule PhxplateWeb.Router do
-  alias PhxplateWeb.Components.DashboardLayout
+  alias PhxplateWeb.Components.DashboardLayout # Keep alias if used elsewhere, otherwise optional
   use PhxplateWeb, :router
 
   import PhxplateWeb.UserAuth
@@ -8,6 +12,8 @@ defmodule PhxplateWeb.Router do
     plug :accepts, ["html"]
     plug :fetch_session
     plug :fetch_live_flash
+    # This plug now correctly applies the root layout (which includes app.html.heex)
+    # to ALL browser requests unless overridden by a controller/view specifically.
     plug :put_root_layout, html: {PhxplateWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
@@ -35,6 +41,11 @@ defmodule PhxplateWeb.Router do
     plug PhxplateWeb.Authorization, :basic
   end
 
+  # REMOVE the :dashboard pipeline entirely
+  # pipeline :dashboard do
+  #   # plug :put_root_layout, {PhxplateWeb.Layouts, :dashboard} # This was the problematic line
+  # end
+
   scope "/", PhxplateWeb do
     pipe_through :browser
 
@@ -52,11 +63,6 @@ defmodule PhxplateWeb.Router do
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:phxplate, :dev_routes) do
-    # If you want to use the LiveDashboard in production, you should put
-    # it behind authentication and allow only admins to access it.
-    # If your application does not have an admins-only section yet,
-    # you can use Plug.BasicAuth to set up some basic authentication
-    # as long as you are also using SSL (which you should anyway).
     import Phoenix.LiveDashboard.Router
 
     scope "/dev" do
@@ -106,26 +112,31 @@ defmodule PhxplateWeb.Router do
   end
 
   # Dashboard routes
+  # Remove :dashboard from pipe_through
   scope "/dashboard", PhxplateWeb do
-    pipe_through [:browser, :require_authenticated_user]
+    pipe_through [:browser, :require_authenticated_user] # REMOVED :dashboard
 
+    # If DashboardLive renders the <.dashboard_layout> component itself, keep it.
+    # Otherwise, change to `get "/", DashboardController, :index`
     live "/", DashboardLive, :index
-    get "/companies", CompanyController, :dashboard_index
-    get "/companies/:id", CompanyController, :dashboard_show
+    get "/companies", CompanyController, :dashboard_index # Assuming CompanyController handles its own layout/view
+    get "/companies/:id", CompanyController, :dashboard_show # Assuming CompanyController handles its own layout/view
   end
 
+  # Remove :dashboard from pipe_through
   scope "/dashboard/basic", PhxplateWeb do
-    pipe_through [:browser, :require_authenticated_user, :basic]
+    pipe_through [:browser, :require_authenticated_user, :basic] # REMOVED :dashboard
 
     get "/", DashboardController, :basic
     get "/reports", DashboardController, :basic_reports
     get "/settings", DashboardController, :basic_settings
-    get "/companies", DashboardController, :basic_companies
-    get "/companies/:id", DashboardController, :basic_company_show
+    get "/companies", DashboardController, :basic_companies # Keep if DashboardController renders these
+    get "/companies/:id", DashboardController, :basic_company_show # Keep if DashboardController renders these
   end
 
+  # Remove :dashboard from pipe_through
   scope "/dashboard/admin", PhxplateWeb do
-    pipe_through [:browser, :require_authenticated_user, :admin]
+    pipe_through [:browser, :require_authenticated_user, :admin] # REMOVED :dashboard
 
     get "/", DashboardController, :admin
     get "/companies", DashboardController, :admin_companies
@@ -134,8 +145,9 @@ defmodule PhxplateWeb.Router do
     get "/settings", DashboardController, :admin_settings
   end
 
+  # Remove :dashboard from pipe_through
   scope "/dashboard/super_admin", PhxplateWeb do
-    pipe_through [:browser, :require_authenticated_user, :super_admin]
+    pipe_through [:browser, :require_authenticated_user, :super_admin] # REMOVED :dashboard
 
     get "/", DashboardController, :super_admin
     get "/config", DashboardController, :super_admin_config
@@ -145,6 +157,7 @@ defmodule PhxplateWeb.Router do
   end
 
   # Company routes - accessible to all authenticated users
+  # These likely don't need the dashboard layout component directly, adjust if needed.
   scope "/companies", PhxplateWeb do
     pipe_through [:browser, :require_authenticated_user]
 
@@ -158,13 +171,14 @@ defmodule PhxplateWeb.Router do
   end
 
   # Admin company management routes
+  # These likely don't need the dashboard layout component directly, adjust if needed.
   scope "/admin/companies", PhxplateWeb do
     pipe_through [:browser, :require_authenticated_user, :admin]
 
     live_session :admin_companies,
       on_mount: [
         {PhxplateWeb.UserAuth, :ensure_authenticated},
-        {PhxplateWeb.Authorization, :admin}
+        {PhxplateWeb.Authorization, :admin} # Ensure this plug works correctly standalone
       ] do
       live "/", CompanyLive.Index, :index
       live "/new", CompanyLive.Index, :new
@@ -174,19 +188,20 @@ defmodule PhxplateWeb.Router do
   end
 
   # Super admin company management routes
+  # These likely don't need the dashboard layout component directly, adjust if needed.
   scope "/super_admin/companies", PhxplateWeb do
     pipe_through [:browser, :require_authenticated_user, :super_admin]
 
     live_session :super_admin_companies,
       on_mount: [
         {PhxplateWeb.UserAuth, :ensure_authenticated},
-        {PhxplateWeb.Authorization, :super_admin}
+        {PhxplateWeb.Authorization, :super_admin} # Ensure this plug works correctly standalone
       ] do
       live "/", CompanyLive.Index, :index
       live "/new", CompanyLive.Index, :new
       live "/:id", CompanyLive.Show, :show
       live "/:id/edit", CompanyLive.Index, :edit
-      live "/:id/delete", CompanyLive.Index, :delete
+      live "/:id/delete", CompanyLive.Index, :delete # Assuming delete is handled within the LiveView
     end
   end
 end

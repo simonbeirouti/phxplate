@@ -5,7 +5,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
 
   import Lucideicons, except: [import: 1, quote: 1, menu: 1, link: 1, building: 1, avatar: 1]
 
-  attr :inner_content, :any
+  slot :inner_block, required: true
   attr :current_path, :string, required: true
   attr :navMain, :list, required: true
   attr :companies, :list, required: true
@@ -62,7 +62,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
         </div>
 
         <div class="p-4">
-          <%= render_slot(@inner_content) %>
+          <%= render_slot(@inner_block) %>
         </div>
       </.sidebar_inset>
     </.sidebar_provider>

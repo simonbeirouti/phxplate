@@ -9,7 +9,9 @@ defmodule PhxplateWeb.Layouts do
   `use PhxplateWeb, :live_view`.
   """
   use PhxplateWeb, :html
-
+  use SaladUI
+  
+  # Import all functions from DashboardLayout to make them available in the template
   import PhxplateWeb.Components.DashboardLayout
 
   embed_templates "layouts/*"
