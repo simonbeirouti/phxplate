@@ -37,6 +37,30 @@ defmodule Phxplate.Policy do
       desc "Delete user account"
     end
   end
+
+  # Dashboard access control
+  object :dashboard do
+    # Basic dashboard access
+    action :basic do
+      allow role: :basic
+      allow role: :admin
+      allow role: :super_admin
+      desc "Access basic dashboard features"
+    end
+
+    # Admin dashboard access
+    action :admin do
+      allow role: :admin
+      allow role: :super_admin
+      desc "Access admin dashboard features"
+    end
+
+    # Super admin dashboard access
+    action :super_admin do
+      allow role: :super_admin
+      desc "Access super admin dashboard features"
+    end
+  end
 end
 ```
 
@@ -49,7 +73,12 @@ defmodule Phxplate.Policy.Checks do
   Checks if the user is an admin
   """
   def role(%User{role: role}, _object, required_role) do
-    role == required_role
+    case required_role do
+      :basic -> role in [:basic, :admin, :super_admin]
+      :admin -> role in [:admin, :super_admin]
+      :super_admin -> role == :super_admin
+      _ -> false
+    end
   end
 
   @doc """
@@ -121,7 +150,12 @@ end
 ### Role-Based Access
 ```elixir
 def role(%User{role: role}, _object, required_role) do
-  role == required_role
+  case required_role do
+    :basic -> role in [:basic, :admin, :super_admin]
+    :admin -> role in [:admin, :super_admin]
+    :super_admin -> role == :super_admin
+    _ -> false
+  end
 end
 ```
 
@@ -197,3 +231,37 @@ end
 3. Monitor role usage
 4. Document role changes
 5. Implement role audits
+
+## Role Hierarchy Implementation
+
+### Dashboard Access Control
+1. Basic Dashboard
+   - Accessible to: Basic users, Admin users, Super admin users
+   - Features: Basic reports, Limited settings
+   - Implementation: Router pipeline + Controller check
+
+2. Admin Dashboard
+   - Accessible to: Admin users, Super admin users
+   - Features: User management, Analytics, System settings
+   - Implementation: Router pipeline + Controller check
+
+3. Super Admin Dashboard
+   - Accessible to: Super admin users only
+   - Features: Full system control, Audit logs
+   - Implementation: Router pipeline + Controller check
+
+### Implementation Details
+1. Router Configuration
+   - Separate pipelines for each role level
+   - Hierarchical access control
+   - Consistent authorization checks
+
+2. Controller Implementation
+   - Role-based access checks
+   - Hierarchical permission model
+   - Consistent error handling
+
+3. UI Visibility
+   - Dynamic menu based on user role
+   - Hierarchical access display
+   - Clear user feedback

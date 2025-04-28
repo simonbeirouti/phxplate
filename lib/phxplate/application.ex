@@ -18,7 +18,9 @@ defmodule Phxplate.Application do
       # Start a worker by calling: Phxplate.Worker.start_link(arg)
       # {Phxplate.Worker, arg},
       # Start to serve requests, typically the last entry
-      PhxplateWeb.Endpoint
+      PhxplateWeb.Endpoint,
+      # For SaladUI
+      TwMerge.Cache
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

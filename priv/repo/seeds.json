@@ -1,0 +1,38 @@
+[
+  {
+    "role": "super_admin",
+    "email": "superadmin@example.com",
+    "confirmed_at": "2025-04-28T00:51:11Z",
+    "confirmed": true
+  },
+  {
+    "role": "admin",
+    "email": "admin@example.com",
+    "confirmed_at": "2025-04-28T00:51:11Z",
+    "confirmed": true
+  },
+  {
+    "role": "admin",
+    "email": "admin2@example.com",
+    "confirmed_at": null,
+    "confirmed": false
+  },
+  {
+    "role": "basic",
+    "email": "user@example.com",
+    "confirmed_at": "2025-04-28T00:51:11Z",
+    "confirmed": true
+  },
+  {
+    "role": "basic",
+    "email": "user2@example.com",
+    "confirmed_at": null,
+    "confirmed": false
+  },
+  {
+    "role": "basic",
+    "email": "user3@example.com",
+    "confirmed_at": "2025-04-27T00:51:11Z",
+    "confirmed": true
+  }
+]

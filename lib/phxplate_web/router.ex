@@ -11,10 +11,27 @@ defmodule PhxplateWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug :fetch_current_user
+    plug :assign_current_path
+  end
+
+  defp assign_current_path(conn, _opts) do
+    assign(conn, :current_path, conn.request_path)
   end
 
   pipeline :api do
     plug :accepts, ["json"]
+  end
+
+  pipeline :admin do
+    plug PhxplateWeb.Authorization, :admin
+  end
+
+  pipeline :super_admin do
+    plug PhxplateWeb.Authorization, :super_admin
+  end
+
+  pipeline :basic do
+    plug PhxplateWeb.Authorization, :basic
   end
 
   scope "/", PhxplateWeb do
@@ -81,5 +98,46 @@ defmodule PhxplateWeb.Router do
       live "/users/confirm/:token", UserConfirmationLive, :edit
       live "/users/confirm", UserConfirmationInstructionsLive, :new
     end
+  end
+
+  # Dashboard routes
+  scope "/dashboard", PhxplateWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    get "/", DashboardController, :index
+  end
+
+  scope "/dashboard/basic", PhxplateWeb do
+    pipe_through [:browser, :require_authenticated_user, :basic]
+
+    get "/", DashboardController, :basic
+    get "/reports", DashboardController, :basic_reports
+    get "/settings", DashboardController, :basic_settings
+  end
+
+  scope "/dashboard/admin", PhxplateWeb do
+    pipe_through [:browser, :require_authenticated_user, :admin]
+
+    get "/", DashboardController, :admin
+    get "/users", DashboardController, :admin_users
+    get "/settings", DashboardController, :admin_settings
+  end
+
+  scope "/dashboard/super_admin", PhxplateWeb do
+    pipe_through [:browser, :require_authenticated_user, :super_admin]
+
+    get "/", DashboardController, :super_admin
+    get "/config", DashboardController, :super_admin_config
+    get "/audit", DashboardController, :super_admin_audit
+  end
+
+  scope "/admin", PhxplateWeb do
+    pipe_through [:browser, :require_authenticated_user, :admin]
+    # Admin routes here
+  end
+
+  scope "/super_admin", PhxplateWeb do
+    pipe_through [:browser, :require_authenticated_user, :super_admin]
+    # Super admin routes here
   end
 end
