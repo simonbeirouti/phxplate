@@ -11,6 +11,11 @@ defmodule PhxplateWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug :fetch_current_user
+    plug :assign_current_path
+  end
+
+  defp assign_current_path(conn, _opts) do
+    assign(conn, :current_path, conn.request_path)
   end
 
   pipeline :api do
