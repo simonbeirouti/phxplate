@@ -7,13 +7,20 @@ defmodule PhxplateWeb.DashboardController do
   def init(_opts) do
     DashboardSubscription.init()
     # Initialize teams state
-    teams = Companies.list_companies()
-    DashboardSubscription.update_state("teams", teams)
+    companies = Companies.list_companies()
+    # DashboardSubscription.update_state("companies", companies)
     :ok
   end
 
-  def get_dashboard_data(conn) do
-    current_user = conn.assigns.current_user
+  def get_dashboard_data(%Plug.Conn{} = conn) do
+    get_dashboard_data_for_user(conn.assigns.current_user)
+  end
+
+  def get_dashboard_data(%Phoenix.LiveView.Socket{} = socket) do
+    get_dashboard_data_for_user(socket.assigns.current_user)
+  end
+
+  defp get_dashboard_data_for_user(current_user) do
 
     # Get available roles based on current user's role
     available_roles = get_available_roles(current_user)
@@ -104,28 +111,27 @@ defmodule PhxplateWeb.DashboardController do
       end
     end)
 
-    # Get teams and convert them to projects
-    teams = DashboardSubscription.get_state("teams") || []
-    projects = Enum.map(teams, fn team ->
+    # Get teams and convert them to companies
+    companies = Companies.list_companies()
+    companies_nav = Enum.map(companies, fn company ->
       %{
-        name: team.name,
-        url: ~p"/dashboard/companies/#{team}",
+        name: company.name,
+        url: ~p"/dashboard/companies/#{company.id}",
         icon: &Lucideicons.building/1,
-        plan: team.plan
+        plan: company.plan
       }
     end)
 
     %{
       user: %{
-        name: current_user.email,
+        name: (current_user.profile && current_user.profile.first_name) || current_user.email,
         email: current_user.email,
-        avatar: "/avatars/default.jpg",
+        avatar: (current_user.profile && current_user.profile.avatar_url) || "/avatars/default.jpg",
         role: current_user.role,
         available_roles: available_roles
       },
-      teams: teams,
       navMain: nav_main,
-      projects: projects
+      companies: companies_nav
     }
   end
 
@@ -139,42 +145,44 @@ defmodule PhxplateWeb.DashboardController do
 
   def index(conn, _params) do
     dashboard_data = get_dashboard_data(conn)
-    IO.inspect(dashboard_data, label: "Dashboard Data in Controller")
 
-    render(conn, :index,
-      layout: {PhxplateWeb.Components.DashboardLayout, :render},
-      teams: dashboard_data.teams,
-      navMain: dashboard_data.navMain,
-      projects: dashboard_data.projects,
-      user: dashboard_data.user,
-      current_path: conn.request_path
-    )
+    conn
+    |> assign(:navMain, dashboard_data.navMain)
+    |> assign(:companies, dashboard_data.companies)
+    |> assign(:user, dashboard_data.user)
+    |> assign(:current_path, conn.request_path)
+    |> put_root_layout({PhxplateWeb.Layouts, :root})
+    |> put_layout({PhxplateWeb.Layouts, :dashboard})
+    |> render(:index)
   end
 
   def ok(conn, _params) do
     dashboard_data = get_dashboard_data(conn)
-    IO.inspect(dashboard_data, label: "Dashboard Data in Controller (ok)")
 
-    render(conn, :index,
-      layout: {PhxplateWeb.Components.DashboardLayout, :render},
-      teams: dashboard_data.teams,
-      navMain: dashboard_data.navMain,
-      projects: dashboard_data.projects,
-      user: dashboard_data.user,
-      current_path: conn.request_path
-    )
+    conn
+    |> assign(:navMain, dashboard_data.navMain)
+    |> assign(:companies, dashboard_data.companies)
+    |> assign(:user, dashboard_data.user)
+    |> assign(:current_path, conn.request_path)
+    |> put_root_layout({PhxplateWeb.Layouts, :root})
+    |> put_layout({PhxplateWeb.Layouts, :dashboard})
+    |> render(:index)
   end
 
   def basic(conn, _params) do
     if User.is_basic?(conn.assigns.current_user) or User.is_admin?(conn.assigns.current_user) or User.is_super_admin?(conn.assigns.current_user) do
       dashboard_data = get_dashboard_data(conn)
-      IO.inspect(dashboard_data, label: "Dashboard Data in Controller (basic)")
 
-      render(conn, :basic,
-        layout: {PhxplateWeb.Components.DashboardLayout, :render},
-        teams: dashboard_data.teams,
+      conn
+      |> assign(:navMain, dashboard_data.navMain)
+      |> assign(:companies, dashboard_data.companies)
+      |> assign(:user, dashboard_data.user)
+      |> assign(:current_path, conn.request_path)
+      |> put_root_layout({PhxplateWeb.Layouts, :root})
+      |> put_layout({PhxplateWeb.Layouts, :dashboard})
+      |> render(:admin,
         navMain: dashboard_data.navMain,
-        projects: dashboard_data.projects,
+        companies: dashboard_data.companies,
         user: dashboard_data.user,
         data: %{
           message: "Welcome to the Basic Dashboard!",
@@ -230,9 +238,12 @@ defmodule PhxplateWeb.DashboardController do
 
   def admin(conn, _params) do
     if User.is_admin?(conn.assigns.current_user) or User.is_super_admin?(conn.assigns.current_user) do
+      dashboard_data = get_dashboard_data(conn)
       render(conn, :admin,
         layout: {PhxplateWeb.Components.DashboardLayout, :render},
-        layout_data: get_dashboard_data(conn),
+        navMain: dashboard_data.navMain,
+        companies: dashboard_data.companies,
+        user: dashboard_data.user,
         data: %{
           message: "Welcome to the Admin Dashboard!",
           features: ["Manage users", "View analytics", "Configure system settings"],
@@ -250,9 +261,14 @@ defmodule PhxplateWeb.DashboardController do
 
   def admin_users(conn, _params) do
     if User.is_admin?(conn.assigns.current_user) or User.is_super_admin?(conn.assigns.current_user) do
-      render(conn, :admin_users,
-        layout: {PhxplateWeb.Components.DashboardLayout, :render},
-        layout_data: get_dashboard_data(conn),
+      dashboard_data = get_dashboard_data(conn)
+      conn
+      |> put_root_layout({PhxplateWeb.Layouts, :root})
+      |> put_layout({PhxplateWeb.Layouts, :dashboard})
+      |> render(:admin_users,
+        navMain: dashboard_data.navMain,
+        companies: dashboard_data.companies,
+        user: dashboard_data.user,
         data: %{
           message: "User Management",
           users: Phxplate.Accounts.list_users(),
@@ -270,9 +286,14 @@ defmodule PhxplateWeb.DashboardController do
 
   def admin_settings(conn, _params) do
     if User.is_admin?(conn.assigns.current_user) or User.is_super_admin?(conn.assigns.current_user) do
-      render(conn, :admin_settings,
-        layout: {PhxplateWeb.Components.DashboardLayout, :render},
-        layout_data: get_dashboard_data(conn),
+      dashboard_data = get_dashboard_data(conn)
+      conn
+      |> put_root_layout({PhxplateWeb.Layouts, :root})
+      |> put_layout({PhxplateWeb.Layouts, :dashboard})
+      |> render(:admin_settings,
+        navMain: dashboard_data.navMain,
+        companies: dashboard_data.companies,
+        user: dashboard_data.user,
         data: %{
           message: "System Settings",
           settings: ["Security", "Integrations", "Backup"]
@@ -289,9 +310,14 @@ defmodule PhxplateWeb.DashboardController do
 
   def super_admin(conn, _params) do
     if User.is_super_admin?(conn.assigns.current_user) do
-      render(conn, :super_admin,
-        layout: {PhxplateWeb.Components.DashboardLayout, :render},
-        layout_data: get_dashboard_data(conn),
+      dashboard_data = get_dashboard_data(conn)
+      conn
+      |> put_root_layout({PhxplateWeb.Layouts, :root})
+      |> put_layout({PhxplateWeb.Layouts, :dashboard})
+      |> render(:super_admin,
+        navMain: dashboard_data.navMain,
+        companies: dashboard_data.companies,
+        user: dashboard_data.user,
         data: %{
           message: "Welcome to the Super Admin Dashboard!",
           features: ["Manage all users", "Configure system-wide settings", "Access audit logs"],
@@ -313,9 +339,14 @@ defmodule PhxplateWeb.DashboardController do
 
   def super_admin_config(conn, _params) do
     if User.is_super_admin?(conn.assigns.current_user) do
-      render(conn, :super_admin_config,
-        layout: {PhxplateWeb.Components.DashboardLayout, :render},
-        layout_data: get_dashboard_data(conn),
+      dashboard_data = get_dashboard_data(conn)
+      conn
+      |> put_root_layout({PhxplateWeb.Layouts, :root})
+      |> put_layout({PhxplateWeb.Layouts, :dashboard})
+      |> render(:super_admin_config,
+        navMain: dashboard_data.navMain,
+        companies: dashboard_data.companies,
+        user: dashboard_data.user,
         data: %{
           message: "System Configuration",
           configs: ["Global Settings", "API Keys", "Environment Variables"]
@@ -332,9 +363,14 @@ defmodule PhxplateWeb.DashboardController do
 
   def super_admin_audit(conn, _params) do
     if User.is_super_admin?(conn.assigns.current_user) do
-      render(conn, :super_admin_audit,
-        layout: {PhxplateWeb.Components.DashboardLayout, :render},
-        layout_data: get_dashboard_data(conn),
+      dashboard_data = get_dashboard_data(conn)
+      conn
+      |> put_root_layout({PhxplateWeb.Layouts, :root})
+      |> put_layout({PhxplateWeb.Layouts, :dashboard})
+      |> render(:super_admin_audit,
+        navMain: dashboard_data.navMain,
+        companies: dashboard_data.companies,
+        user: dashboard_data.user,
         data: %{
           message: "Audit Logs",
           logs: ["User Actions", "System Events", "Security Events"]

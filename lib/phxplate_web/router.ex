@@ -1,4 +1,5 @@
 defmodule PhxplateWeb.Router do
+  alias PhxplateWeb.Components.DashboardLayout
   use PhxplateWeb, :router
 
   import PhxplateWeb.UserAuth
@@ -108,9 +109,9 @@ defmodule PhxplateWeb.Router do
   scope "/dashboard", PhxplateWeb do
     pipe_through [:browser, :require_authenticated_user]
 
-    get "/", DashboardController, :index
-    get "/companies", DashboardController, :companies
-    get "/companies/:id", DashboardController, :company_show
+    live "/", DashboardLive, :index
+    get "/companies", CompanyController, :dashboard_index
+    get "/companies/:id", CompanyController, :dashboard_show
   end
 
   scope "/dashboard/basic", PhxplateWeb do

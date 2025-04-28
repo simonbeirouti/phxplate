@@ -10,5 +10,7 @@ defmodule PhxplateWeb.Layouts do
   """
   use PhxplateWeb, :html
 
+  import PhxplateWeb.Components.DashboardLayout
+
   embed_templates "layouts/*"
 end

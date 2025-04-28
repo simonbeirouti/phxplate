@@ -2,16 +2,19 @@ defmodule PhxplateWeb.Components.DashboardLayout do
   @moduledoc false
   use PhxplateWeb, :html
   use SaladUI
-  import PhxplateWeb.CoreComponents
-  alias SaladUI.Icon
 
   import Lucideicons, except: [import: 1, quote: 1, menu: 1, link: 1, building: 1, avatar: 1]
 
-  def render(assigns) do
-    IO.inspect(assigns, label: "Assigns in Dashboard Layout")
+  attr :inner_content, :any
+  attr :current_path, :string, required: true
+  attr :navMain, :list, required: true
+  attr :companies, :list, required: true
+  attr :user, :map, required: true
+
+  def dashboard_layout(assigns) do
     ~H"""
     <.sidebar_provider>
-      <.sidebar_main teams={@teams} navMain={@navMain} projects={@projects} user={@user}></.sidebar_main>
+      <.sidebar_main navMain={@navMain} user={@user} companies={@companies}></.sidebar_main>
       <.sidebar_inset>
         <header class="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <!-- Mobile menu button -->
@@ -53,13 +56,13 @@ defmodule PhxplateWeb.Components.DashboardLayout do
         <div id="mobile-menu" class="hidden md:hidden">
           <div class="space-y-1 px-2 pb-3 pt-2">
             <.mobile_nav_main items={@navMain} />
-            <.mobile_nav_projects projects={@projects} />
+            <.mobile_nav_companies companies={@companies} />
             <.mobile_nav_user user={@user} />
           </div>
         </div>
 
         <div class="p-4">
-          {@inner_content}
+          <%= render_slot(@inner_content) %>
         </div>
       </.sidebar_inset>
     </.sidebar_provider>
@@ -67,15 +70,14 @@ defmodule PhxplateWeb.Components.DashboardLayout do
   end
 
   def sidebar_main(assigns) do
-    IO.inspect(assigns, label: "Assigns in Sidebar Main")
     ~H"""
     <.sidebar collapsible="icon" id="main-sidebar">
       <.sidebar_header>
-        <.personal_nav teams={@teams} user={@user} />
+        <.personal_nav user={@user} />
       </.sidebar_header>
       <.sidebar_content>
-        <.nav_main items={@navMain} />
-        <.nav_projects projects={@projects} />
+        <.nav_main navMain={@navMain} />
+        <.nav_companies companies={@companies} />
       </.sidebar_content>
       <.sidebar_footer>
         <.nav_user user={@user} />
@@ -86,7 +88,6 @@ defmodule PhxplateWeb.Components.DashboardLayout do
   end
 
   def personal_nav(assigns) do
-    IO.inspect(assigns, label: "Assigns in Personal Nav")
     ~H"""
     <.sidebar_menu>
       <.sidebar_menu_item>
@@ -98,14 +99,19 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
           >
             <div class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground -ml-2">
-              <Lucideicons.building class="size-4" />
+              <.avatar class="size-8">
+                <.avatar_image src={@user.avatar} />
+                <.avatar_fallback>
+                  {String.slice(@user.name, 0, 2)}
+                </.avatar_fallback>
+              </.avatar>
             </div>
             <div class="grid flex-1 text-left text-sm leading-tight ml-2">
               <span class="truncate font-semibold">
                 {@user.name}
               </span>
               <span class="truncate text-xs">
-                {@user.role}
+                {@user.email}
               </span>
             </div>
             <.chevrons_up_down class="ml-auto" />
@@ -177,7 +183,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
       </.sidebar_group_label>
       <.sidebar_menu>
         <.collapsible
-          :for={item <- @items}
+          :for={item <- @navMain}
           id={id(item.title)}
           open={item[:is_active]}
           class="group/collapsible block"
@@ -213,16 +219,16 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     """
   end
 
-  def nav_projects(assigns) do
+  def nav_companies(assigns) do
     ~H"""
     <.sidebar_group class="group-data-[collapsible=icon]:hidden">
       <.sidebar_group_label>
-        Projects
+        Companies
       </.sidebar_group_label>
       <.sidebar_menu>
-        <.sidebar_menu_item :for={item <- @projects}>
-          <.as_child tag={&sidebar_menu_button/1} child="a" class="flex items-center justify-start w-full" href={item.url}>
-            <.dynamic tag={item.icon} />
+        <.sidebar_menu_item :for={item <- @companies}>
+          <.as_child tag={&sidebar_menu_button/1} child="a" class="flex items-center justify-start w-full" href={~p"/dashboard/companies/#{item.id}"}>
+            <.dynamic tag={&Lucideicons.building/1} />
             <span>
               {item.name}
             </span>
@@ -318,16 +324,16 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     """
   end
 
-  def mobile_nav_projects(assigns) do
+  def mobile_nav_companies(assigns) do
     ~H"""
     <div class="space-y-1">
-      <div class="px-3 py-2 text-sm font-medium text-gray-500">Projects</div>
-      <%= for item <- @projects do %>
+      <div class="px-3 py-2 text-sm font-medium text-gray-500">Companies</div>
+      <%= for item <- @companies do %>
         <.link
-          href={item.url}
+          href={~p"/dashboard/companies/#{item.id}"}
           class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
         >
-          <.dynamic tag={item.icon} class="mr-2 h-4 w-4" />
+          <.dynamic tag={&Lucideicons.building/1} class="mr-2 h-4 w-4" />
           <span>{item.name}</span>
         </.link>
       <% end %>
