@@ -7,6 +7,7 @@ const path = require("path")
 
 module.exports = {
   content: [
+"../deps/salad_ui/lib/**/*.ex",
     "./js/**/*.js",
     "./svelte/**/*.svelte",
     "../lib/phxplate_web.ex",
@@ -14,12 +15,11 @@ module.exports = {
   ],
   theme: {
     extend: {
-      colors: {
-        brand: "#FD4F00",
-      }
-    },
+      colors: require("./tailwind.colors.json")},
   },
   plugins: [
+    require("@tailwindcss/typography"),
+    require("./vendor/tailwindcss-animate"),
     require("@tailwindcss/forms"),
     // Allows prefixing tailwind classes with LiveView classes to add rules
     // only when LiveView classes are applied, for example:

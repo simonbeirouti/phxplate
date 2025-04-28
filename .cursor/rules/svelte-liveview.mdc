@@ -11,9 +11,9 @@ alwaysApply: true
 - Keep Svelte components in `assets/svelte/` directory
 - Organize components by feature/domain
 - Use consistent naming conventions:
-  - Component files: `PascalCase.svelte`
+  - Component files: `kebab-case.svelte`
   - Component directories: `kebab-case/`
-  - Utility files: `camelCase.js`
+  - Utility files: `kebab-case.js`
 
 ### Component Structure
 ```svelte
