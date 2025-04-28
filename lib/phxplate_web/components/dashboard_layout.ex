@@ -11,9 +11,23 @@ defmodule PhxplateWeb.Components.DashboardLayout do
       <.sidebar_main data={@layout_data}></.sidebar_main>
       <.sidebar_inset>
         <header class="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <.sidebar_trigger target="main-sidebar" class="ml-1">
+          <!-- Mobile menu button -->
+          <button
+            type="button"
+            id="mobile-menu-button"
+            class="md:hidden inline-flex items-center justify-center rounded-md p-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+            phx-hook="MobileMenu"
+          >
+            <span class="sr-only">Open main menu</span>
+            <Lucideicons.menu class="h-6 w-6" id="menu-icon" />
+            <Lucideicons.x class="h-6 w-6 hidden" id="close-icon" />
+          </button>
+
+          <!-- Desktop sidebar trigger -->
+          <.sidebar_trigger target="main-sidebar" class="ml-1 hidden md:block">
             <Lucideicons.panel_left class="w-4 h-4" />
           </.sidebar_trigger>
+
           <.separator orientation="vertical" class="mr-2 h-4" />
           <.breadcrumb>
             <.breadcrumb_list>
@@ -31,6 +45,16 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             </.breadcrumb_list>
           </.breadcrumb>
         </header>
+
+        <!-- Mobile menu -->
+        <div id="mobile-menu" class="hidden md:hidden">
+          <div class="space-y-1 px-2 pb-3 pt-2">
+            <.mobile_nav_main items={@layout_data.navMain} />
+            <.mobile_nav_projects projects={@layout_data.projects} />
+            <.mobile_nav_user user={@layout_data.user} />
+          </div>
+        </div>
+
         {@inner_content}
       </.sidebar_inset>
     </.sidebar_provider>
@@ -66,12 +90,12 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             tag={&dropdown_menu_trigger/1}
             child={&sidebar_menu_button/1}
             size="lg"
-            class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground -ml-2"
+            class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
           >
-            <div class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+            <div class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground -ml-2">
               <.dynamic tag={@active_team.logo} class="size-4" />
             </div>
-            <div class="grid flex-1 text-left text-sm leading-tight">
+            <div class="grid flex-1 text-left text-sm leading-tight ml-2">
               <span class="truncate font-semibold">
                 {@active_team.name}
               </span>
@@ -232,15 +256,15 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             tag={&dropdown_menu_trigger/1}
             child={&sidebar_menu_button/1}
             size="lg"
-            class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground -ml-2 mr-2"
+            class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
           >
-            <.avatar class="h-8 w-8 rounded-lg">
+            <.avatar class="h-8 w-8 rounded-lg -ml-2">
               <.avatar_image src={@user.avatar} alt={@user.name} />
               <.avatar_fallback class="rounded-lg">
                 CN
               </.avatar_fallback>
             </.avatar>
-            <div class="grid flex-1 text-left text-sm leading-tight">
+            <div class="grid flex-1 text-left text-sm leading-tight ml-2">
               <span class="truncate font-semibold">
                 {@user.name}
               </span>
@@ -272,6 +296,72 @@ defmodule PhxplateWeb.Components.DashboardLayout do
         </.dropdown_menu>
       </.sidebar_menu_item>
     </.sidebar_menu>
+    """
+  end
+
+  def mobile_nav_main(assigns) do
+    ~H"""
+    <div class="space-y-1">
+      <div class="px-3 py-2 text-sm font-medium text-gray-500">Platform</div>
+      <%= for item <- @items do %>
+        <div class="space-y-1">
+          <button
+            type="button"
+            class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            phx-click={JS.toggle(to: "#mobile-submenu-#{id(item.title)}")}
+          >
+            <div class="flex items-center">
+              <.dynamic :if={not is_nil(item.icon)} tag={item.icon} class="mr-2 h-4 w-4" />
+              <span>{item.title}</span>
+            </div>
+            <Lucideicons.chevron_right class="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-90" />
+          </button>
+          <div id={"mobile-submenu-#{id(item.title)}"} class="hidden space-y-1 pl-4">
+            <%= for sub_item <- item.items do %>
+              <.link
+                href={sub_item.url}
+                class="block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              >
+                {sub_item.title}
+              </.link>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+    """
+  end
+
+  def mobile_nav_projects(assigns) do
+    ~H"""
+    <div class="space-y-1">
+      <div class="px-3 py-2 text-sm font-medium text-gray-500">Projects</div>
+      <%= for item <- @projects do %>
+        <.link
+          href={item.url}
+          class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+        >
+          <.dynamic tag={item.icon} class="mr-2 h-4 w-4" />
+          <span>{item.name}</span>
+        </.link>
+      <% end %>
+    </div>
+    """
+  end
+
+  def mobile_nav_user(assigns) do
+    ~H"""
+    <div class="space-y-1">
+      <div class="px-3 py-2 text-sm font-medium text-gray-500">Account</div>
+      <.link
+        href={~p"/users/log_out"}
+        method="delete"
+        class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+      >
+        <Lucideicons.log_out class="mr-2 h-4 w-4" />
+        <span>Log out</span>
+      </.link>
+    </div>
     """
   end
 

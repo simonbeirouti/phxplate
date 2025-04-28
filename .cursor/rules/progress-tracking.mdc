@@ -23,6 +23,58 @@ tree -I '_build|deps|node_modules|.elixir_ls'
 - `assets/node_modules` - Node.js dependencies
 - `.elixir_ls` - Language server cache
 
+## Current Project Structure
+```
+.
+├── README.md
+├── assets
+│   ├── build.js
+│   ├── css
+│   ├── js
+│   ├── svelte
+│   ├── tailwind.colors.json
+│   ├── tailwind.config.js
+│   ├── tsconfig.json
+│   └── vendor
+├── config
+│   ├── config.exs
+│   ├── dev.exs
+│   ├── prod.exs
+│   ├── runtime.exs
+│   └── test.exs
+├── lib
+│   ├── phxplate
+│   │   ├── accounts
+│   │   ├── accounts.ex
+│   │   ├── application.ex
+│   │   ├── mailer.ex
+│   │   └── repo.ex
+│   ├── phxplate.ex
+│   ├── phxplate_web
+│   │   ├── authorization.ex
+│   │   ├── components
+│   │   ├── controllers
+│   │   ├── endpoint.ex
+│   │   ├── gettext.ex
+│   │   ├── live
+│   │   ├── router.ex
+│   │   ├── telemetry.ex
+│   │   └── user_auth.ex
+│   └── phxplate_web.ex
+├── mix.exs
+├── mix.lock
+├── priv
+│   ├── gettext
+│   ├── repo
+│   ├── static
+│   └── svelte
+└── test
+    ├── phxplate
+    ├── phxplate_web
+    ├── support
+    └── test_helper.exs
+```
+
 ## Project State Management
 
 ### When to Update Tracking
@@ -31,32 +83,17 @@ tree -I '_build|deps|node_modules|.elixir_ls'
 3. Moving files between directories
 4. Removing files or directories
 5. Major structural changes
+6. Adding new Svelte components
+7. Updating authentication flows
+8. Modifying authorization rules
 
-### Example Project Structure
-```
-.
-├── README.md
-├── config
-│   ├── config.exs
-│   ├── dev.exs
-│   └── test.exs
-├── lib
-│   ├── my_app
-│   │   ├── application.ex
-│   │   └── web
-│   │       ├── components
-│   │       ├── controllers
-│   │       ├── live
-│   │       └── views
-│   └── my_app.ex
-├── mix.exs
-├── mix.lock
-└── test
-    ├── support
-    │   └── conn_case.ex
-    ├── test_helper.exs
-    └── my_app_test.exs
-```
+### Key Directories and Their Purposes
+1. `assets/` - Frontend assets including Svelte components
+2. `lib/phxplate/accounts/` - User authentication and authorization
+3. `lib/phxplate_web/live/` - LiveView components
+4. `lib/phxplate_web/components/` - Reusable UI components
+5. `priv/repo/migrations/` - Database schema changes
+6. `test/` - Test files mirroring the main code structure
 
 ## Best Practices
 
@@ -65,18 +102,24 @@ tree -I '_build|deps|node_modules|.elixir_ls'
 2. Follow naming conventions consistently
 3. Document directory purposes
 4. Maintain clear separation of concerns
+5. Place Svelte components in `assets/svelte/`
+6. Keep LiveView components in `lib/phxplate_web/live/`
+7. Store shared components in `lib/phxplate_web/components/`
 
 ### State Updates
 1. Update tracking file immediately after changes
 2. Include brief description of changes
 3. Note any migration steps if needed
 4. Document breaking changes
+5. Track changes to authentication flows
+6. Document authorization rule updates
 
 ### Version Control
 1. Commit tracking file updates with related changes
 2. Include tree output in commit messages for major changes
 3. Keep tracking file in sync with actual structure
 4. Review tracking file during code reviews
+5. Document changes to authentication and authorization
 
 ## Common Commands
 
@@ -105,12 +148,16 @@ tree -I '_build|deps|node_modules|.elixir_ls' > .cursor/rules/progress-tracking.
 2. Compare with tracking file
 3. Update if discrepancies found
 4. Document any structural changes
+5. Review authentication and authorization changes
+6. Check Svelte component organization
 
 ### Change Log
 - Maintain a log of structural changes
 - Include date and description
 - Note affected components
 - Document migration steps if needed
+- Track authentication flow changes
+- Document authorization updates
 
 ## Documentation
 
@@ -120,6 +167,9 @@ tree -I '_build|deps|node_modules|.elixir_ls' > .cursor/rules/progress-tracking.
 3. Change history
 4. Migration notes
 5. Best practices
+6. Authentication flows
+7. Authorization rules
+8. Svelte component organization
 
 ### Update Process
 1. Generate new tree output
@@ -127,3 +177,5 @@ tree -I '_build|deps|node_modules|.elixir_ls' > .cursor/rules/progress-tracking.
 3. Document changes
 4. Update tracking file
 5. Commit changes
+6. Review authentication and authorization updates
+7. Verify Svelte component organization
