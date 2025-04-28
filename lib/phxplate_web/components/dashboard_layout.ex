@@ -2,13 +2,16 @@ defmodule PhxplateWeb.Components.DashboardLayout do
   @moduledoc false
   use PhxplateWeb, :html
   use SaladUI
+  import PhxplateWeb.CoreComponents
+  alias SaladUI.Icon
 
-  import Lucideicons, except: [import: 1, quote: 1, menu: 1, link: 1]
+  import Lucideicons, except: [import: 1, quote: 1, menu: 1, link: 1, building: 1]
 
   def render(assigns) do
+    IO.inspect(assigns, label: "Assigns in Dashboard Layout")
     ~H"""
     <.sidebar_provider>
-      <.sidebar_main data={@layout_data}></.sidebar_main>
+      <.sidebar_main teams={@teams} navMain={@navMain} projects={@projects} user={@user}></.sidebar_main>
       <.sidebar_inset>
         <header class="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <!-- Mobile menu button -->
@@ -49,9 +52,9 @@ defmodule PhxplateWeb.Components.DashboardLayout do
         <!-- Mobile menu -->
         <div id="mobile-menu" class="hidden md:hidden">
           <div class="space-y-1 px-2 pb-3 pt-2">
-            <.mobile_nav_main items={@layout_data.navMain} />
-            <.mobile_nav_projects projects={@layout_data.projects} />
-            <.mobile_nav_user user={@layout_data.user} />
+            <.mobile_nav_main items={@navMain} />
+            <.mobile_nav_projects projects={@projects} />
+            <.mobile_nav_user user={@user} />
           </div>
         </div>
 
@@ -64,26 +67,26 @@ defmodule PhxplateWeb.Components.DashboardLayout do
   end
 
   def sidebar_main(assigns) do
+    IO.inspect(assigns, label: "Assigns in Sidebar Main")
     ~H"""
     <.sidebar collapsible="icon" id="main-sidebar">
       <.sidebar_header>
-        <.team_switcher teams={@data.teams} />
+        <.personal_nav teams={@teams} user={@user} />
       </.sidebar_header>
       <.sidebar_content>
-        <.nav_main items={@data.navMain} />
-        <.nav_projects projects={@data.projects} />
+        <.nav_main items={@navMain} />
+        <.nav_projects projects={@projects} />
       </.sidebar_content>
       <.sidebar_footer>
-        <.nav_user user={@data.user} />
+        <.nav_user user={@user} />
       </.sidebar_footer>
       <.sidebar_rail />
     </.sidebar>
     """
   end
 
-  def team_switcher(assigns) do
-    assigns = assign(assigns, :active_team, hd(assigns.teams))
-
+  def personal_nav(assigns) do
+    IO.inspect(assigns, label: "Assigns in Personal Nav")
     ~H"""
     <.sidebar_menu>
       <.sidebar_menu_item>
@@ -95,14 +98,14 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
           >
             <div class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground -ml-2">
-              <.dynamic tag={@active_team.logo} class="size-4" />
+              <Lucideicons.building class="size-4" />
             </div>
             <div class="grid flex-1 text-left text-sm leading-tight ml-2">
               <span class="truncate font-semibold">
-                {@active_team.name}
+                {@user.name}
               </span>
               <span class="truncate text-xs">
-                {@active_team.plan}
+                {@user.role}
               </span>
             </div>
             <.chevrons_up_down class="ml-auto" />
@@ -110,32 +113,54 @@ defmodule PhxplateWeb.Components.DashboardLayout do
           <.dropdown_menu_content
             class="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
             align="start"
-            side="right"
+            side="bottom"
           >
             <.menu>
               <.menu_label class="text-xs text-muted-foreground">
-                Teams
+                Current Role
               </.menu_label>
 
-              <.menu_item :for={{team, index} <- Enum.with_index(@teams)} class="gap-2 p-2">
+              <.menu_item class="gap-2 p-2">
                 <div class="flex size-6 items-center justify-center rounded-sm border">
-                  <.dynamic tag={team.logo} class="size-4 shrink-0" />
+                  <.dynamic :if={@user.role == :super_admin} tag={&Lucideicons.crown/1} class="size-4 shrink-0" />
+                  <.dynamic :if={@user.role == :admin} tag={&Lucideicons.shield/1} class="size-4 shrink-0" />
+                  <.dynamic :if={@user.role == :basic} tag={&Lucideicons.user/1} class="size-4 shrink-0" />
                 </div>
-                {team.name}
-                <.dropdown_menu_shortcut>
-                  ⌘{index + 1}
-                </.dropdown_menu_shortcut>
+                <div class="flex flex-col">
+                  <span class="font-medium">
+                    <%= String.capitalize(to_string(@user.role)) %> User
+                  </span>
+                  <span class="text-xs text-muted-foreground">Current role</span>
+                </div>
               </.menu_item>
 
               <.menu_separator></.menu_separator>
-              <.menu_item class="gap-2 p-2">
-                <div class="flex size-6 items-center justify-center rounded-md border bg-background">
-                  <.plus class="size-4" />
-                </div>
-                <div class="font-medium text-muted-foreground">
-                  Add team
-                </div>
-              </.menu_item>
+
+              <.menu_label class="text-xs text-muted-foreground">
+                Available Roles
+              </.menu_label>
+
+              <%= for role <- @user.available_roles do %>
+                <.menu_item class="gap-2 p-2" data-role-switch={role}>
+                  <div class="flex size-6 items-center justify-center rounded-sm border">
+                    <.dynamic :if={role == :super_admin} tag={&Lucideicons.crown/1} class="size-4 shrink-0" />
+                    <.dynamic :if={role == :admin} tag={&Lucideicons.shield/1} class="size-4 shrink-0" />
+                    <.dynamic :if={role == :basic} tag={&Lucideicons.user/1} class="size-4 shrink-0" />
+                  </div>
+                  <div class="flex flex-col">
+                    <span class="font-medium">
+                      <%= String.capitalize(to_string(role)) %> User
+                    </span>
+                    <span class="text-xs text-muted-foreground">
+                      <%= case role do %>
+                        <% :super_admin -> %>Full system access
+                        <% :admin -> %>Access admin features
+                        <% :basic -> %>View basic features
+                      <% end %>
+                    </span>
+                  </div>
+                </.menu_item>
+              <% end %>
             </.menu>
           </.dropdown_menu_content>
         </.dropdown_menu>
@@ -196,53 +221,12 @@ defmodule PhxplateWeb.Components.DashboardLayout do
       </.sidebar_group_label>
       <.sidebar_menu>
         <.sidebar_menu_item :for={item <- @projects}>
-          <.dropdown_menu style="-ml-8 block">
-            <.dropdown_menu_trigger>
-              <.as_child tag={&sidebar_menu_button/1} child="a" href={item.url}>
-                <.dynamic tag={item.icon} />
-                <span>
-                  {item.name}
-                </span>
-              </.as_child>
-              <.sidebar_menu_action>
-                <.ellipsis class="h-4 w-4" />
-                <span class="sr-only">
-                  More
-                </span>
-              </.sidebar_menu_action>
-            </.dropdown_menu_trigger>
-            <.dropdown_menu_content class="w-48 rounded-lg" side="right" align="start">
-              <.menu>
-                <.menu_item>
-                  <.folder class="text-muted-foreground h-4 w-4 mr-2" />
-                  <span>
-                    View Project
-                  </span>
-                </.menu_item>
-                <.menu_item>
-                  <.forward class="text-muted-foreground h-4 w-4 mr-2" />
-                  <span>
-                    Share Project
-                  </span>
-                </.menu_item>
-                <.menu_separator></.menu_separator>
-                <.menu_item>
-                  <.trash_2 class="text-muted-foreground h-4 w-4 mr-2" />
-                  <span>
-                    Delete Project
-                  </span>
-                </.menu_item>
-              </.menu>
-            </.dropdown_menu_content>
-          </.dropdown_menu>
-        </.sidebar_menu_item>
-        <.sidebar_menu_item>
-          <.sidebar_menu_button class="text-sidebar-foreground/70">
-            <.ellipsis class="text-sidebar-foreground/70" />
+          <.as_child tag={&sidebar_menu_button/1} child="a" class="flex items-center justify-start w-full" href={item.url}>
+            <.dynamic tag={item.icon} />
             <span>
-              More
+              {item.name}
             </span>
-          </.sidebar_menu_button>
+          </.as_child>
         </.sidebar_menu_item>
       </.sidebar_menu>
     </.sidebar_group>

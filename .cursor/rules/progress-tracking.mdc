@@ -30,12 +30,19 @@ tree -I '_build|deps|node_modules|.elixir_ls'
 ├── assets
 │   ├── build.js
 │   ├── css
+│   │   └── app.css
 │   ├── js
+│   │   ├── app.js
+│   │   └── server.js
+│   ├── package-lock.json
+│   ├── package.json
 │   ├── svelte
 │   ├── tailwind.colors.json
 │   ├── tailwind.config.js
 │   ├── tsconfig.json
 │   └── vendor
+│       ├── tailwindcss-animate.js
+│       └── topbar.js
 ├── config
 │   ├── config.exs
 │   ├── dev.exs
@@ -45,18 +52,58 @@ tree -I '_build|deps|node_modules|.elixir_ls'
 ├── lib
 │   ├── phxplate
 │   │   ├── accounts
+│   │   │   ├── user.ex
+│   │   │   ├── user_notifier.ex
+│   │   │   └── user_token.ex
 │   │   ├── accounts.ex
 │   │   ├── application.ex
+│   │   ├── companies
+│   │   │   ├── company.ex
+│   │   │   └── employee.ex
+│   │   ├── companies.ex
 │   │   ├── mailer.ex
+│   │   ├── policy.ex
 │   │   └── repo.ex
 │   ├── phxplate.ex
 │   ├── phxplate_web
 │   │   ├── authorization.ex
 │   │   ├── components
+│   │   │   ├── component.ex
+│   │   │   ├── core_components.ex
+│   │   │   ├── dashboard_layout.ex
+│   │   │   ├── helpers.ex
+│   │   │   ├── layouts
+│   │   │   │   ├── app.html.heex
+│   │   │   │   └── root.html.heex
+│   │   │   ├── layouts.ex
+│   │   │   └── nav_component.ex
 │   │   ├── controllers
+│   │   │   ├── admin_controller.ex
+│   │   │   ├── dashboard_controller.ex
+│   │   │   ├── dashboard_html.ex
+│   │   │   ├── error_html.ex
+│   │   │   ├── error_json.ex
+│   │   │   ├── page_controller.ex
+│   │   │   ├── page_html
+│   │   │   │   └── home.html.heex
+│   │   │   ├── page_html.ex
+│   │   │   └── user_session_controller.ex
 │   │   ├── endpoint.ex
 │   │   ├── gettext.ex
 │   │   ├── live
+│   │   │   ├── company_live
+│   │   │   │   ├── form_component.ex
+│   │   │   │   └── index.ex
+│   │   │   ├── dashboard_subscription.ex
+│   │   │   ├── teams_live.ex
+│   │   │   └── users
+│   │   │       ├── user_confirmation_instructions_live.ex
+│   │   │       ├── user_confirmation_live.ex
+│   │   │       ├── user_forgot_password_live.ex
+│   │   │       ├── user_login_live.ex
+│   │   │       ├── user_registration_live.ex
+│   │   │       ├── user_reset_password_live.ex
+│   │   │       └── user_settings_live.ex
 │   │   ├── router.ex
 │   │   ├── telemetry.ex
 │   │   └── user_auth.ex
@@ -65,15 +112,73 @@ tree -I '_build|deps|node_modules|.elixir_ls'
 ├── mix.lock
 ├── priv
 │   ├── gettext
+│   │   ├── en
+│   │   │   └── LC_MESSAGES
+│   │   │       └── errors.po
+│   │   └── errors.pot
 │   ├── repo
+│   │   ├── migrations
+│   │   │   ├── 20240428000000_create_companies_and_employees.exs
+│   │   │   ├── 20250427232643_create_users_auth_tables.exs
+│   │   │   └── 20250427235059_add_role_to_users.exs
+│   │   ├── seeds.exs
+│   │   └── seeds.json
 │   ├── static
+│   │   ├── assets
+│   │   │   ├── app.css
+│   │   │   └── app.js
+│   │   ├── favicon.ico
+│   │   ├── images
+│   │   │   └── logo.svg
+│   │   └── robots.txt
 │   └── svelte
+│       └── server.js
 └── test
     ├── phxplate
+    │   └── accounts_test.exs
     ├── phxplate_web
+    │   ├── controllers
+    │   │   ├── error_html_test.exs
+    │   │   ├── error_json_test.exs
+    │   │   ├── page_controller_test.exs
+    │   │   └── user_session_controller_test.exs
+    │   ├── live
+    │   │   ├── user_confirmation_instructions_live_test.exs
+    │   │   ├── user_confirmation_live_test.exs
+    │   │   ├── user_forgot_password_live_test.exs
+    │   │   ├── user_login_live_test.exs
+    │   │   ├── user_registration_live_test.exs
+    │   │   ├── user_reset_password_live_test.exs
+    │   │   └── user_settings_live_test.exs
+    │   └── user_auth_test.exs
     ├── support
+    │   ├── conn_case.ex
+    │   ├── data_case.ex
+    │   └── fixtures
+    │       └── accounts_fixtures.ex
     └── test_helper.exs
 ```
+
+## Recent Changes
+1. Added dashboard subscription system:
+   - Created `dashboard_subscription.ex` for real-time updates
+   - Implemented ETS table for state management
+   - Added PubSub integration for live updates
+
+2. Updated team management:
+   - Renamed company components to teams
+   - Created `teams_live.ex` for team management
+   - Implemented real-time team updates
+
+3. Enhanced authorization:
+   - Updated policy rules for teams and dashboard
+   - Added role-based access control
+   - Implemented team-based permissions
+
+4. Improved project structure:
+   - Organized LiveView components
+   - Added dashboard layout components
+   - Updated navigation components
 
 ## Project State Management
 

@@ -1,9 +1,22 @@
 defmodule PhxplateWeb.DashboardController do
   use PhxplateWeb, :controller
   alias Phxplate.Accounts.User
+  alias PhxplateWeb.DashboardSubscription
+  alias Phxplate.Companies
+
+  def init(_opts) do
+    DashboardSubscription.init()
+    # Initialize teams state
+    teams = Companies.list_companies()
+    DashboardSubscription.update_state("teams", teams)
+    :ok
+  end
 
   def get_dashboard_data(conn) do
     current_user = conn.assigns.current_user
+
+    # Get available roles based on current user's role
+    available_roles = get_available_roles(current_user)
 
     # Define all possible navigation items
     all_nav_items = [
@@ -69,7 +82,7 @@ defmodule PhxplateWeb.DashboardController do
       }
     ]
 
-    # Filter navigation items based on user role
+    # Filter navigation items based on current user's role
     nav_main = Enum.filter(all_nav_items, fn item ->
       case item.required_role do
         :basic -> User.is_basic?(current_user) or User.is_admin?(current_user) or User.is_super_admin?(current_user)
@@ -79,63 +92,78 @@ defmodule PhxplateWeb.DashboardController do
       end
     end)
 
+    # Get teams and convert them to projects
+    teams = DashboardSubscription.get_state("teams") || []
+    projects = Enum.map(teams, fn team ->
+      %{
+        name: team.name,
+        url: ~p"/dashboard/companies/#{team}",
+        icon: &Lucideicons.building/1,
+        plan: team.plan
+      }
+    end)
+
     %{
       user: %{
         name: current_user.email,
         email: current_user.email,
-        avatar: "/avatars/default.jpg"
+        avatar: "/avatars/default.jpg",
+        role: current_user.role,
+        available_roles: available_roles
       },
-      teams: [
-        %{
-          name: "Acme Inc",
-          logo: &Lucideicons.gallery_vertical/1,
-          plan: "Enterprise"
-        },
-        %{
-          name: "Acme Corp.",
-          logo: &Lucideicons.audio_waveform/1,
-          plan: "Startup"
-        },
-        %{
-          name: "Evil Corp.",
-          logo: &Lucideicons.command/1,
-          plan: "Free"
-        }
-      ],
+      teams: teams,
       navMain: nav_main,
-      projects: [
-        %{
-          name: "Design Engineering",
-          url: "#",
-          icon: &Lucideicons.frame/1
-        },
-        %{
-          name: "Sales & Marketing",
-          url: "#",
-          icon: &Lucideicons.presentation/1
-        },
-        %{
-          name: "Travel",
-          url: "#",
-          icon: &Lucideicons.plane/1
-        }
-      ]
+      projects: projects
     }
   end
 
+  defp get_available_roles(user) do
+    cond do
+      User.is_super_admin?(user) -> [:basic, :admin, :super_admin]
+      User.is_admin?(user) -> [:basic, :admin]
+      true -> [:basic]
+    end
+  end
+
   def index(conn, _params) do
+    dashboard_data = get_dashboard_data(conn)
+    IO.inspect(dashboard_data, label: "Dashboard Data in Controller")
+
     render(conn, :index,
       layout: {PhxplateWeb.Components.DashboardLayout, :render},
-      layout_data: get_dashboard_data(conn),
+      teams: dashboard_data.teams,
+      navMain: dashboard_data.navMain,
+      projects: dashboard_data.projects,
+      user: dashboard_data.user,
+      current_path: conn.request_path
+    )
+  end
+
+  def ok(conn, _params) do
+    dashboard_data = get_dashboard_data(conn)
+    IO.inspect(dashboard_data, label: "Dashboard Data in Controller (ok)")
+
+    render(conn, :index,
+      layout: {PhxplateWeb.Components.DashboardLayout, :render},
+      teams: dashboard_data.teams,
+      navMain: dashboard_data.navMain,
+      projects: dashboard_data.projects,
+      user: dashboard_data.user,
       current_path: conn.request_path
     )
   end
 
   def basic(conn, _params) do
     if User.is_basic?(conn.assigns.current_user) or User.is_admin?(conn.assigns.current_user) or User.is_super_admin?(conn.assigns.current_user) do
+      dashboard_data = get_dashboard_data(conn)
+      IO.inspect(dashboard_data, label: "Dashboard Data in Controller (basic)")
+
       render(conn, :basic,
         layout: {PhxplateWeb.Components.DashboardLayout, :render},
-        layout_data: get_dashboard_data(conn),
+        teams: dashboard_data.teams,
+        navMain: dashboard_data.navMain,
+        projects: dashboard_data.projects,
+        user: dashboard_data.user,
         data: %{
           message: "Welcome to the Basic Dashboard!",
           features: ["View basic reports", "Access limited settings"]

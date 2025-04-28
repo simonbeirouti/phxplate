@@ -1,0 +1,103 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Dashboard and Team Management Rules
+
+## Team Structure
+- Teams are the primary organizational unit in the system
+- Each team has:
+  - Name
+  - Description
+  - Address
+  - Contact information (phone, email)
+  - Plan level (Enterprise, Business, Professional, Startup)
+  - Associated employees
+
+## Dashboard Components
+- Dynamic team switcher in sidebar
+- Real-time updates using PubSub
+- Role-based access control
+- Project list derived from teams
+
+## State Management
+- ETS table for dashboard state
+- PubSub for real-time updates
+- Component-specific state tracking
+- Automatic state initialization
+
+## Authorization Levels
+- Basic users:
+  - View teams
+  - Access basic dashboard
+  - View team projects
+- Admin users:
+  - Create/edit teams
+  - Manage team members
+  - Access admin dashboard
+- Super Admin:
+  - Full system access
+  - Team management
+  - System configuration
+
+## Team-Project Relationship
+- Projects are derived from teams
+- Each team can have multiple projects
+- Project data includes:
+  - Team name
+  - Team plan
+  - Team URL
+  - Associated icon
+
+## Real-time Updates
+- Team changes broadcast to subscribers
+- Dashboard components update automatically
+- State changes propagate through PubSub
+- ETS table maintains current state
+
+## Data Flow
+1. Team changes trigger PubSub broadcast
+2. Dashboard components receive updates
+3. State updates stored in ETS
+4. UI components refresh with new data
+
+## Error Handling
+- Graceful handling of empty teams
+- Error recovery for ETS operations
+- Fallback states for missing data
+- Validation of team data
+
+## Security
+- Role-based access control
+- Team-specific permissions
+- Secure state management
+- Protected team operations
+
+## Best Practices
+- Use PubSub for real-time updates
+- Maintain consistent state
+- Follow role-based access patterns
+- Implement proper error handling
+- Keep team data synchronized
+
+## Implementation Guidelines
+1. Initialize ETS table on startup
+2. Subscribe to team updates
+3. Handle state changes properly
+4. Update UI components accordingly
+5. Maintain data consistency
+
+## Testing Requirements
+- Test team creation/updates
+- Verify real-time updates
+- Check authorization levels
+- Validate state management
+- Test error scenarios
+
+## Documentation
+- Document team structure
+- Explain state management
+- Detail authorization rules
+- Provide implementation examples
+- Include error handling procedures

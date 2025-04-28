@@ -105,6 +105,8 @@ defmodule PhxplateWeb.Router do
     pipe_through [:browser, :require_authenticated_user]
 
     get "/", DashboardController, :index
+    get "/companies", DashboardController, :companies
+    get "/companies/:id", DashboardController, :company_show
   end
 
   scope "/dashboard/basic", PhxplateWeb do
@@ -113,12 +115,16 @@ defmodule PhxplateWeb.Router do
     get "/", DashboardController, :basic
     get "/reports", DashboardController, :basic_reports
     get "/settings", DashboardController, :basic_settings
+    get "/companies", DashboardController, :basic_companies
+    get "/companies/:id", DashboardController, :basic_company_show
   end
 
   scope "/dashboard/admin", PhxplateWeb do
     pipe_through [:browser, :require_authenticated_user, :admin]
 
     get "/", DashboardController, :admin
+    get "/companies", DashboardController, :admin_companies
+    get "/companies/:id", DashboardController, :admin_company_show
     get "/users", DashboardController, :admin_users
     get "/settings", DashboardController, :admin_settings
   end
@@ -129,15 +135,53 @@ defmodule PhxplateWeb.Router do
     get "/", DashboardController, :super_admin
     get "/config", DashboardController, :super_admin_config
     get "/audit", DashboardController, :super_admin_audit
+    get "/companies", DashboardController, :super_admin_companies
+    get "/companies/:id", DashboardController, :super_admin_company_show
   end
 
-  scope "/admin", PhxplateWeb do
+  # Company routes - accessible to all authenticated users
+  scope "/companies", PhxplateWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    live_session :companies,
+      on_mount: [{PhxplateWeb.UserAuth, :ensure_authenticated}] do
+      live "/", CompanyLive.Index, :index
+      live "/new", CompanyLive.Index, :new
+      live "/:id", CompanyLive.Show, :show
+      live "/:id/edit", CompanyLive.Index, :edit
+    end
+  end
+
+  # Admin company management routes
+  scope "/admin/companies", PhxplateWeb do
     pipe_through [:browser, :require_authenticated_user, :admin]
-    # Admin routes here
+
+    live_session :admin_companies,
+      on_mount: [
+        {PhxplateWeb.UserAuth, :ensure_authenticated},
+        {PhxplateWeb.Authorization, :admin}
+      ] do
+      live "/", CompanyLive.Index, :index
+      live "/new", CompanyLive.Index, :new
+      live "/:id", CompanyLive.Show, :show
+      live "/:id/edit", CompanyLive.Index, :edit
+    end
   end
 
-  scope "/super_admin", PhxplateWeb do
+  # Super admin company management routes
+  scope "/super_admin/companies", PhxplateWeb do
     pipe_through [:browser, :require_authenticated_user, :super_admin]
-    # Super admin routes here
+
+    live_session :super_admin_companies,
+      on_mount: [
+        {PhxplateWeb.UserAuth, :ensure_authenticated},
+        {PhxplateWeb.Authorization, :super_admin}
+      ] do
+      live "/", CompanyLive.Index, :index
+      live "/new", CompanyLive.Index, :new
+      live "/:id", CompanyLive.Show, :show
+      live "/:id/edit", CompanyLive.Index, :edit
+      live "/:id/delete", CompanyLive.Index, :delete
+    end
   end
 end
