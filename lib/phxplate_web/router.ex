@@ -17,6 +17,18 @@ defmodule PhxplateWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :admin do
+    plug PhxplateWeb.Authorization, :admin
+  end
+
+  pipeline :super_admin do
+    plug PhxplateWeb.Authorization, :super_admin
+  end
+
+  pipeline :basic do
+    plug PhxplateWeb.Authorization, :basic
+  end
+
   scope "/", PhxplateWeb do
     pipe_through :browser
 
@@ -81,5 +93,37 @@ defmodule PhxplateWeb.Router do
       live "/users/confirm/:token", UserConfirmationLive, :edit
       live "/users/confirm", UserConfirmationInstructionsLive, :new
     end
+  end
+
+  # Dashboard routes
+  scope "/dashboard", PhxplateWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    get "/", DashboardController, :index
+  end
+
+  scope "/dashboard", PhxplateWeb do
+    pipe_through [:browser, :require_authenticated_user, :basic]
+    get "/basic", DashboardController, :basic
+  end
+
+  scope "/dashboard", PhxplateWeb do
+    pipe_through [:browser, :require_authenticated_user, :admin]
+    get "/admin", DashboardController, :admin
+  end
+
+  scope "/dashboard", PhxplateWeb do
+    pipe_through [:browser, :require_authenticated_user, :super_admin]
+    get "/super_admin", DashboardController, :super_admin
+  end
+
+  scope "/admin", PhxplateWeb do
+    pipe_through [:browser, :require_authenticated_user, :admin]
+    # Admin routes here
+  end
+
+  scope "/super_admin", PhxplateWeb do
+    pipe_through [:browser, :require_authenticated_user, :super_admin]
+    # Super admin routes here
   end
 end

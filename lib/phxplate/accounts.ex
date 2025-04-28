@@ -60,6 +60,28 @@ defmodule Phxplate.Accounts do
   """
   def get_user!(id), do: Repo.get!(User, id)
 
+  @doc """
+  Lists all users.
+  """
+  def list_users do
+    Repo.all(User)
+  end
+
+  @doc """
+  Counts all users.
+  """
+  def count_users do
+    Repo.aggregate(User, :count, :id)
+  end
+
+  @doc """
+  Counts active users (users who have confirmed their email).
+  """
+  def count_active_users do
+    from(u in User, where: not is_nil(u.confirmed_at))
+    |> Repo.aggregate(:count, :id)
+  end
+
   ## User registration
 
   @doc """
@@ -349,5 +371,10 @@ defmodule Phxplate.Accounts do
       {:ok, %{user: user}} -> {:ok, user}
       {:error, :user, changeset, _} -> {:error, changeset}
     end
+  end
+
+  def update_user_role(user_id, role) do
+    user = get_user!(user_id)
+    Phxplate.Repo.update!(Ecto.Changeset.change(user, %{role: role}))
   end
 end
