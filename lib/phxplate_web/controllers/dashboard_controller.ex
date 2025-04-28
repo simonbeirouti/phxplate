@@ -21,22 +21,34 @@ defmodule PhxplateWeb.DashboardController do
     # Define all possible navigation items
     all_nav_items = [
       %{
-        title: "Basic Access",
+        title: "Companies",
+        url: "#",
+        icon: &Lucideicons.building/1,
+        items: [
+          %{
+            title: "View all",
+            url: ~p"/dashboard/companies"
+          },
+          # %{
+          #   title: "Basic Reports",
+          #   url: ~p"/dashboard/companies/:id"
+          # },
+        ],
+        required_role: :basic
+      },
+      %{
+        title: "Community",
         url: "#",
         icon: &Lucideicons.user/1,
         items: [
           %{
-            title: "Basic Dashboard",
-            url: ~p"/dashboard/basic"
+            title: "View all",
+            url: ~p"/dashboard/profiles"
           },
-          %{
-            title: "Basic Reports",
-            url: ~p"/dashboard/basic/reports"
-          },
-          %{
-            title: "Basic Settings",
-            url: ~p"/dashboard/basic/settings"
-          }
+          # %{
+          #   title: "Basic Reports",
+          #   url: ~p"/dashboard/companies/:id"
+          # },
         ],
         required_role: :basic
       },

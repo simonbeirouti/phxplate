@@ -38,6 +38,10 @@ defmodule PhxplateWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/companies", CompanyController, :public_index
+    get "/companies/:id", CompanyController, :public_show
+    get "/profiles", ProfileController, :public_index
+    get "/profiles/:id", ProfileController, :public_show
   end
 
   # Other scopes may use custom stacks.

@@ -673,4 +673,61 @@ defmodule PhxplateWeb.CoreComponents do
   def translate_errors(errors, field) when is_list(errors) do
     for {^field, {msg, opts}} <- errors, do: translate_error({msg, opts})
   end
+
+  @doc """
+  Renders an profile avatar component.
+  """
+  attr :class, :string, default: nil
+  slot :inner_block, required: true
+
+  def profile_avatar(assigns) do
+    ~H"""
+    <div class={["relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full", @class]}>
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
+  @doc """
+  Renders an profile avatar image.
+  """
+  attr :src, :string, required: true
+  attr :alt, :string, required: true
+  attr :class, :string, default: nil
+
+  def profile_avatar_image(assigns) do
+    ~H"""
+    <img src={@src} alt={@alt} class={["aspect-square h-full w-full", @class]} />
+    """
+  end
+
+  @doc """
+  Renders an profile avatar fallback.
+  """
+  attr :class, :string, default: nil
+  slot :inner_block, required: true
+
+  def profile_avatar_fallback(assigns) do
+    ~H"""
+    <div class={["flex h-full w-full items-center justify-center rounded-full bg-muted", @class]}>
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a custom link component.
+  """
+  attr :href, :string, required: true
+  attr :class, :string, default: nil
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  def custom_link(assigns) do
+    ~H"""
+    <a href={@href} class={["text-primary hover:text-primary/80", @class]} {@rest}>
+      {render_slot(@inner_block)}
+    </a>
+    """
+  end
 end

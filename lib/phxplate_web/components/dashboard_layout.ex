@@ -5,7 +5,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
   import PhxplateWeb.CoreComponents
   alias SaladUI.Icon
 
-  import Lucideicons, except: [import: 1, quote: 1, menu: 1, link: 1, building: 1]
+  import Lucideicons, except: [import: 1, quote: 1, menu: 1, link: 1, building: 1, avatar: 1]
 
   def render(assigns) do
     IO.inspect(assigns, label: "Assigns in Dashboard Layout")
