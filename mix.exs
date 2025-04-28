@@ -60,7 +60,9 @@ defmodule Phxplate.MixProject do
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
       {:live_svelte, "~> 0.16.0"},
-      {:let_me, "~> 1.2.5"}
+      {:let_me, "~> 1.2.5"},
+      {:salad_ui, "~> 0.14.9"},
+      {:lucide_icons, "~> 2.0"}
     ]
   end
 

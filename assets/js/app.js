@@ -25,7 +25,55 @@ import {getHooks} from "live_svelte"
 import * as Components from "../svelte/**/*.svelte"
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
-let liveSocket = new LiveSocket("/live", Socket, {hooks: getHooks(Components), params: {_csrf_token: csrfToken}})
+
+let Hooks = {}
+
+Hooks.MobileMenu = {
+  mounted() {
+    const menu = document.getElementById("mobile-menu")
+    const menuIcon = document.getElementById("menu-icon")
+    const closeIcon = document.getElementById("close-icon")
+    const button = this.el
+
+    button.addEventListener("click", () => {
+      if (menu.classList.contains("hidden")) {
+        // Opening menu
+        menu.classList.remove("hidden")
+        menuIcon.classList.add("hidden")
+        closeIcon.classList.remove("hidden")
+        menu.style.opacity = "0"
+        menu.style.transform = "scale(0.95)"
+        
+        // Force a reflow
+        menu.offsetHeight
+        
+        menu.style.transition = "opacity 100ms ease-out, transform 100ms ease-out"
+        menu.style.opacity = "1"
+        menu.style.transform = "scale(1)"
+      } else {
+        // Closing menu
+        menu.style.transition = "opacity 75ms ease-in, transform 75ms ease-in"
+        menu.style.opacity = "0"
+        menu.style.transform = "scale(0.95)"
+        
+        setTimeout(() => {
+          menu.classList.add("hidden")
+          menuIcon.classList.remove("hidden")
+          closeIcon.classList.add("hidden")
+          // Reset styles after animation
+          menu.style.transition = ""
+          menu.style.opacity = ""
+          menu.style.transform = ""
+        }, 75)
+      }
+    })
+  }
+}
+
+let liveSocket = new LiveSocket("/live", Socket, {
+  params: {_csrf_token: csrfToken},
+  hooks: Hooks
+})
 
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
@@ -40,3 +88,10 @@ liveSocket.connect()
 // >> liveSocket.enableLatencySim(1000)  // enabled for duration of browser session
 // >> liveSocket.disableLatencySim()
 window.liveSocket = liveSocket
+
+// Allows to execute JS commands from the server
+window.addEventListener("phx:js-exec", ({detail}) => {
+  document.querySelectorAll(detail.to).forEach(el => {
+    liveSocket.execJS(el, el.getAttribute(detail.attr))
+  })
+})

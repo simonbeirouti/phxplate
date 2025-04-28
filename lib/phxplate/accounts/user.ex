@@ -8,6 +8,7 @@ defmodule Phxplate.Accounts.User do
     field :hashed_password, :string, redact: true
     field :current_password, :string, virtual: true, redact: true
     field :confirmed_at, :utc_datetime
+    field :role, Ecto.Enum, values: [:basic, :admin, :super_admin], default: :basic
 
     timestamps(type: :utc_datetime)
   end
@@ -158,4 +159,21 @@ defmodule Phxplate.Accounts.User do
       add_error(changeset, :current_password, "is not valid")
     end
   end
+
+  @doc """
+  Returns true if the user has admin privileges.
+  """
+  def is_admin?(%__MODULE__{role: role}), do: role in [:admin, :super_admin]
+
+  @doc """
+  Returns true if the user has super admin privileges.
+  """
+  def is_super_admin?(%__MODULE__{role: :super_admin}), do: true
+  def is_super_admin?(_), do: false
+
+  @doc """
+  Returns true if the user has basic privileges.
+  """
+  def is_basic?(%__MODULE__{role: :basic}), do: true
+  def is_basic?(_), do: false
 end
