@@ -151,31 +151,31 @@ defmodule PhxplateWeb.Components.DashboardLayout do
           open={item[:is_active]}
           class="group/collapsible block"
         > --%>
-          <.sidebar_menu_item>
+        <.sidebar_menu_item>
             <.as_child
               tag={&collapsible_trigger/1}
               child={&sidebar_menu_button/1}
               tooltip={item.title}
             >
-              <.dynamic :if={not is_nil(item.icon)} tag={item.icon} />
+            <.dynamic :if={not is_nil(item.icon)} tag={item.icon} />
 
-              <span>
-                {item.title}
-              </span>
-              <%!-- <Lucideicons.chevron_right class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" /> --%>
-            </.as_child>
-            <%!-- <.collapsible_content> --%>
-              <.sidebar_menu_sub>
-                <.sidebar_menu_sub_item :for={sub_item <- item.items}>
-                  <.as_child tag={&sidebar_menu_sub_button/1} child="a" href={sub_item.url}>
-                    <span>
-                      {sub_item.title}
-                    </span>
-                  </.as_child>
-                </.sidebar_menu_sub_item>
-              </.sidebar_menu_sub>
-            <%!-- </.collapsible_content> --%>
-          </.sidebar_menu_item>
+            <span>
+              {item.title}
+            </span>
+            <%!-- <Lucideicons.chevron_right class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" /> --%>
+          </.as_child>
+          <%!-- <.collapsible_content> --%>
+          <.sidebar_menu_sub>
+            <.sidebar_menu_sub_item :for={sub_item <- item.items}>
+              <.as_child tag={&sidebar_menu_sub_button/1} child="a" href={sub_item.url}>
+                <span>
+                  {sub_item.title}
+                </span>
+              </.as_child>
+            </.sidebar_menu_sub_item>
+          </.sidebar_menu_sub>
+          <%!-- </.collapsible_content> --%>
+        </.sidebar_menu_item>
         <%!-- </.collapsible> --%>
       </.sidebar_menu>
     </.sidebar_group>
@@ -198,7 +198,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
               </.avatar_fallback>
             </.avatar>
             <a href={~p"/dashboard/companies/#{project.id}"} class="truncate">
-                {project.name}
+              {project.name}
             </a>
           </.sidebar_menu_button>
         </.sidebar_menu_item>
@@ -240,15 +240,30 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             align="start"
           >
             <.menu>
+              <%= if @user.role == :basic do %>
+                <dropdownmenugroup>
+                  <.menu_item>
+                    <.sparkles class="w-4 h-4 mr-2" /> Upgrade to Pro
+                  </.menu_item>
+                </dropdownmenugroup>
+                <.menu_separator></.menu_separator>
+              <% end %>
               <dropdownmenugroup>
-                <.menu_item>
-                  <.sparkles class="w-4 h-4 mr-2" /> Upgrade to Pro
-                </.menu_item>
+                <.link href={~p"/dashboard/user/profile"}>
+                  <.menu_item>
+                    <Lucideicons.user class="w-4 h-4 mr-2" /> Profile
+                  </.menu_item>
+                </.link>
+                <.link href={~p"/dashboard/user/settings"}>
+                  <.menu_item>
+                    <Lucideicons.settings class="w-4 h-4 mr-2" /> Settings
+                  </.menu_item>
+                </.link>
               </dropdownmenugroup>
               <.menu_separator></.menu_separator>
               <.link href={~p"/users/log_out"} method="delete">
                 <.menu_item>
-                  <.log_out class="w-4 h-4 mr-2" /> Log out
+                  <Lucideicons.log_out class="w-4 h-4 mr-2" /> Log out
                 </.menu_item>
               </.link>
             </.menu>
