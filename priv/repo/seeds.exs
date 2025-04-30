@@ -12,80 +12,180 @@
 
 alias Phxplate.Accounts
 alias Phxplate.Repo
+alias Phxplate.Companies
+alias Phxplate.Companies.Company
+alias Phxplate.Companies.Employee
+alias Phxplate.Accounts.User
+alias Phxplate.Accounts.Profile
+
+# Store all created records
+created_data = %{
+  super_admins: [],
+  admins: [],
+  basic_users: [],
+  companies: [],
+  employees: [],
+  profiles: []
+}
 
 # Clear existing data
 Repo.delete_all(Phxplate.Accounts.UserToken)
-Repo.delete_all(Phxplate.Accounts.User)
+Repo.delete_all(Profile)
+Repo.delete_all(Employee)
+Repo.delete_all(Company)
+Repo.delete_all(User)
 
-# Create users with different roles and states
-users = [
-  # Super Admin users
-  %{
-    email: "superadmin@example.com",
+# Create super admins
+created_data = Enum.reduce(1..1, created_data, fn _, acc ->
+  user = User.registration_changeset(%User{}, %{
+    email: Faker.Internet.email(),
     password: "password1234",
-    role: :super_admin,
-    confirmed_at: DateTime.utc_now() |> DateTime.truncate(:second)
-  },
+    role: :super_admin
+  })
+  |> Repo.insert!()
 
-  # Admin users
-  %{
-    email: "admin@example.com",
-    password: "password1234",
-    role: :admin,
-    confirmed_at: DateTime.utc_now() |> DateTime.truncate(:second)
-  },
-  %{
-    email: "admin2@example.com",
-    password: "password1234",
-    role: :admin,
-    confirmed_at: nil  # Unconfirmed admin
-  },
+  # Create profile for super admin
+  profile = Repo.insert!(%Profile{
+    first_name: Faker.Person.first_name(),
+    last_name: Faker.Person.last_name(),
+    bio: Faker.Lorem.paragraph(),
+    avatar_url: Faker.Avatar.image_url(),
+    phone: Faker.Phone.EnUs.phone(),
+    location: Faker.Address.city(),
+    website: Faker.Internet.url(),
+    social_links: %{
+      twitter: Faker.Internet.url(),
+      linkedin: Faker.Internet.url(),
+      github: Faker.Internet.url()
+    },
+    user_id: user.id
+  })
 
-  # Basic users
-  %{
-    email: "user@example.com",
-    password: "password1234",
-    role: :basic,
-    confirmed_at: DateTime.utc_now() |> DateTime.truncate(:second)
-  },
-  %{
-    email: "user2@example.com",
-    password: "password1234",
-    role: :basic,
-    confirmed_at: nil  # Unconfirmed user
-  },
-  %{
-    email: "user3@example.com",
-    password: "password1234",
-    role: :basic,
-    confirmed_at: DateTime.utc_now() |> DateTime.add(-86400, :second) |> DateTime.truncate(:second)  # Confirmed yesterday
-  }
-]
-
-# Register users and collect results
-results = Enum.map(users, fn user_attrs ->
-  case Accounts.register_user(user_attrs) do
-    {:ok, user} ->
-      # Update the role and confirmation status
-      user
-      |> Ecto.Changeset.change(%{
-        role: user_attrs.role,
-        confirmed_at: user_attrs.confirmed_at
-      })
-      |> Repo.update!()
-      |> Map.take([:email, :role, :confirmed_at])
-      |> Map.put(:confirmed, not is_nil(user_attrs.confirmed_at))
-    {:error, changeset} ->
-      IO.puts("Failed to create user #{user_attrs.email}: #{inspect(changeset.errors)}")
-      nil
-  end
+  acc
+  |> Map.update!(:super_admins, &[%{id: user.id, email: user.email, role: user.role, profile: profile} | &1])
+  |> Map.update!(:profiles, &[profile | &1])
 end)
 
-# Filter out any failed creations
-results = Enum.filter(results, &(&1 != nil))
+# Create admins
+created_data = Enum.reduce(1..2, created_data, fn _, acc ->
+  user = User.registration_changeset(%User{}, %{
+    email: Faker.Internet.email(),
+    password: "password1234",
+    role: :admin
+  })
+  |> Repo.insert!()
 
-# Write results to JSON file
-json_data = Jason.encode!(results, pretty: true)
+  # Create profile for admin
+  profile = Repo.insert!(%Profile{
+    first_name: Faker.Person.first_name(),
+    last_name: Faker.Person.last_name(),
+    bio: Faker.Lorem.paragraph(),
+    avatar_url: Faker.Avatar.image_url(),
+    phone: Faker.Phone.EnUs.phone(),
+    location: Faker.Address.city(),
+    website: Faker.Internet.url(),
+    social_links: %{
+      twitter: Faker.Internet.url(),
+      linkedin: Faker.Internet.url(),
+      github: Faker.Internet.url()
+    },
+    user_id: user.id
+  })
+
+  acc
+  |> Map.update!(:admins, &[%{id: user.id, email: user.email, role: user.role, profile: profile} | &1])
+  |> Map.update!(:profiles, &[profile | &1])
+end)
+
+# Create basic users
+created_data = Enum.reduce(1..3, created_data, fn _, acc ->
+  user = User.registration_changeset(%User{}, %{
+    email: Faker.Internet.email(),
+    password: "password1234",
+    role: :basic
+  })
+  |> Repo.insert!()
+
+  # Create profile for basic user
+  profile = Repo.insert!(%Profile{
+    first_name: Faker.Person.first_name(),
+    last_name: Faker.Person.last_name(),
+    bio: Faker.Lorem.paragraph(),
+    avatar_url: Faker.Avatar.image_url(),
+    phone: Faker.Phone.EnUs.phone(),
+    location: Faker.Address.city(),
+    website: Faker.Internet.url(),
+    social_links: %{
+      twitter: Faker.Internet.url(),
+      linkedin: Faker.Internet.url(),
+      github: Faker.Internet.url()
+    },
+    user_id: user.id
+  })
+
+  acc
+  |> Map.update!(:basic_users, &[%{id: user.id, email: user.email, role: user.role, profile: profile} | &1])
+  |> Map.update!(:profiles, &[profile | &1])
+end)
+
+# Create companies with employees
+created_data = Enum.reduce(1..2, created_data, fn _, acc ->
+  company = Repo.insert!(%Company{
+    name: Faker.Company.name(),
+    description: Faker.Company.bs(),
+    address: Faker.Address.street_address(),
+    phone: Faker.Phone.EnUs.phone(),
+    email: Faker.Internet.email(),
+    logo: Faker.Avatar.image_url(),
+    website: Faker.Internet.url(),
+    plan: "basic"
+  })
+
+  company_data = %{
+    id: company.id,
+    name: company.name,
+    description: company.description,
+    address: company.address,
+    phone: company.phone,
+    email: company.email,
+    plan: company.plan,
+    logo: company.logo,
+    website: company.website
+  }
+
+  # Create employees for each company
+  {employees, acc} = Enum.reduce(1..2, {[], acc}, fn _, {employees, acc} ->
+    employee = Repo.insert!(%Employee{
+      first_name: Faker.Person.first_name(),
+      last_name: Faker.Person.last_name(),
+      email: Faker.Internet.email(),
+      phone: Faker.Phone.EnUs.phone(),
+      position: Faker.Company.bs(),
+      department: Faker.Commerce.department(),
+      salary: Enum.random(30_000..150_000),
+      company_id: company.id
+    })
+
+    employee_data = %{
+      id: employee.id,
+      first_name: employee.first_name,
+      last_name: employee.last_name,
+      email: employee.email,
+      phone: employee.phone,
+      position: employee.position,
+      department: employee.department,
+      salary: employee.salary,
+      company_id: employee.company_id
+    }
+
+    {[employee_data | employees], Map.update!(acc, :employees, &[employee_data | &1])}
+  end)
+
+  Map.update!(acc, :companies, &[Map.put(company_data, :employees, employees) | &1])
+end)
+
+# Write the data to a JSON file
+json_data = Jason.encode!(created_data, pretty: true)
 File.write!("priv/repo/seeds.json", json_data)
 
-IO.puts("Created #{length(results)} users and saved to seeds.json")
+IO.puts("Seed data created successfully and written to seeds.json!")
