@@ -62,7 +62,8 @@ defmodule Phxplate.MixProject do
       {:live_svelte, "~> 0.16.0"},
       {:let_me, "~> 1.2.5"},
       {:salad_ui, "~> 0.14.9"},
-      {:lucide_icons, "~> 2.0"}
+      {:lucide_icons, "~> 2.0"},
+      {:faker, "~> 0.18.0"}
     ]
   end
 

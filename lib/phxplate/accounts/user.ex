@@ -10,6 +10,9 @@ defmodule Phxplate.Accounts.User do
     field :confirmed_at, :utc_datetime
     field :role, Ecto.Enum, values: [:basic, :admin, :super_admin], default: :basic
 
+    has_one :profile, Phxplate.Accounts.Profile
+    has_many :tokens, Phxplate.Accounts.UserToken
+
     timestamps(type: :utc_datetime)
   end
 
@@ -38,9 +41,10 @@ defmodule Phxplate.Accounts.User do
   """
   def registration_changeset(user, attrs, opts \\ []) do
     user
-    |> cast(attrs, [:email, :password])
+    |> cast(attrs, [:email, :password, :role])
     |> validate_email(opts)
     |> validate_password(opts)
+    |> validate_role()
   end
 
   defp validate_email(changeset, opts) do
@@ -55,11 +59,15 @@ defmodule Phxplate.Accounts.User do
     changeset
     |> validate_required([:password])
     |> validate_length(:password, min: 12, max: 72)
-    # Examples of additional password validation:
-    # |> validate_format(:password, ~r/[a-z]/, message: "at least one lower case character")
-    # |> validate_format(:password, ~r/[A-Z]/, message: "at least one upper case character")
-    # |> validate_format(:password, ~r/[!?@#$%^&*_0-9]/, message: "at least one digit or punctuation character")
+    |> validate_format(:password, ~r/[a-z]/, message: "at least one lower case character")
+    |> validate_format(:password, ~r/[!?@#$%^&*_0-9]/, message: "at least one digit or punctuation character")
     |> maybe_hash_password(opts)
+  end
+
+  defp validate_role(changeset) do
+    changeset
+    |> validate_required([:role])
+    |> validate_inclusion(:role, [:basic, :admin, :super_admin])
   end
 
   defp maybe_hash_password(changeset, opts) do

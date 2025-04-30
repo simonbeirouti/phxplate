@@ -11,7 +11,6 @@ defmodule PhxplateWeb.Components.DashboardLayout do
       <.sidebar_main data={@layout_data}></.sidebar_main>
       <.sidebar_inset>
         <header class="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <!-- Mobile menu button -->
           <button
             type="button"
             id="mobile-menu-button"
@@ -23,7 +22,6 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             <Lucideicons.x class="h-6 w-6 hidden" id="close-icon" />
           </button>
 
-          <!-- Desktop sidebar trigger -->
           <.sidebar_trigger target="main-sidebar" class="ml-1 hidden md:block">
             <Lucideicons.panel_left class="w-4 h-4" />
           </.sidebar_trigger>
@@ -46,7 +44,6 @@ defmodule PhxplateWeb.Components.DashboardLayout do
           </.breadcrumb>
         </header>
 
-        <!-- Mobile menu -->
         <div id="mobile-menu" class="hidden md:hidden">
           <div class="space-y-1 px-2 pb-3 pt-2">
             <.mobile_nav_main items={@layout_data.navMain} />
@@ -67,82 +64,79 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     ~H"""
     <.sidebar collapsible="icon" id="main-sidebar">
       <.sidebar_header>
-        <.team_switcher teams={@data.teams} />
+        <%!-- <.team_switcher user={@data.user} teams={@data.teams} /> --%>
+        <.nav_user user={@data.user} />
       </.sidebar_header>
       <.sidebar_content>
         <.nav_main items={@data.navMain} />
         <.nav_projects projects={@data.projects} />
       </.sidebar_content>
-      <.sidebar_footer>
+      <%!-- <.sidebar_footer>
         <.nav_user user={@data.user} />
-      </.sidebar_footer>
+      </.sidebar_footer> --%>
       <.sidebar_rail />
     </.sidebar>
     """
   end
 
-  def team_switcher(assigns) do
-    assigns = assign(assigns, :active_team, hd(assigns.teams))
-
-    ~H"""
-    <.sidebar_menu>
-      <.sidebar_menu_item>
-        <.dropdown_menu class="block">
-          <.as_child
-            tag={&dropdown_menu_trigger/1}
-            child={&sidebar_menu_button/1}
-            size="lg"
-            class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-          >
-            <div class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground -ml-2">
-              <.dynamic tag={@active_team.logo} class="size-4" />
-            </div>
-            <div class="grid flex-1 text-left text-sm leading-tight ml-2">
-              <span class="truncate font-semibold">
-                {@active_team.name}
-              </span>
-              <span class="truncate text-xs">
-                {@active_team.plan}
-              </span>
-            </div>
-            <.chevrons_up_down class="ml-auto" />
-          </.as_child>
-          <.dropdown_menu_content
-            class="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-            align="start"
-            side="right"
-          >
-            <.menu>
-              <.menu_label class="text-xs text-muted-foreground">
-                Teams
-              </.menu_label>
-
-              <.menu_item :for={{team, index} <- Enum.with_index(@teams)} class="gap-2 p-2">
-                <div class="flex size-6 items-center justify-center rounded-sm border">
-                  <.dynamic tag={team.logo} class="size-4 shrink-0" />
-                </div>
-                {team.name}
-                <.dropdown_menu_shortcut>
-                  ⌘{index + 1}
-                </.dropdown_menu_shortcut>
-              </.menu_item>
-
-              <.menu_separator></.menu_separator>
-              <.menu_item class="gap-2 p-2">
-                <div class="flex size-6 items-center justify-center rounded-md border bg-background">
-                  <.plus class="size-4" />
-                </div>
-                <div class="font-medium text-muted-foreground">
-                  Add team
-                </div>
-              </.menu_item>
-            </.menu>
-          </.dropdown_menu_content>
-        </.dropdown_menu>
-      </.sidebar_menu_item>
-    </.sidebar_menu>
-    """
-  end
+  # def team_switcher(assigns) do
+  #   ~H"""
+  #   <.sidebar_menu>
+  #     <.sidebar_menu_item>
+  #       <.dropdown_menu class="block">
+  #         <.as_child
+  #           tag={&dropdown_menu_trigger/1}
+  #           child={&sidebar_menu_button/1}
+  #           size="lg"
+  #           class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+  #         >
+  #           <div class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground -ml-2">
+  #             <Lucideicons.command class="size-4" />
+  #           </div>
+  #           <div class="grid flex-1 text-left text-sm leading-tight ml-2">
+  #             <span class="truncate font-semibold">
+  #               {@user.name}
+  #             </span>
+  #             <span class="truncate text-xs">
+  #               {@user.role}
+  #             </span>
+  #           </div>
+  #           <Lucideicons.chevrons_up_down class="ml-auto" />
+  #         </.as_child>
+  #         <.dropdown_menu_content
+  #           class="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+  #           align="start"
+  #           side="right"
+  #         >
+  #           <.menu>
+  #             <.menu_label class="text-xs text-muted-foreground">
+  #               Teams
+  #             </.menu_label>
+  #             <.menu_item :for={{team, index} <- Enum.with_index(@teams)} class="gap-2 p-2">
+  #               <div class="flex size-6 items-center justify-center rounded-sm border">
+  #                 <.dynamic tag={team.logo} class="size-4 shrink-0" />
+  #               </div>
+  #               {team.name}
+  #               <.dropdown_menu_shortcut>
+  #                 ⌘{index + 1}
+  #               </.dropdown_menu_shortcut>
+  #             </.menu_item>
+  #             <.menu_separator></.menu_separator>
+  #             <.menu_item class="gap-2 p-2">
+  #               <div class="flex size-6 items-center justify-center rounded-md border bg-background">
+  #                 <.plus class="size-4" />
+  #               </div>
+  #               <div class="font-medium text-muted-foreground">
+  #                 Add team
+  #               </div>
+  #             </.menu_item>
+  #           </.menu>
+  #         </.dropdown_menu_content>
+  #       </.dropdown_menu>
+  #     </.sidebar_menu_item>
+  #   </.sidebar_menu>
+  #   """
+  # end
 
   def nav_main(assigns) do
     ~H"""
@@ -150,39 +144,39 @@ defmodule PhxplateWeb.Components.DashboardLayout do
       <.sidebar_group_label>
         Platform
       </.sidebar_group_label>
-      <.sidebar_menu>
-        <.collapsible
+      <.sidebar_menu :for={item <- @items}>
+        <%!-- <.collapsible
           :for={item <- @items}
           id={id(item.title)}
           open={item[:is_active]}
           class="group/collapsible block"
-        >
-          <.sidebar_menu_item>
+        > --%>
+        <.sidebar_menu_item>
             <.as_child
               tag={&collapsible_trigger/1}
               child={&sidebar_menu_button/1}
               tooltip={item.title}
             >
-              <.dynamic :if={not is_nil(item.icon)} tag={item.icon} />
+            <.dynamic :if={not is_nil(item.icon)} tag={item.icon} />
 
-              <span>
-                {item.title}
-              </span>
-              <.chevron_right class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-            </.as_child>
-            <.collapsible_content>
-              <.sidebar_menu_sub>
-                <.sidebar_menu_sub_item :for={sub_item <- item.items}>
-                  <.as_child tag={&sidebar_menu_sub_button/1} child="a" href={sub_item.url}>
-                    <span>
-                      {sub_item.title}
-                    </span>
-                  </.as_child>
-                </.sidebar_menu_sub_item>
-              </.sidebar_menu_sub>
-            </.collapsible_content>
-          </.sidebar_menu_item>
-        </.collapsible>
+            <span>
+              {item.title}
+            </span>
+            <%!-- <Lucideicons.chevron_right class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" /> --%>
+          </.as_child>
+          <%!-- <.collapsible_content> --%>
+          <.sidebar_menu_sub>
+            <.sidebar_menu_sub_item :for={sub_item <- item.items}>
+              <.as_child tag={&sidebar_menu_sub_button/1} child="a" href={sub_item.url}>
+                <span>
+                  {sub_item.title}
+                </span>
+              </.as_child>
+            </.sidebar_menu_sub_item>
+          </.sidebar_menu_sub>
+          <%!-- </.collapsible_content> --%>
+        </.sidebar_menu_item>
+        <%!-- </.collapsible> --%>
       </.sidebar_menu>
     </.sidebar_group>
     """
@@ -190,58 +184,22 @@ defmodule PhxplateWeb.Components.DashboardLayout do
 
   def nav_projects(assigns) do
     ~H"""
-    <.sidebar_group class="group-data-[collapsible=icon]:hidden">
+    <.sidebar_group>
       <.sidebar_group_label>
-        Projects
+        Companies
       </.sidebar_group_label>
       <.sidebar_menu>
-        <.sidebar_menu_item :for={item <- @projects}>
-          <.dropdown_menu style="-ml-8 block">
-            <.dropdown_menu_trigger>
-              <.as_child tag={&sidebar_menu_button/1} child="a" href={item.url}>
-                <.dynamic tag={item.icon} />
-                <span>
-                  {item.name}
-                </span>
-              </.as_child>
-              <.sidebar_menu_action>
-                <.ellipsis class="h-4 w-4" />
-                <span class="sr-only">
-                  More
-                </span>
-              </.sidebar_menu_action>
-            </.dropdown_menu_trigger>
-            <.dropdown_menu_content class="w-48 rounded-lg" side="right" align="start">
-              <.menu>
-                <.menu_item>
-                  <.folder class="text-muted-foreground h-4 w-4 mr-2" />
-                  <span>
-                    View Project
-                  </span>
-                </.menu_item>
-                <.menu_item>
-                  <.forward class="text-muted-foreground h-4 w-4 mr-2" />
-                  <span>
-                    Share Project
-                  </span>
-                </.menu_item>
-                <.menu_separator></.menu_separator>
-                <.menu_item>
-                  <.trash_2 class="text-muted-foreground h-4 w-4 mr-2" />
-                  <span>
-                    Delete Project
-                  </span>
-                </.menu_item>
-              </.menu>
-            </.dropdown_menu_content>
-          </.dropdown_menu>
-        </.sidebar_menu_item>
-        <.sidebar_menu_item>
-          <.sidebar_menu_button class="text-sidebar-foreground/70">
-            <.ellipsis class="text-sidebar-foreground/70" />
-            <span>
-              More
-            </span>
+        <.sidebar_menu_item :for={project <- @projects}>
+          <.sidebar_menu_button class="flex items-center gap-2">
+            <.avatar class="h-8 w-8 rounded-lg -ml-2">
+              <.avatar_image src={project.logo} alt={project.name} />
+              <.avatar_fallback class="rounded-lg">
+                {String.slice(project.name, 0, 2)}
+              </.avatar_fallback>
+            </.avatar>
+            <a href={~p"/dashboard/companies/#{project.id}"} class="truncate">
+              {project.name}
+            </a>
           </.sidebar_menu_button>
         </.sidebar_menu_item>
       </.sidebar_menu>
@@ -263,7 +221,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             <.avatar class="h-8 w-8 rounded-lg -ml-2">
               <.avatar_image src={@user.avatar} alt={@user.name} />
               <.avatar_fallback class="rounded-lg">
-                CN
+                {String.slice(@user.name, 0, 2)}
               </.avatar_fallback>
             </.avatar>
             <div class="grid flex-1 text-left text-sm leading-tight ml-2">
@@ -278,19 +236,34 @@ defmodule PhxplateWeb.Components.DashboardLayout do
           </.as_child>
           <.dropdown_menu_content
             class="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-            side="top"
+            side="bottom"
             align="start"
           >
             <.menu>
+              <%= if @user.role == :basic do %>
+                <dropdownmenugroup>
+                  <.menu_item>
+                    <.sparkles class="w-4 h-4 mr-2" /> Upgrade to Pro
+                  </.menu_item>
+                </dropdownmenugroup>
+                <.menu_separator></.menu_separator>
+              <% end %>
               <dropdownmenugroup>
-                <.menu_item>
-                  <.sparkles class="w-4 h-4 mr-2" /> Upgrade to Pro
-                </.menu_item>
+                <.link href={~p"/dashboard/user/profile"}>
+                  <.menu_item>
+                    <Lucideicons.user class="w-4 h-4 mr-2" /> Profile
+                  </.menu_item>
+                </.link>
+                <.link href={~p"/dashboard/user/settings"}>
+                  <.menu_item>
+                    <Lucideicons.settings class="w-4 h-4 mr-2" /> Settings
+                  </.menu_item>
+                </.link>
               </dropdownmenugroup>
               <.menu_separator></.menu_separator>
               <.link href={~p"/users/log_out"} method="delete">
                 <.menu_item>
-                  <.log_out class="w-4 h-4 mr-2" /> Log out
+                  <Lucideicons.log_out class="w-4 h-4 mr-2" /> Log out
                 </.menu_item>
               </.link>
             </.menu>
@@ -340,11 +313,16 @@ defmodule PhxplateWeb.Components.DashboardLayout do
       <div class="px-3 py-2 text-sm font-medium text-gray-500">Projects</div>
       <%= for item <- @projects do %>
         <.link
-          href={item.url}
+          href={~p"/companies/#{item.id}"}
           class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
         >
-          <.dynamic tag={item.icon} class="mr-2 h-4 w-4" />
-          <span>{item.name}</span>
+          <.avatar class="h-8 w-8 rounded-lg">
+            <.avatar_image src={item.logo} alt={item.name} />
+            <.avatar_fallback class="rounded-lg">
+              {item.name}
+            </.avatar_fallback>
+          </.avatar>
+          <span class="ml-2">{item.name}</span>
         </.link>
       <% end %>
     </div>
