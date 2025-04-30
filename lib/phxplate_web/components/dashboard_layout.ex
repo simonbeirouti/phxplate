@@ -345,7 +345,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     """
   end
 
-  defp dashboard_breadcrumbs("/dashboard" <> rest) do
+  def dashboard_breadcrumbs("/dashboard" <> rest) do
     segments =
       rest
       |> String.trim_leading("/")
@@ -361,5 +361,5 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     |> elem(0)
   end
 
-  defp dashboard_breadcrumbs(_), do: [%{label: "Dashboard", href: "/dashboard"}]
+  def dashboard_breadcrumbs(_), do: [%{label: "Dashboard", href: "/dashboard"}]
 end
