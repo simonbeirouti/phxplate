@@ -83,6 +83,7 @@ defmodule PhxplateWeb.DashboardController do
       user: %{
         name: current_user.email,
         email: current_user.email,
+        role: current_user.role,
         avatar: "/avatars/default.jpg"
       },
       teams: [
