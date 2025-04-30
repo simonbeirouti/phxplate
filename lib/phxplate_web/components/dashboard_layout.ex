@@ -64,80 +64,79 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     ~H"""
     <.sidebar collapsible="icon" id="main-sidebar">
       <.sidebar_header>
-        <.team_switcher user={@data.user} teams={@data.teams} />
+        <%!-- <.team_switcher user={@data.user} teams={@data.teams} /> --%>
+        <.nav_user user={@data.user} />
       </.sidebar_header>
       <.sidebar_content>
         <.nav_main items={@data.navMain} />
         <.nav_projects projects={@data.projects} />
       </.sidebar_content>
-      <.sidebar_footer>
+      <%!-- <.sidebar_footer>
         <.nav_user user={@data.user} />
-      </.sidebar_footer>
+      </.sidebar_footer> --%>
       <.sidebar_rail />
     </.sidebar>
     """
   end
 
-  def team_switcher(assigns) do
-    ~H"""
-    <.sidebar_menu>
-      <.sidebar_menu_item>
-        <.dropdown_menu class="block">
-          <.as_child
-            tag={&dropdown_menu_trigger/1}
-            child={&sidebar_menu_button/1}
-            size="lg"
-            class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-          >
-            <div class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground -ml-2">
-              <Lucideicons.command class="size-4" />
-            </div>
-            <div class="grid flex-1 text-left text-sm leading-tight ml-2">
-              <span class="truncate font-semibold">
-                {@user.name}
-              </span>
-              <span class="truncate text-xs">
-                {@user.role}
-              </span>
-            </div>
-            <%!-- <Lucideicons.chevrons_up_down class="ml-auto" /> --%>
-          </.as_child>
-          <%!-- <.dropdown_menu_content
-            class="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-            align="start"
-            side="right"
-          >
-            <.menu>
-              <.menu_label class="text-xs text-muted-foreground">
-                Teams
-              </.menu_label>
-
-              <.menu_item :for={{team, index} <- Enum.with_index(@teams)} class="gap-2 p-2">
-                <div class="flex size-6 items-center justify-center rounded-sm border">
-                  <.dynamic tag={team.logo} class="size-4 shrink-0" />
-                </div>
-                {team.name}
-                <.dropdown_menu_shortcut>
-                  ⌘{index + 1}
-                </.dropdown_menu_shortcut>
-              </.menu_item>
-
-              <.menu_separator></.menu_separator>
-              <.menu_item class="gap-2 p-2">
-                <div class="flex size-6 items-center justify-center rounded-md border bg-background">
-                  <.plus class="size-4" />
-                </div>
-                <div class="font-medium text-muted-foreground">
-                  Add team
-                </div>
-              </.menu_item>
-            </.menu>
-          </.dropdown_menu_content> --%>
-        </.dropdown_menu>
-      </.sidebar_menu_item>
-    </.sidebar_menu>
-    """
-  end
+  # def team_switcher(assigns) do
+  #   ~H"""
+  #   <.sidebar_menu>
+  #     <.sidebar_menu_item>
+  #       <.dropdown_menu class="block">
+  #         <.as_child
+  #           tag={&dropdown_menu_trigger/1}
+  #           child={&sidebar_menu_button/1}
+  #           size="lg"
+  #           class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+  #         >
+  #           <div class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground -ml-2">
+  #             <Lucideicons.command class="size-4" />
+  #           </div>
+  #           <div class="grid flex-1 text-left text-sm leading-tight ml-2">
+  #             <span class="truncate font-semibold">
+  #               {@user.name}
+  #             </span>
+  #             <span class="truncate text-xs">
+  #               {@user.role}
+  #             </span>
+  #           </div>
+  #           <Lucideicons.chevrons_up_down class="ml-auto" />
+  #         </.as_child>
+  #         <.dropdown_menu_content
+  #           class="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+  #           align="start"
+  #           side="right"
+  #         >
+  #           <.menu>
+  #             <.menu_label class="text-xs text-muted-foreground">
+  #               Teams
+  #             </.menu_label>
+  #             <.menu_item :for={{team, index} <- Enum.with_index(@teams)} class="gap-2 p-2">
+  #               <div class="flex size-6 items-center justify-center rounded-sm border">
+  #                 <.dynamic tag={team.logo} class="size-4 shrink-0" />
+  #               </div>
+  #               {team.name}
+  #               <.dropdown_menu_shortcut>
+  #                 ⌘{index + 1}
+  #               </.dropdown_menu_shortcut>
+  #             </.menu_item>
+  #             <.menu_separator></.menu_separator>
+  #             <.menu_item class="gap-2 p-2">
+  #               <div class="flex size-6 items-center justify-center rounded-md border bg-background">
+  #                 <.plus class="size-4" />
+  #               </div>
+  #               <div class="font-medium text-muted-foreground">
+  #                 Add team
+  #               </div>
+  #             </.menu_item>
+  #           </.menu>
+  #         </.dropdown_menu_content>
+  #       </.dropdown_menu>
+  #     </.sidebar_menu_item>
+  #   </.sidebar_menu>
+  #   """
+  # end
 
   def nav_main(assigns) do
     ~H"""
@@ -192,9 +191,14 @@ defmodule PhxplateWeb.Components.DashboardLayout do
       <.sidebar_menu>
         <.sidebar_menu_item :for={project <- @projects}>
           <.sidebar_menu_button class="flex items-center gap-2">
-            <.dynamic tag={project.icon} />
-            <a href={project.url}>
-              {project.name}
+            <.avatar class="h-8 w-8 rounded-lg -ml-2">
+              <.avatar_image src={project.logo} alt={project.name} />
+              <.avatar_fallback class="rounded-lg">
+                {String.slice(project.name, 0, 2)}
+              </.avatar_fallback>
+            </.avatar>
+            <a href={~p"/dashboard/companies/#{project.id}"} class="truncate">
+                {project.name}
             </a>
           </.sidebar_menu_button>
         </.sidebar_menu_item>
@@ -217,7 +221,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             <.avatar class="h-8 w-8 rounded-lg -ml-2">
               <.avatar_image src={@user.avatar} alt={@user.name} />
               <.avatar_fallback class="rounded-lg">
-                CN
+                {String.slice(@user.name, 0, 2)}
               </.avatar_fallback>
             </.avatar>
             <div class="grid flex-1 text-left text-sm leading-tight ml-2">
@@ -232,7 +236,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
           </.as_child>
           <.dropdown_menu_content
             class="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-            side="top"
+            side="bottom"
             align="start"
           >
             <.menu>
@@ -294,11 +298,16 @@ defmodule PhxplateWeb.Components.DashboardLayout do
       <div class="px-3 py-2 text-sm font-medium text-gray-500">Projects</div>
       <%= for item <- @projects do %>
         <.link
-          href={item.url}
+          href={~p"/companies/#{item.id}"}
           class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
         >
-          <.dynamic tag={item.icon} class="mr-2 h-4 w-4" />
-          <span>{item.name}</span>
+          <.avatar class="h-8 w-8 rounded-lg">
+            <.avatar_image src={item.logo} alt={item.name} />
+            <.avatar_fallback class="rounded-lg">
+              {item.name}
+            </.avatar_fallback>
+          </.avatar>
+          <span class="ml-2">{item.name}</span>
         </.link>
       <% end %>
     </div>

@@ -136,6 +136,8 @@ created_data = Enum.reduce(1..2, created_data, fn _, acc ->
     address: Faker.Address.street_address(),
     phone: Faker.Phone.EnUs.phone(),
     email: Faker.Internet.email(),
+    logo: Faker.Avatar.image_url(),
+    website: Faker.Internet.url(),
     plan: "basic"
   })
 
@@ -146,7 +148,9 @@ created_data = Enum.reduce(1..2, created_data, fn _, acc ->
     address: company.address,
     phone: company.phone,
     email: company.email,
-    plan: company.plan
+    plan: company.plan,
+    logo: company.logo,
+    website: company.website
   }
 
   # Create employees for each company

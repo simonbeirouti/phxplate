@@ -9,6 +9,8 @@ defmodule Phxplate.Repo.Migrations.CreateCompaniesAndEmployees do
       add :phone, :string
       add :email, :string
       add :plan, :string, null: false, default: "basic"
+      add :logo, :string
+      add :website, :string
 
       timestamps()
     end

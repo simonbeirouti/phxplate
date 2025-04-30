@@ -9,6 +9,8 @@ defmodule Phxplate.Companies.Company do
     field :phone, :string
     field :email, :string
     field :plan, :string, default: "basic"
+    field :logo, :string
+    field :website, :string
 
     has_many :employees, Phxplate.Companies.Employee
 
@@ -18,7 +20,7 @@ defmodule Phxplate.Companies.Company do
   @doc false
   def changeset(company, attrs) do
     company
-    |> cast(attrs, [:name, :description, :address, :phone, :email, :plan])
+    |> cast(attrs, [:name, :description, :address, :phone, :email, :plan, :logo, :website])
     |> validate_required([:name])
     |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/, message: "must have the @ sign and no spaces")
     |> unique_constraint(:email)

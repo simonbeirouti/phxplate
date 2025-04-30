@@ -4,6 +4,8 @@ defmodule PhxplateWeb.DashboardController do
 
   def get_dashboard_data(conn) do
     current_user = conn.assigns.current_user
+    current_user = Phxplate.Repo.preload(current_user, [:profile])
+    companies = Phxplate.Companies.list_companies()
 
     # Define all possible navigation items
     all_nav_items = [
@@ -81,10 +83,10 @@ defmodule PhxplateWeb.DashboardController do
 
     %{
       user: %{
-        name: current_user.email,
+        name: current_user.profile.first_name,
         email: current_user.email,
         role: current_user.role,
-        avatar: "/avatars/default.jpg"
+        avatar: current_user.profile.avatar_url
       },
       teams: [
         %{
@@ -104,23 +106,24 @@ defmodule PhxplateWeb.DashboardController do
         }
       ],
       navMain: nav_main,
-      projects: [
-        %{
-          name: "Design Engineering",
-          url: "#",
-          icon: &Lucideicons.frame/1
-        },
-        %{
-          name: "Sales & Marketing",
-          url: "#",
-          icon: &Lucideicons.presentation/1
-        },
-        %{
-          name: "Travel",
-          url: "#",
-          icon: &Lucideicons.plane/1
-        }
-      ]
+      projects: companies
+      # projects: [
+      #   %{
+      #     name: "Design Engineering",
+      #     url: "#",
+      #     icon: &Lucideicons.frame/1
+      #   },
+      #   %{
+      #     name: "Sales & Marketing",
+      #     url: "#",
+      #     icon: &Lucideicons.presentation/1
+      #   },
+      #   %{
+      #     name: "Travel",
+      #     url: "#",
+      #     icon: &Lucideicons.plane/1
+      #   }
+      # ]
     }
   end
 
