@@ -1,13 +1,13 @@
 defmodule PhxplateWeb.Dashboard.Basic.BasicLive do
   use PhxplateWeb, :live_view
+  alias PhxplateWeb.PageMeta
 
   def mount(_params, _session, socket) do
     {:ok,
-     assign(socket,
-       page_title: "Basic Dashboard",
-       page_description: "Just the basic dashboard",
-       page_image: "https://via.placeholder.com/1200x630",
-       page_url: "https://phxplate.com"
+     socket
+     |> PageMeta.assign_metadata(
+       title: "Basic Dashboard",
+       description: "Just the basic dashboard"
      )}
   end
 
