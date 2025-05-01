@@ -92,6 +92,8 @@ defmodule PhxplateWeb do
       # Core UI components
       import PhxplateWeb.CoreComponents
 
+      alias SaladUI.Button, as: SButton
+
       # Shortcut for generating JS commands
       alias Phoenix.LiveView.JS
 
