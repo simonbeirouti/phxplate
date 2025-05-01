@@ -38,6 +38,16 @@ defmodule PhxplateWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/about", PageController, :about
+    get "/contact", PageController, :contact
+    get "/pricing", PageController, :pricing
+
+    live_session :public,
+      on_mount: [{PhxplateWeb.UserAuth, :mount_current_user}] do
+      # Home and public job/company listings
+      live "/companies", Dashboard.Companies.CompaniesLive, :index
+      live "/companies/:id", Dashboard.Companies.CompaniesLive, :show
+    end
   end
 
   # Other scopes may use custom stacks.
@@ -68,35 +78,26 @@ defmodule PhxplateWeb.Router do
     pipe_through [:browser, :redirect_if_user_is_authenticated]
 
     live_session :redirect_if_user_is_authenticated,
+      layout: {PhxplateWeb.Layouts, :auth},
       on_mount: [{PhxplateWeb.UserAuth, :redirect_if_user_is_authenticated}] do
-      live "/users/register", UserRegistrationLive, :new
-      live "/users/log_in", UserLoginLive, :new
-      live "/users/reset_password", UserForgotPasswordLive, :new
-      live "/users/reset_password/:token", UserResetPasswordLive, :edit
+      live "/register", UserRegistrationLive, :new
+      live "/login", UserLoginLive, :new
+      live "/reset_password", UserForgotPasswordLive, :new
+      live "/reset_password/:token", UserResetPasswordLive, :edit
     end
 
-    post "/users/log_in", UserSessionController, :create
-  end
-
-  scope "/", PhxplateWeb do
-    pipe_through [:browser, :require_authenticated_user]
-
-    live_session :require_authenticated_user,
-      on_mount: [{PhxplateWeb.UserAuth, :ensure_authenticated}] do
-      live "/users/settings", UserSettingsLive, :edit
-      live "/users/settings/confirm_email/:token", UserSettingsLive, :confirm_email
-    end
+    post "/login", UserSessionController, :create
   end
 
   scope "/", PhxplateWeb do
     pipe_through [:browser]
 
-    delete "/users/log_out", UserSessionController, :delete
+    delete "/logout", UserSessionController, :delete
 
     live_session :current_user,
       on_mount: [{PhxplateWeb.UserAuth, :mount_current_user}] do
-      live "/users/confirm/:token", UserConfirmationLive, :edit
-      live "/users/confirm", UserConfirmationInstructionsLive, :new
+      live "/confirm/:token", UserConfirmationLive, :edit
+      live "/confirm", UserConfirmationInstructionsLive, :new
     end
   end
 
@@ -104,40 +105,63 @@ defmodule PhxplateWeb.Router do
   scope "/dashboard", PhxplateWeb do
     pipe_through [:browser, :require_authenticated_user]
 
-    get "/", DashboardController, :index
+    live_session :dashboard,
+      layout: {PhxplateWeb.Layouts, :app},
+      on_mount: [
+        {PhxplateWeb.UserAuth, :ensure_authenticated},
+        {PhxplateWeb.Live.Hooks.LayoutHooks, :default}
+      ] do
+      live "/", DashboardLive, :index
+      live "/companies", Dashboard.Companies.CompaniesLive, :index
+      live "/companies/:id", Dashboard.Companies.CompaniesLive, :show
+      live "/profile", Dashboard.User.UserProfileLive, :index
+      live "/settings", Dashboard.User.UserSettingsLive, :edit
+      live "/settings/confirm_email/:token", Dashboard.User.UserSettingsLive, :confirm_email
+    end
   end
 
   scope "/dashboard/basic", PhxplateWeb do
     pipe_through [:browser, :require_authenticated_user, :basic]
 
-    get "/", DashboardController, :basic
-    get "/reports", DashboardController, :basic_reports
-    get "/settings", DashboardController, :basic_settings
+    live_session :basic,
+      layout: {PhxplateWeb.Layouts, :app},
+      on_mount: [
+        {PhxplateWeb.UserAuth, :ensure_authenticated},
+        {PhxplateWeb.Live.Hooks.LayoutHooks, :default}
+      ] do
+      live "/", Dashboard.Basic.BasicLive, :index
+      live "/basicpage", Dashboard.Basic.BasicPageLive, :index
+      live "/basicpage2", Dashboard.Basic.SecondPageLive, :index
+    end
   end
 
   scope "/dashboard/admin", PhxplateWeb do
     pipe_through [:browser, :require_authenticated_user, :admin]
 
-    get "/", DashboardController, :admin
-    get "/users", DashboardController, :admin_users
-    get "/settings", DashboardController, :admin_settings
+    live_session :admin,
+      layout: {PhxplateWeb.Layouts, :app},
+      on_mount: [
+        {PhxplateWeb.UserAuth, :ensure_authenticated},
+        {PhxplateWeb.Live.Hooks.LayoutHooks, :default}
+      ] do
+        live "/", Dashboard.Admin.AdminLive, :index
+        live "/adminpage", Dashboard.Admin.BasicPageLive, :index
+        live "/adminpage2", Dashboard.Admin.SecondPageLive, :index
+    end
   end
 
   scope "/dashboard/super_admin", PhxplateWeb do
     pipe_through [:browser, :require_authenticated_user, :super_admin]
 
-    get "/", DashboardController, :super_admin
-    get "/config", DashboardController, :super_admin_config
-    get "/audit", DashboardController, :super_admin_audit
-  end
-
-  scope "/admin", PhxplateWeb do
-    pipe_through [:browser, :require_authenticated_user, :admin]
-    # Admin routes here
-  end
-
-  scope "/super_admin", PhxplateWeb do
-    pipe_through [:browser, :require_authenticated_user, :super_admin]
-    # Super admin routes here
+    live_session :super_admin,
+      layout: {PhxplateWeb.Layouts, :app},
+      on_mount: [
+        {PhxplateWeb.UserAuth, :ensure_authenticated},
+        {PhxplateWeb.Live.Hooks.LayoutHooks, :default}
+      ] do
+      live "/", Dashboard.SuperAdmin.SuperAdminLive, :index
+      live "/super_adminpage", Dashboard.SuperAdmin.BasicPageLive, :index
+      live "/super_adminpage2", Dashboard.SuperAdmin.SecondPageLive, :index
+    end
   end
 end

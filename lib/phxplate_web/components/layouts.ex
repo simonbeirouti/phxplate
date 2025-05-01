@@ -10,5 +10,29 @@ defmodule PhxplateWeb.Layouts do
   """
   use PhxplateWeb, :html
 
+  import PhxplateWeb.Components.DashboardLayout
+  import PhxplateWeb.Components.NavComponent
+  use SaladUI
+
   embed_templates "layouts/*"
+
+  def auth(assigns) do
+    current_path = case assigns do
+      %{socket: %{private: %{connect_params: %{"_mounts" => 0}}}} ->
+        assigns.socket.private.connect_params["request_path"]
+      %{conn: conn} ->
+        conn.request_path
+      _ ->
+        "/"
+    end
+    assigns = Map.put_new(assigns, :current_path, current_path)
+    ~H"""
+    <div class="flex flex-col lg:flex-row h-[calc(100vh-4rem)]">
+      <div class="w-full lg:w-1/2 p-4">
+        {@inner_content}
+      </div>
+      <div class="w-full lg:w-1/2 bg-cover bg-center" style="background-image: url('/images/coffee.jpg')"></div>
+    </div>
+    """
+  end
 end
