@@ -1,29 +1,40 @@
 defmodule PhxplateWeb.PageController do
   use PhxplateWeb, :controller
+  alias PhxplateWeb.PageMeta
 
   def home(conn, _params) do
-    # The home page is often custom made,
-    # so skip the default app layout.
-    render(conn, :home,
-      layout: false,
-      page_title: "Home",
-      page_description: "Home"
+    conn
+    |> PageMeta.assign_metadata(
+      title: "Home",
+      description: "Welcome to Phxplate"
     )
+    |> render(:home, layout: false)
   end
 
   def about(conn, _params) do
-    render(conn, :about,
-      layout: false,
-      page_title: "About",
-      page_description: "About"
+    conn
+    |> PageMeta.assign_metadata(
+      title: "About",
+      description: "Learn more about Phxplate"
     )
+    |> render(:about, layout: false)
   end
 
   def contact(conn, _params) do
-    render(conn, :contact,
-      layout: false,
-      page_title: "Contact",
-      page_description: "Contact"
+    conn
+    |> PageMeta.assign_metadata(
+      title: "Contact",
+      description: "Get in touch with us"
     )
+    |> render(:contact, layout: false)
+  end
+
+  def pricing(conn, _params) do
+    conn
+    |> PageMeta.assign_metadata(
+      title: "Pricing",
+      description: "Get in touch with us"
+    )
+    |> render(:pricing, layout: false)
   end
 end

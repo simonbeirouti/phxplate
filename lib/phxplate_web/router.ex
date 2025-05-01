@@ -78,36 +78,27 @@ defmodule PhxplateWeb.Router do
     pipe_through [:browser, :redirect_if_user_is_authenticated]
 
     live_session :redirect_if_user_is_authenticated,
+      layout: {PhxplateWeb.Layouts, :auth},
       on_mount: [{PhxplateWeb.UserAuth, :redirect_if_user_is_authenticated}] do
-      live "/users/register", UserRegistrationLive, :new
-      live "/users/log_in", UserLoginLive, :new
-      live "/users/reset_password", UserForgotPasswordLive, :new
-      live "/users/reset_password/:token", UserResetPasswordLive, :edit
+      live "/register", UserRegistrationLive, :new
+      live "/login", UserLoginLive, :new
+      live "/reset_password", UserForgotPasswordLive, :new
+      live "/reset_password/:token", UserResetPasswordLive, :edit
     end
 
-    post "/users/log_in", UserSessionController, :create
+    post "/login", UserSessionController, :create
   end
-
-  # scope "/", PhxplateWeb do
-  #   pipe_through [:browser, :require_authenticated_user]
-
-  #   live_session :require_authenticated_user,
-  #     on_mount: [{PhxplateWeb.UserAuth, :ensure_authenticated}] do
-  #     live "/users/settings", UserSettingsLive, :edit
-  #     live "/users/settings/confirm_email/:token", UserSettingsLive, :confirm_email
-  #   end
-  # end
 
   scope "/", PhxplateWeb do
     pipe_through [:browser]
 
-    delete "/users/log_out", UserSessionController, :delete
+    delete "/logout", UserSessionController, :delete
 
-    # live_session :current_user,
-    #   on_mount: [{PhxplateWeb.UserAuth, :mount_current_user}] do
-    #   live "/users/confirm/:token", UserConfirmationLive, :edit
-    #   live "/users/confirm", UserConfirmationInstructionsLive, :new
-    # end
+    live_session :current_user,
+      on_mount: [{PhxplateWeb.UserAuth, :mount_current_user}] do
+      live "/confirm/:token", UserConfirmationLive, :edit
+      live "/confirm", UserConfirmationInstructionsLive, :new
+    end
   end
 
   # Dashboard routes
@@ -123,11 +114,9 @@ defmodule PhxplateWeb.Router do
       live "/", DashboardLive, :index
       live "/companies", Dashboard.Companies.CompaniesLive, :index
       live "/companies/:id", Dashboard.Companies.CompaniesLive, :show
-      live "/user/profile", Dashboard.User.UserProfileLive, :index
-      live "/user/settings", Dashboard.User.UserSettingsLive, :edit
-      live "/users/settings/confirm_email/:token", Dashboard.User.UserSettingsLive, :confirm_email
-      live "/users/confirm/:token", UserConfirmationLive, :edit
-      live "/users/confirm", UserConfirmationInstructionsLive, :new
+      live "/profile", Dashboard.User.UserProfileLive, :index
+      live "/settings", Dashboard.User.UserSettingsLive, :edit
+      live "/settings/confirm_email/:token", Dashboard.User.UserSettingsLive, :confirm_email
     end
   end
 

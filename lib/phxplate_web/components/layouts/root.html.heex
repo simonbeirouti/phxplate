@@ -5,13 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
 
-    <.live_title default={Phxplate.config([:title])}>
-      {Phxplate.config([:title]) <> " | " <> assigns[:page_title]}
+    <.live_title>
+      {assigns[:page_title]}
     </.live_title>
-    
+
     <%= if assigns[:page_title] do %>
-      <meta name="twitter:title" content={"#{assigns[:page_title]} | #{Phxplate.config([:title])}"} />
-      <meta property="og:title" content={"#{assigns[:page_title]} | #{Phxplate.config([:title])}"} />
+      <meta
+        name="twitter:title"
+        content={"#{assigns[:page_title]} | #{Phxplate.config([:title])}"}
+      />
+      <meta
+        property="og:title"
+        content={"#{assigns[:page_title]} | #{Phxplate.config([:title])}"}
+      />
     <% else %>
       <meta name="twitter:title" content={Phxplate.config([:title])} />
       <meta property="og:title" content={Phxplate.config([:title])} />
@@ -46,6 +52,7 @@
     </script>
   </head>
   <body class="bg-white">
+    <.flash_group flash={@flash} />
     <PhxplateWeb.Components.NavComponent.nav
       current_user={@current_user}
       current_path={@current_path}

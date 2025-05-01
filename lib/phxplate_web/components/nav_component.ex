@@ -35,21 +35,15 @@ defmodule PhxplateWeb.Components.NavComponent do
 
           <div class="hidden md:flex md:items-center">
             <%= if @current_user do %>
-              <.link
-                href={~p"/dashboard"}
-                class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
-              >
-                Dashboard
+              <.link href={~p"/dashboard"}>
+                <SButton.button>Dashboard</SButton.button>
               </.link>
             <% else %>
-              <.link href={~p"/users/register"} class="text-sm font-medium hover:text-gray-900">
-                Sign up
+              <.link href={~p"/register"}>
+                <SButton.button class="mr-2" variant="outline">Sign up</SButton.button>
               </.link>
-              <.link
-                href={~p"/users/log_in"}
-                class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
-              >
-                Sign in
+              <.link href={~p"/login"}>
+                <SButton.button>Sign in</SButton.button>
               </.link>
             <% end %>
           </div>
@@ -59,7 +53,8 @@ defmodule PhxplateWeb.Components.NavComponent do
           <button
             type="button"
             class="inline-flex items-center justify-center rounded-md p-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-            phx-click={JS.toggle(to: "#mobile-menu")}
+            phx-hook="NavMenu"
+            id="nav-menu-button"
           >
             <span class="sr-only">Open main menu</span>
             <.icon name="hero-bars-3" class="h-6 w-6" />
@@ -67,7 +62,7 @@ defmodule PhxplateWeb.Components.NavComponent do
         </div>
       </div>
 
-      <div id="mobile-menu" class="hidden md:hidden">
+      <div id="mobile-menu" class="hidden md:hidden" phx-hook="NavMenu">
         <div class="space-y-1 px-2 pb-3 pt-2">
           <%= for link <- @public_links do %>
             <.link
@@ -78,25 +73,18 @@ defmodule PhxplateWeb.Components.NavComponent do
             </.link>
           <% end %>
           <%= if @current_user do %>
-            <.link
-              href={~p"/dashboard"}
-              class="block rounded-md px-3 py-2 text-base font-medium hover:bg-gray-50"
-            >
-              Dashboard
+            <.link href={~p"/dashboard"}>
+              <SButton.button>Dashboard</SButton.button>
             </.link>
           <% else %>
-            <.link
-              href={~p"/users/register"}
-              class="block rounded-md px-3 py-2 text-base font-medium hover:bg-gray-50"
-            >
-              Sign up
-            </.link>
-            <.link
-              href={~p"/users/log_in"}
-              class="block rounded-md px-3 py-2 text-base font-medium hover:bg-gray-50"
-            >
-              Sign in
-            </.link>
+            <div class="flex items-center space-x-2 w-full">
+              <.link href={~p"/register"} class="w-full">
+                <SButton.button class="w-full" variant="outline">Sign up</SButton.button>
+              </.link>
+              <.link href={~p"/login"} class="w-full">
+                <SButton.button class="w-full">Sign in</SButton.button>
+              </.link>
+            </div>
           <% end %>
         </div>
       </div>
