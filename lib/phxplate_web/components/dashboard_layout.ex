@@ -15,7 +15,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             type="button"
             id="mobile-menu-button"
             class="md:hidden inline-flex items-center justify-center rounded-md p-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-            phx-hook="MobileMenu"
+            phx-hook="NavMenu"
           >
             <span class="sr-only">Open main menu</span>
             <Lucideicons.menu class="h-6 w-6" id="menu-icon" />
@@ -249,19 +249,19 @@ defmodule PhxplateWeb.Components.DashboardLayout do
                 <.menu_separator></.menu_separator>
               <% end %>
               <dropdownmenugroup>
-                <.link href={~p"/dashboard/user/profile"}>
+                <.link href={~p"/dashboard/profile"}>
                   <.menu_item>
                     <Lucideicons.user class="w-4 h-4 mr-2" /> Profile
                   </.menu_item>
                 </.link>
-                <.link href={~p"/dashboard/user/settings"}>
+                <.link href={~p"/dashboard/settings"}>
                   <.menu_item>
                     <Lucideicons.settings class="w-4 h-4 mr-2" /> Settings
                   </.menu_item>
                 </.link>
               </dropdownmenugroup>
               <.menu_separator></.menu_separator>
-              <.link href={~p"/users/log_out"} method="delete">
+              <.link href={~p"/logout"} method="delete">
                 <.menu_item>
                   <Lucideicons.log_out class="w-4 h-4 mr-2" /> Log out
                 </.menu_item>
@@ -334,7 +334,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     <div class="space-y-1">
       <div class="px-3 py-2 text-sm font-medium text-gray-500">Account</div>
       <.link
-        href={~p"/users/log_out"}
+        href={~p"/logout"}
         method="delete"
         class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
       >
@@ -345,7 +345,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     """
   end
 
-  defp dashboard_breadcrumbs("/dashboard" <> rest) do
+  def dashboard_breadcrumbs("/dashboard" <> rest) do
     segments =
       rest
       |> String.trim_leading("/")
@@ -361,5 +361,5 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     |> elem(0)
   end
 
-  defp dashboard_breadcrumbs(_), do: [%{label: "Dashboard", href: "/dashboard"}]
+  def dashboard_breadcrumbs(_), do: [%{label: "Dashboard", href: "/dashboard"}]
 end

@@ -113,6 +113,7 @@ defmodule PhxplateWeb.CoreComponents do
       :if={msg = render_slot(@inner_block) || Phoenix.Flash.get(@flash, @kind)}
       id={@id}
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
+      phx-mounted={JS.hide(to: "##{@id}", transition: "fade-out", time: 3000)}
       role="alert"
       class={[
         "fixed top-2 right-2 mr-2 w-80 sm:w-96 z-50 rounded-lg p-3 ring-1",
