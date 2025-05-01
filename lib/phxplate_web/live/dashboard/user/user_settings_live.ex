@@ -1,4 +1,4 @@
-defmodule PhxplateWeb.UserSettingsLive do
+defmodule PhxplateWeb.Dashboard.User.UserSettingsLive do
   use PhxplateWeb, :live_view
 
   alias Phxplate.Accounts

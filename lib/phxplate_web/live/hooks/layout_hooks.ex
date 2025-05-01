@@ -29,12 +29,12 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
             url: "/dashboard/basic"
           },
           %{
-            title: "Basic Reports",
-            url: "/dashboard/basic/reports"
+            title: "Basic Page",
+            url: "/dashboard/basic/basicpage"
           },
           %{
-            title: "Basic Settings",
-            url: "/dashboard/basic/settings"
+            title: "Basic Page 2",
+            url: "/dashboard/basic/basicpage2"
           }
         ],
         required_role: :basic
@@ -49,12 +49,12 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
             url: "/dashboard/admin"
           },
           %{
-            title: "User Management",
-            url: "/dashboard/admin/users"
+            title: "User Admin Page",
+            url: "/dashboard/admin/adminpage"
           },
           %{
-            title: "System Settings",
-            url: "/dashboard/admin/settings"
+            title: "User Admin Page 2",
+            url: "/dashboard/admin/adminpage2"
           }
         ],
         required_role: :admin
@@ -69,12 +69,12 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
             url: "/dashboard/super_admin"
           },
           %{
-            title: "System Configuration",
-            url: "/dashboard/super_admin/config"
+            title: "Super Admin Page",
+            url: "/dashboard/super_admin/super_adminpage"
           },
           %{
-            title: "Audit Logs",
-            url: "/dashboard/super_admin/audit"
+            title: "Super Admin Page 2",
+            url: "/dashboard/super_admin/super_adminpage2"
           }
         ],
         required_role: :super_admin

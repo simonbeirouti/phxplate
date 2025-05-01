@@ -4,15 +4,52 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <.live_title default="Phxplate" suffix=" · Phoenix Framework">
-      {assigns[:page_title]}
+
+    <.live_title default={Phxplate.config([:title])}>
+      {Phxplate.config([:title]) <> " | " <> assigns[:page_title]}
     </.live_title>
+    
+    <%= if assigns[:page_title] do %>
+      <meta name="twitter:title" content={"#{assigns[:page_title]} | #{Phxplate.config([:title])}"} />
+      <meta property="og:title" content={"#{assigns[:page_title]} | #{Phxplate.config([:title])}"} />
+    <% else %>
+      <meta name="twitter:title" content={Phxplate.config([:title])} />
+      <meta property="og:title" content={Phxplate.config([:title])} />
+    <% end %>
+
+    <%= if assigns[:page_description] do %>
+      <meta name="description" content={assigns[:page_description]} />
+      <meta name="twitter:description" content={assigns[:page_description]} />
+      <meta property="og:description" content={assigns[:page_description]} />
+    <% else %>
+      <meta name="description" content={Phxplate.config([:description])} />
+      <meta name="twitter:description" content={Phxplate.config([:description])} />
+      <meta property="og:description" content={Phxplate.config([:description])} />
+    <% end %>
+
+    <meta name="twitter:image:src" content={assigns[:page_image]} />
+    <meta property="og:image" content={assigns[:page_image]} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <%= if assigns[:page_url] do %>
+      <meta property="og:url" content={"#{assigns[:page_url]}"} />
+    <% end %>
+
+    <meta name="twitter:site" content="@phxplate" />
+    <meta property="og:site_name" content="Phxplate" />
+    <meta property="og:type" content="website" />
+
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
     </script>
   </head>
   <body class="bg-white">
-    <PhxplateWeb.Components.NavComponent.nav current_user={@current_user} current_path={@current_path} />
+    <PhxplateWeb.Components.NavComponent.nav
+      current_user={@current_user}
+      current_path={@current_path}
+    />
     {@inner_content}
   </body>
 </html>

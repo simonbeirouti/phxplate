@@ -8,6 +8,9 @@
 import Config
 
 config :phxplate,
+  title: "PHXPlate",
+  description:
+    "Your starting place for a SaaS using Phoenix and Elixir.",
   ecto_repos: [Phxplate.Repo],
   generators: [timestamp_type: :utc_datetime]
 
