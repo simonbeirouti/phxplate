@@ -184,4 +184,14 @@ defmodule Phxplate.Accounts.User do
   """
   def is_basic?(%__MODULE__{role: :basic}), do: true
   def is_basic?(_), do: false
+
+  @doc """
+  A user changeset for updating the role.
+  """
+  def role_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:role])
+    |> validate_role()
+  end
+
 end

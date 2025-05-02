@@ -1,8 +1,6 @@
 defmodule Phxplate.Policy do
   use LetMe.Policy
 
-  # ... existing code ...
-
   object :company do
     action :view do
       allow role: :basic

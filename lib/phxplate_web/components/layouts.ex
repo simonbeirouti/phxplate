@@ -11,7 +11,6 @@ defmodule PhxplateWeb.Layouts do
   use PhxplateWeb, :html
 
   import PhxplateWeb.Components.DashboardLayout
-  import PhxplateWeb.Components.NavComponent
   use SaladUI
 
   embed_templates "layouts/*"
@@ -32,6 +31,17 @@ defmodule PhxplateWeb.Layouts do
         {@inner_content}
       </div>
       <div class="w-full lg:w-1/2 bg-cover bg-center" style="background-image: url('/images/coffee.jpg')"></div>
+    </div>
+    """
+  end
+
+  def public(assigns) do
+    ~H"""
+    <div class="min-h-[calc(100vh-4rem)]">
+      <main>
+        <.flash_group flash={@flash} />
+        <%= @inner_content %>
+      </main>
     </div>
     """
   end

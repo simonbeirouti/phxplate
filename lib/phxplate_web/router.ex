@@ -40,14 +40,18 @@ defmodule PhxplateWeb.Router do
     get "/", PageController, :home
     get "/about", PageController, :about
     get "/contact", PageController, :contact
-    get "/pricing", PageController, :pricing
 
     live_session :public,
-      on_mount: [{PhxplateWeb.UserAuth, :mount_current_user}] do
-      # Home and public job/company listings
-      live "/companies", Dashboard.Companies.CompaniesLive, :index
-      live "/companies/:id", Dashboard.Companies.CompaniesLive, :show
+      on_mount: [{PhxplateWeb.UserAuth, :mount_current_user}],
+      layout: {PhxplateWeb.Layouts, :public} do
+      live "/pricing", PricingLive, :index
     end
+  end
+
+  scope "/callbacks", PhxplateWeb do
+    pipe_through :api
+
+    post "/stripe", StripeWebhookController, :webhook
   end
 
   # Other scopes may use custom stacks.
@@ -101,7 +105,6 @@ defmodule PhxplateWeb.Router do
     end
   end
 
-  # Dashboard routes
   scope "/dashboard", PhxplateWeb do
     pipe_through [:browser, :require_authenticated_user]
 
@@ -116,52 +119,23 @@ defmodule PhxplateWeb.Router do
       live "/companies/:id", Dashboard.Companies.CompaniesLive, :show
       live "/profile", Dashboard.User.UserProfileLive, :index
       live "/settings", Dashboard.User.UserSettingsLive, :edit
+      live "/billing", Dashboard.User.BillingLive, :index
       live "/settings/confirm_email/:token", Dashboard.User.UserSettingsLive, :confirm_email
-    end
-  end
 
-  scope "/dashboard/basic", PhxplateWeb do
-    pipe_through [:browser, :require_authenticated_user, :basic]
+      pipe_through [:basic]
+      live "/basic", Dashboard.Basic.BasicLive, :index
+      live "/basic/basicpage", Dashboard.Basic.BasicPageLive, :index
+      live "/basic/basicpage2", Dashboard.Basic.SecondPageLive, :index
 
-    live_session :basic,
-      layout: {PhxplateWeb.Layouts, :app},
-      on_mount: [
-        {PhxplateWeb.UserAuth, :ensure_authenticated},
-        {PhxplateWeb.Live.Hooks.LayoutHooks, :default}
-      ] do
-      live "/", Dashboard.Basic.BasicLive, :index
-      live "/basicpage", Dashboard.Basic.BasicPageLive, :index
-      live "/basicpage2", Dashboard.Basic.SecondPageLive, :index
-    end
-  end
+      pipe_through [:admin]
+      live "/admin", Dashboard.Admin.AdminLive, :index
+      live "/admin/adminpage", Dashboard.Admin.BasicPageLive, :index
+      live "/admin/adminpage2", Dashboard.Admin.SecondPageLive, :index
 
-  scope "/dashboard/admin", PhxplateWeb do
-    pipe_through [:browser, :require_authenticated_user, :admin]
-
-    live_session :admin,
-      layout: {PhxplateWeb.Layouts, :app},
-      on_mount: [
-        {PhxplateWeb.UserAuth, :ensure_authenticated},
-        {PhxplateWeb.Live.Hooks.LayoutHooks, :default}
-      ] do
-        live "/", Dashboard.Admin.AdminLive, :index
-        live "/adminpage", Dashboard.Admin.BasicPageLive, :index
-        live "/adminpage2", Dashboard.Admin.SecondPageLive, :index
-    end
-  end
-
-  scope "/dashboard/super_admin", PhxplateWeb do
-    pipe_through [:browser, :require_authenticated_user, :super_admin]
-
-    live_session :super_admin,
-      layout: {PhxplateWeb.Layouts, :app},
-      on_mount: [
-        {PhxplateWeb.UserAuth, :ensure_authenticated},
-        {PhxplateWeb.Live.Hooks.LayoutHooks, :default}
-      ] do
-      live "/", Dashboard.SuperAdmin.SuperAdminLive, :index
-      live "/super_adminpage", Dashboard.SuperAdmin.BasicPageLive, :index
-      live "/super_adminpage2", Dashboard.SuperAdmin.SecondPageLive, :index
+      pipe_through [:super_admin]
+      live "/super_admin", Dashboard.SuperAdmin.SuperAdminLive, :index
+      live "/super_admin/users", Dashboard.SuperAdmin.UsersLive, :index
+      live "/super_admin/super_adminpage2", Dashboard.SuperAdmin.SecondPageLive, :index
     end
   end
 end

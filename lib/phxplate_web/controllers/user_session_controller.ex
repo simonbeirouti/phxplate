@@ -10,7 +10,7 @@ defmodule PhxplateWeb.UserSessionController do
 
   def create(conn, %{"_action" => "password_updated"} = params) do
     conn
-    |> put_session(:user_return_to, ~p"/users/settings")
+    |> put_session(:user_return_to, ~p"/dashboard/settings")
     |> create(params, "Password updated successfully!")
   end
 

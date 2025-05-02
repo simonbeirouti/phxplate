@@ -1,4 +1,4 @@
-defmodule PhxplateWeb.Dashboard.SuperAdmin.BasicPageLive do
+defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
   use PhxplateWeb, :live_view
 
   def mount(_params, _session, socket) do
