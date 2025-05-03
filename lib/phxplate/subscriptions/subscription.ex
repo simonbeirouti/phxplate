@@ -40,7 +40,8 @@ defmodule Phxplate.Subscriptions.Subscription do
       :stripe_subscription_id,
       :paid_tier,
       :subscription_status,
-      :user_id
+      :user_id,
+      :plan_id
     ])
     |> foreign_key_constraint(:user_id)
     |> unique_constraint(:stripe_subscription_id)

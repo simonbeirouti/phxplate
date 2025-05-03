@@ -49,9 +49,10 @@ defmodule PhxplateWeb.Router do
   end
 
   scope "/callbacks", PhxplateWeb do
-    pipe_through :api
+    pipe_through :browser
 
-    post "/stripe", StripeWebhookController, :webhook
+    get "/stripe/success", StripeController, :success
+    get "/stripe/cancel", StripeController, :cancel
   end
 
   # Other scopes may use custom stacks.

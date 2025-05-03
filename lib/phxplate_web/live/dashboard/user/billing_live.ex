@@ -1,12 +1,10 @@
 defmodule PhxplateWeb.Dashboard.User.BillingLive do
   use PhxplateWeb, :live_view
 
-  # alias Phxplate.Accounts
   alias Phxplate.Subscriptions
-  alias Phoenix.LiveView.JS
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
     if socket.assigns[:current_user] do
       user = socket.assigns.current_user
       subscription = Subscriptions.get_user_subscription(user.id)
@@ -18,6 +16,9 @@ defmodule PhxplateWeb.Dashboard.User.BillingLive do
         |> assign(:subscription, subscription)
         |> assign(:plans, plans)
         |> assign(:show_plans_modal, false)
+        |> assign(:loading, false)
+        |> assign(:checkout_url, nil)
+        |> handle_query_params(params)
 
       {:ok, socket}
     else
@@ -28,6 +29,19 @@ defmodule PhxplateWeb.Dashboard.User.BillingLive do
     end
   end
 
+  # Handle query params for success/cancel redirects from Stripe
+  defp handle_query_params(socket, %{"success" => "true"}) do
+    socket
+    |> put_flash(:info, "Your subscription has been successfully updated.")
+  end
+
+  defp handle_query_params(socket, %{"canceled" => "true"}) do
+    socket
+    |> put_flash(:info, "Your subscription change was canceled.")
+  end
+
+  defp handle_query_params(socket, _params), do: socket
+
   @impl true
   def handle_event("show_plans_modal", _, socket) do
     {:noreply, assign(socket, :show_plans_modal, true)}
@@ -37,12 +51,61 @@ defmodule PhxplateWeb.Dashboard.User.BillingLive do
     {:noreply, assign(socket, :show_plans_modal, false)}
   end
 
+  def handle_event("update_payment_method", _, socket) do
+    _user = socket.assigns.current_user
+    subscription = socket.assigns.subscription
+
+    if subscription && subscription.stripe_subscription_id do
+      # Create a Stripe portal session for managing payment methods
+      case Stripe.BillingPortal.Session.create(%{
+        customer: subscription.stripe_customer_id,
+        return_url: "#{Application.get_env(:phxplate, :base_url)}/dashboard/billing"
+      }) do
+        {:ok, %{url: portal_url}} ->
+          {:noreply, redirect(socket, external: portal_url)}
+
+        {:error, error} ->
+          {:noreply, put_flash(socket, :error, "Could not access payment settings: #{inspect(error)}")}
+      end
+    else
+      {:noreply, put_flash(socket, :error, "You need an active subscription to update payment methods.")}
+    end
+  end
+
   def handle_event("change_plan", %{"plan_id" => plan_id}, socket) do
-    # TODO: Implement Stripe subscription change
-    {:noreply,
-     socket
-     |> put_flash(:info, "Plan change initiated. You will be redirected to complete the process.")
-     |> assign(:show_plans_modal, false)}
+    user = socket.assigns.current_user
+    plan = Subscriptions.get_plan!(plan_id)
+
+    socket = socket |> assign(:loading, true)
+
+    case Subscriptions.change_subscription_plan(user, plan) do
+      {:ok, %Stripe.Session{url: checkout_url}} ->
+        # Redirect to Stripe checkout - use redirect for external URLs
+        {:noreply,
+         socket
+         |> assign(:loading, false)
+         |> assign(:checkout_url, checkout_url)
+         |> redirect(external: checkout_url)}
+
+      {:ok, _updated} ->
+        # Plan was updated directly (existing subscription)
+        subscription = Subscriptions.get_user_subscription(user.id)
+
+        {:noreply,
+         socket
+         |> assign(:loading, false)
+         |> assign(:subscription, subscription)
+         |> assign(:show_plans_modal, false)
+         |> put_flash(:info, "Your subscription has been updated to #{plan.name}.")}
+
+      {:error, error} ->
+        # Handle error
+        {:noreply,
+         socket
+         |> assign(:loading, false)
+         |> assign(:show_plans_modal, false)
+         |> put_flash(:error, "Failed to update subscription: #{inspect(error)}")}
+    end
   end
 
   @impl true
@@ -88,16 +151,16 @@ defmodule PhxplateWeb.Dashboard.User.BillingLive do
           <div class="px-4 py-5 sm:p-6">
             <h3 class="text-lg font-medium leading-6 text-gray-900">Payment Method</h3>
             <div class="mt-2 max-w-xl text-sm text-gray-500">
-              <p>Visa ending in 4242</p>
-              <p class="mt-1">Expires 12/2025</p>
+              <p>Payment method on file</p>
+              <p class="mt-1">Managed by Stripe</p>
             </div>
             <div class="mt-5">
-              <.link
-                href="#"
+              <button
+                phx-click="update_payment_method"
                 class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
               >
                 Update Payment Method
-              </.link>
+              </button>
             </div>
           </div>
         </div>
