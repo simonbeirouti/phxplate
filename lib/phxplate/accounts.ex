@@ -377,4 +377,23 @@ defmodule Phxplate.Accounts do
     user = get_user!(user_id)
     Phxplate.Repo.update!(Ecto.Changeset.change(user, %{role: role}))
   end
+
+  @doc """
+  Updates a user with the given attributes.
+
+  ## Examples
+
+      iex> update_user(user, %{role: :admin})
+      {:ok, %User{}}
+
+      iex> update_user(user, %{role: :invalid})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def update_user(%User{} = user, attrs) do
+    user
+    |> User.role_changeset(attrs)
+    |> Repo.update()
+  end
+
 end

@@ -11,6 +11,7 @@ defmodule Phxplate.Accounts.User do
     field :role, Ecto.Enum, values: [:basic, :admin, :super_admin], default: :basic
 
     has_one :profile, Phxplate.Accounts.Profile
+    has_one :subscription, Phxplate.Subscriptions.Subscription
     has_many :tokens, Phxplate.Accounts.UserToken
 
     timestamps(type: :utc_datetime)
@@ -184,4 +185,14 @@ defmodule Phxplate.Accounts.User do
   """
   def is_basic?(%__MODULE__{role: :basic}), do: true
   def is_basic?(_), do: false
+
+  @doc """
+  A user changeset for updating the role.
+  """
+  def role_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:role])
+    |> validate_role()
+  end
+
 end

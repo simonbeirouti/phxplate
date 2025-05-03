@@ -17,7 +17,7 @@ defmodule PhxplateWeb do
   those modules here.
   """
 
-  import LiveSvelte
+  # import LiveSvelte
 
   def static_paths, do: ~w(assets fonts images favicon.ico robots.txt)
 
@@ -93,6 +93,7 @@ defmodule PhxplateWeb do
       import PhxplateWeb.CoreComponents
 
       alias SaladUI.Button, as: SButton
+      import SaladUI.Card
 
       # Shortcut for generating JS commands
       alias Phoenix.LiveView.JS

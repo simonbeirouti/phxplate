@@ -1,181 +1,309 @@
 {
   "profiles": [
     {
-      "id": 6,
-      "first_name": "Ulices",
-      "last_name": "Kassulke",
-      "bio": "Sunt harum unde sit voluptatem consequatur tenetur exercitationem nihil? Quis dolores aliquid quo. Quis praesentium est iste quia. Ex beatae inventore explicabo molestias atque?",
-      "avatar_url": "https://robohash.org/set_set3/bgset_bg2/un64RYpTA8lgAKrIX",
-      "phone": "260/642-1686",
-      "location": "Avis",
-      "website": "https://littel.com",
+      "id": 7,
+      "first_name": "Samantha",
+      "last_name": "Ebert",
+      "bio": "Numquam temporibus quo velit minus dolorem adipisci. Rem consequatur inventore hic voluptas dolorem nihil. Optio officiis autem qui dolorem ea. A et commodi ut culpa sunt impedit consequatur sed.",
+      "avatar_url": "https://robohash.org/set_set3/bgset_bg1/LakGbiJ",
+      "phone": "(413) 603-4885",
+      "location": "Farrell",
+      "website": "https://schimmel.org",
       "social_links": {
-        "github": "https://tromp.net",
-        "twitter": "https://kuvalis.biz",
-        "linkedin": "http://corkery.info"
+        "github": "http://senger.info",
+        "twitter": "https://ferry.com",
+        "linkedin": "https://gottlieb.info"
+      },
+      "user_id": 7,
+      "inserted_at": "2025-05-03T00:43:41",
+      "updated_at": "2025-05-03T00:43:41"
+    },
+    {
+      "id": 6,
+      "first_name": "Dorthy",
+      "last_name": "Fadel",
+      "bio": "Nihil velit repellendus et quibusdam consequuntur. Quisquam eligendi ad molestiae aspernatur quia dolor.",
+      "avatar_url": "https://robohash.org/set_set1/bgset_bg1/Uy0p4tkw8invR",
+      "phone": "830/742-0268",
+      "location": "West Simone",
+      "website": "https://bernier.net",
+      "social_links": {
+        "github": "https://wilderman.org",
+        "twitter": "http://hodkiewicz.net",
+        "linkedin": "https://konopelski.org"
       },
       "user_id": 6,
-      "inserted_at": "2025-04-30T06:16:16",
-      "updated_at": "2025-04-30T06:16:16"
+      "inserted_at": "2025-05-03T00:43:41",
+      "updated_at": "2025-05-03T00:43:41"
     },
     {
       "id": 5,
-      "first_name": "Carter",
-      "last_name": "Bahringer",
-      "bio": "Culpa repudiandae est voluptatum eum! Inventore dicta totam nostrum aut ut vero corrupti quisquam illo!",
-      "avatar_url": "https://robohash.org/set_set3/bgset_bg2/r5r1gI8",
-      "phone": "780.962.6705",
-      "location": "East Genoveva",
-      "website": "http://ortiz.name",
+      "first_name": "Angela",
+      "last_name": "Wisoky",
+      "bio": "Quaerat eos perspiciatis enim quo! Amet dicta commodi modi totam possimus laboriosam aut dolorem debitis? Inventore error rerum voluptates consequatur? Dolorem voluptatem delectus aperiam vero est voluptatem! Ut ad vel nihil corporis.",
+      "avatar_url": "https://robohash.org/set_set2/bgset_bg2/Ra",
+      "phone": "(663) 784-2987",
+      "location": "Alice",
+      "website": "https://keeling.info",
       "social_links": {
-        "github": "https://langworth.info",
-        "twitter": "https://rath.com",
-        "linkedin": "http://hudson.com"
+        "github": "http://lubowitz.biz",
+        "twitter": "https://lindgren.info",
+        "linkedin": "https://weber.net"
       },
       "user_id": 5,
-      "inserted_at": "2025-04-30T06:16:16",
-      "updated_at": "2025-04-30T06:16:16"
+      "inserted_at": "2025-05-03T00:43:36",
+      "updated_at": "2025-05-03T00:43:36"
     },
     {
       "id": 4,
-      "first_name": "Lance",
-      "last_name": "Wyman",
-      "bio": "Ipsum laudantium velit quis. Ut omnis minus possimus id sit possimus iste omnis. Qui reprehenderit quos deleniti non dolores! Labore quod unde temporibus aperiam recusandae sapiente dolores pariatur laudantium.",
-      "avatar_url": "https://robohash.org/set_set2/bgset_bg2/UKI",
-      "phone": "704/413-2931",
-      "location": "Funk",
-      "website": "https://schmidt.net",
+      "first_name": "Albina",
+      "last_name": "Kiehn",
+      "bio": "Sed accusamus debitis vel neque dolore commodi praesentium aut saepe. Ut aut quia dolor eos nam iusto? Atque exercitationem illo dolorum distinctio error assumenda. Quibusdam aut ipsa distinctio. Et quidem corporis necessitatibus illo sunt illum nisi?",
+      "avatar_url": "https://robohash.org/set_set3/bgset_bg1/vc6BreI55rOnEAez",
+      "phone": "966/221-6217",
+      "location": "Lake Shanon",
+      "website": "https://schulist.biz",
       "social_links": {
-        "github": "http://jones.com",
-        "twitter": "http://gorczany.name",
-        "linkedin": "https://koss.org"
+        "github": "http://dibbert.info",
+        "twitter": "http://terry.org",
+        "linkedin": "https://feest.biz"
       },
       "user_id": 4,
-      "inserted_at": "2025-04-30T06:16:16",
-      "updated_at": "2025-04-30T06:16:16"
+      "inserted_at": "2025-05-03T00:43:36",
+      "updated_at": "2025-05-03T00:43:36"
     },
     {
       "id": 3,
-      "first_name": "Emmie",
-      "last_name": "Nienow",
-      "bio": "Alias qui voluptatem quia sed pariatur dolorum est sint. Alias consequatur et consequatur. Quam exercitationem asperiores quod ut corrupti voluptatem.",
-      "avatar_url": "https://robohash.org/set_set3/bgset_bg1/LTtDKCZ7LCUxT",
-      "phone": "433/344-9029",
-      "location": "Wintheiser",
-      "website": "http://west.com",
+      "first_name": "Adrianna",
+      "last_name": "Hoppe",
+      "bio": "Eum nisi voluptatum consequatur nihil optio aut assumenda. Voluptatem quisquam dolor numquam? Asperiores qui atque reprehenderit quae aliquid sed.",
+      "avatar_url": "https://robohash.org/set_set1/bgset_bg2/q6Dd7TA0",
+      "phone": "726/983-4505",
+      "location": "Hills",
+      "website": "https://hane.name",
       "social_links": {
-        "github": "https://crona.org",
-        "twitter": "https://dickinson.com",
-        "linkedin": "https://grimes.name"
+        "github": "https://davis.name",
+        "twitter": "http://murazik.biz",
+        "linkedin": "https://hyatt.biz"
       },
       "user_id": 3,
-      "inserted_at": "2025-04-30T06:16:16",
-      "updated_at": "2025-04-30T06:16:16"
+      "inserted_at": "2025-05-03T00:43:32",
+      "updated_at": "2025-05-03T00:43:32"
     },
     {
       "id": 2,
-      "first_name": "Eric",
-      "last_name": "Little",
-      "bio": "Aut magnam impedit ex dolor earum et qui excepturi veritatis? Accusamus quo voluptatem asperiores dicta expedita in! Non dolorem aspernatur dolore voluptatibus eligendi ad ut.",
-      "avatar_url": "https://robohash.org/set_set2/bgset_bg2/Vf3Hw88LjOC",
-      "phone": "318/681-6012",
-      "location": "Hills",
-      "website": "https://prosacco.com",
+      "first_name": "Brandt",
+      "last_name": "Will",
+      "bio": "Dolorem cum cum id autem consequatur qui. Asperiores reprehenderit magni aut corrupti accusamus voluptatum a. Officia deleniti enim et incidunt omnis tempore libero neque rerum! Ipsum natus ut quo facilis.",
+      "avatar_url": "https://robohash.org/set_set2/bgset_bg2/WrmvywWyrL",
+      "phone": "246-404-7408",
+      "location": "New Priscilla",
+      "website": "https://mann.net",
       "social_links": {
-        "github": "http://funk.com",
-        "twitter": "http://schowalter.name",
-        "linkedin": "https://ortiz.org"
+        "github": "http://ratke.com",
+        "twitter": "http://sanford.biz",
+        "linkedin": "http://bosco.net"
       },
       "user_id": 2,
-      "inserted_at": "2025-04-30T06:16:15",
-      "updated_at": "2025-04-30T06:16:15"
+      "inserted_at": "2025-05-03T00:43:27",
+      "updated_at": "2025-05-03T00:43:27"
     },
     {
       "id": 1,
-      "first_name": "Izaiah",
-      "last_name": "Okuneva",
-      "bio": "Animi voluptatum porro natus quia ut voluptas facere. Explicabo rerum voluptate quis! Deleniti eaque ea et dolores quaerat ducimus iste reprehenderit. Sed voluptas nulla quia minima ut quasi ratione. Totam tempora praesentium necessitatibus enim et nemo enim exercitationem.",
-      "avatar_url": "https://robohash.org/set_set3/bgset_bg1/cwi",
-      "phone": "511-556-2100",
-      "location": "Price",
-      "website": "http://vandervort.info",
+      "first_name": "Madisyn",
+      "last_name": "Rice",
+      "bio": "Accusantium expedita rem ut accusantium tempora adipisci voluptas est nihil! Laborum dolorem corporis soluta?",
+      "avatar_url": "https://robohash.org/set_set2/bgset_bg2/kM12",
+      "phone": "681.786.3551",
+      "location": "Koss",
+      "website": "http://sauer.net",
       "social_links": {
-        "github": "http://crist.org",
-        "twitter": "http://moen.net",
-        "linkedin": "https://grimes.net"
+        "github": "http://mckenzie.info",
+        "twitter": "http://waters.net",
+        "linkedin": "http://leannon.org"
       },
       "user_id": 1,
-      "inserted_at": "2025-04-30T06:16:15",
-      "updated_at": "2025-04-30T06:16:15"
+      "inserted_at": "2025-05-03T00:43:23",
+      "updated_at": "2025-05-03T00:43:23"
+    }
+  ],
+  "plans": [
+    {
+      "id": 1,
+      "name": "Small Plan",
+      "description": "For small teams",
+      "metadata": {
+        "tier": "small"
+      },
+      "features": {
+        "projects": 5,
+        "storage": "5GB",
+        "support": "Email"
+      },
+      "currency": "usd",
+      "interval": "month",
+      "stripe_price_id": "price_1RKUAmQea2kLMz7zn52Q07EJ",
+      "stripe_product_id": "prod_SEy6eSOMoBWjZk",
+      "unit_amount": 1500
+    },
+    {
+      "id": 2,
+      "name": "Small Plan (Yearly)",
+      "description": "For small teams",
+      "metadata": {
+        "tier": "small"
+      },
+      "features": {
+        "projects": 5,
+        "storage": "5GB",
+        "support": "Email"
+      },
+      "currency": "usd",
+      "interval": "year",
+      "stripe_price_id": "price_1RKUAmQea2kLMz7z4xKffWUU",
+      "stripe_product_id": "prod_SEy6eSOMoBWjZk",
+      "unit_amount": 15000
+    },
+    {
+      "id": 3,
+      "name": "Medium Plan",
+      "description": "For medium teams",
+      "metadata": {
+        "tier": "medium"
+      },
+      "features": {
+        "projects": 10,
+        "storage": "10GB",
+        "support": "Priority Email"
+      },
+      "currency": "usd",
+      "interval": "month",
+      "stripe_price_id": "price_1RKUAnQea2kLMz7z9TZPeNjM",
+      "stripe_product_id": "prod_SEy7Syh9sSYMv0",
+      "unit_amount": 3000
+    },
+    {
+      "id": 4,
+      "name": "Medium Plan (Yearly)",
+      "description": "For medium teams",
+      "metadata": {
+        "tier": "medium"
+      },
+      "features": {
+        "projects": 10,
+        "storage": "10GB",
+        "support": "Priority Email"
+      },
+      "currency": "usd",
+      "interval": "year",
+      "stripe_price_id": "price_1RKUAoQea2kLMz7zv7sXiPwl",
+      "stripe_product_id": "prod_SEy7Syh9sSYMv0",
+      "unit_amount": 30000
+    },
+    {
+      "id": 5,
+      "name": "Large Plan",
+      "description": "For enterprise teams",
+      "metadata": {
+        "tier": "large"
+      },
+      "features": {
+        "projects": "Unlimited",
+        "storage": "20GB",
+        "support": "24/7 Phone & Email"
+      },
+      "currency": "usd",
+      "interval": "month",
+      "stripe_price_id": "price_1RKUApQea2kLMz7znsmuqpur",
+      "stripe_product_id": "prod_SEy7Luw1oTR9VE",
+      "unit_amount": 5000
+    },
+    {
+      "id": 6,
+      "name": "Large Plan (Yearly)",
+      "description": "For enterprise teams",
+      "metadata": {
+        "tier": "large"
+      },
+      "features": {
+        "projects": "Unlimited",
+        "storage": "20GB",
+        "support": "24/7 Phone & Email"
+      },
+      "currency": "usd",
+      "interval": "year",
+      "stripe_price_id": "price_1RKUApQea2kLMz7zth8WmPxz",
+      "stripe_product_id": "prod_SEy7Luw1oTR9VE",
+      "unit_amount": 50000
     }
   ],
   "companies": [
     {
       "id": 2,
-      "name": "Lueilwitz, Goodwin and Morissette",
-      "address": "3701 Eliza Point",
-      "description": "engage wireless solutions",
+      "name": "Zemlak, McClure and Dicki",
+      "address": "954 Ruth Plaza",
+      "description": "engage front-end e-tailers",
       "plan": "basic",
-      "email": "josefa2034@armstrong.com",
-      "phone": "755.372.6909",
-      "logo": "https://robohash.org/set_set1/bgset_bg1/kYV0gPyHTXvrBlHcTm2",
-      "website": "https://kassulke.info",
+      "email": "evelyn2034@jacobson.net",
+      "phone": "(363) 209-9520",
+      "logo": "https://robohash.org/set_set3/bgset_bg1/K",
+      "website": "http://weber.com",
       "employees": [
         {
           "id": 4,
-          "position": "productize sticky infomediaries",
-          "email": "octavia2019@collier.biz",
-          "phone": "(831) 484-1213",
-          "first_name": "Natalia",
-          "last_name": "Swaniawski",
-          "department": "Movies, Music & Games",
-          "salary": 36249,
+          "position": "deliver customized users",
+          "email": "brown.oconner@berge.net",
+          "phone": "821/428-2711",
+          "first_name": "Doug",
+          "last_name": "Jones",
+          "department": "Clothing, Shoes & Jewelery",
+          "salary": 36677,
           "company_id": 2
         },
         {
           "id": 3,
-          "position": "synthesize holistic experiences",
-          "email": "cruz.stiedemann@stanton.info",
-          "phone": "253/545-9594",
-          "first_name": "Jarret",
-          "last_name": "Morar",
-          "department": "Home, Garden & Tools",
-          "salary": 84841,
+          "position": "productize open-source methodologies",
+          "email": "jaiden.beahan@sipes.info",
+          "phone": "317/315-7383",
+          "first_name": "Jessyca",
+          "last_name": "Zemlak",
+          "department": "Toys, Kids & Baby",
+          "salary": 93089,
           "company_id": 2
         }
       ]
     },
     {
       "id": 1,
-      "name": "Fisher, Considine and Cartwright",
-      "address": "78 Dedrick Orchard",
-      "description": "monetize plug-and-play portals",
+      "name": "Stiedemann Inc",
+      "address": "86945 Ryan Islands",
+      "description": "deliver compelling models",
       "plan": "basic",
-      "email": "erwin_pollich@macejkovic.net",
-      "phone": "852/509-1952",
-      "logo": "https://robohash.org/set_set3/bgset_bg2/CY7DU8R47Rj",
-      "website": "https://hintz.info",
+      "email": "polly_zulauf@medhurst.name",
+      "phone": "4154841656",
+      "logo": "https://robohash.org/set_set2/bgset_bg1/97nxdXLgps",
+      "website": "http://weber.net",
       "employees": [
         {
           "id": 2,
-          "position": "evolve integrated deliverables",
-          "email": "eli1969@rosenbaum.biz",
-          "phone": "(530) 736-6386",
-          "first_name": "Agnes",
-          "last_name": "Ankunding",
-          "department": "Electronics & Computers",
-          "salary": 54027,
+          "position": "expedite out-of-the-box e-business",
+          "email": "melissa.rowe@friesen.biz",
+          "phone": "344/632-8128",
+          "first_name": "Thora",
+          "last_name": "Klocko",
+          "department": "Books",
+          "salary": 114801,
           "company_id": 1
         },
         {
           "id": 1,
-          "position": "unleash seamless metrics",
-          "email": "favian.tromp@hauck.info",
-          "phone": "772/216-5761",
-          "first_name": "Maude",
-          "last_name": "Koepp",
+          "position": "monetize visionary communities",
+          "email": "lavada2021@schneider.net",
+          "phone": "(869) 341-2427",
+          "first_name": "Sabrina",
+          "last_name": "Corkery",
           "department": "Home, Garden & Tools",
-          "salary": 126098,
+          "salary": 32014,
           "company_id": 1
         }
       ]
@@ -184,47 +312,89 @@
   "employees": [
     {
       "id": 4,
-      "position": "productize sticky infomediaries",
-      "email": "octavia2019@collier.biz",
-      "phone": "(831) 484-1213",
-      "first_name": "Natalia",
-      "last_name": "Swaniawski",
-      "department": "Movies, Music & Games",
-      "salary": 36249,
+      "position": "deliver customized users",
+      "email": "brown.oconner@berge.net",
+      "phone": "821/428-2711",
+      "first_name": "Doug",
+      "last_name": "Jones",
+      "department": "Clothing, Shoes & Jewelery",
+      "salary": 36677,
       "company_id": 2
     },
     {
       "id": 3,
-      "position": "synthesize holistic experiences",
-      "email": "cruz.stiedemann@stanton.info",
-      "phone": "253/545-9594",
-      "first_name": "Jarret",
-      "last_name": "Morar",
-      "department": "Home, Garden & Tools",
-      "salary": 84841,
+      "position": "productize open-source methodologies",
+      "email": "jaiden.beahan@sipes.info",
+      "phone": "317/315-7383",
+      "first_name": "Jessyca",
+      "last_name": "Zemlak",
+      "department": "Toys, Kids & Baby",
+      "salary": 93089,
       "company_id": 2
     },
     {
       "id": 2,
-      "position": "evolve integrated deliverables",
-      "email": "eli1969@rosenbaum.biz",
-      "phone": "(530) 736-6386",
-      "first_name": "Agnes",
-      "last_name": "Ankunding",
-      "department": "Electronics & Computers",
-      "salary": 54027,
+      "position": "expedite out-of-the-box e-business",
+      "email": "melissa.rowe@friesen.biz",
+      "phone": "344/632-8128",
+      "first_name": "Thora",
+      "last_name": "Klocko",
+      "department": "Books",
+      "salary": 114801,
       "company_id": 1
     },
     {
       "id": 1,
-      "position": "unleash seamless metrics",
-      "email": "favian.tromp@hauck.info",
-      "phone": "772/216-5761",
-      "first_name": "Maude",
-      "last_name": "Koepp",
+      "position": "monetize visionary communities",
+      "email": "lavada2021@schneider.net",
+      "phone": "(869) 341-2427",
+      "first_name": "Sabrina",
+      "last_name": "Corkery",
       "department": "Home, Garden & Tools",
-      "salary": 126098,
+      "salary": 32014,
       "company_id": 1
+    }
+  ],
+  "subscriptions": [
+    {
+      "id": 4,
+      "stripe_customer_id": "cus_SEy7eEn3VKd0rf",
+      "stripe_subscription_id": "sub_1RKUB5Qea2kLMz7zP2wu3MpG",
+      "paid_tier": "medium",
+      "subscription_status": "active",
+      "subscription_period_end": "2025-06-03T00:43:39Z",
+      "user_id": 6,
+      "plan_id": 3
+    },
+    {
+      "id": 3,
+      "stripe_customer_id": "cus_SEy7YJaujAIDG2",
+      "stripe_subscription_id": "sub_1RKUAzQea2kLMz7zGBEFFj55",
+      "paid_tier": "small",
+      "subscription_status": "active",
+      "subscription_period_end": "2025-06-03T00:43:33Z",
+      "user_id": 4,
+      "plan_id": 1
+    },
+    {
+      "id": 2,
+      "stripe_customer_id": "cus_SEy7LbvP9IUIPt",
+      "stripe_subscription_id": "sub_1RKUAvQea2kLMz7zUQJnONbt",
+      "paid_tier": "medium",
+      "subscription_status": "active",
+      "subscription_period_end": "2025-06-03T00:43:29Z",
+      "user_id": 3,
+      "plan_id": 3
+    },
+    {
+      "id": 1,
+      "stripe_customer_id": "cus_SEy7uGQQFrO5So",
+      "stripe_subscription_id": "sub_1RKUArQea2kLMz7zylPNnGYy",
+      "paid_tier": "large",
+      "subscription_status": "active",
+      "subscription_period_end": "2025-06-03T00:43:25Z",
+      "user_id": 2,
+      "plan_id": 5
     }
   ],
   "super_admins": [
@@ -232,143 +402,211 @@
       "id": 1,
       "profile": {
         "id": 1,
-        "first_name": "Izaiah",
-        "last_name": "Okuneva",
-        "bio": "Animi voluptatum porro natus quia ut voluptas facere. Explicabo rerum voluptate quis! Deleniti eaque ea et dolores quaerat ducimus iste reprehenderit. Sed voluptas nulla quia minima ut quasi ratione. Totam tempora praesentium necessitatibus enim et nemo enim exercitationem.",
-        "avatar_url": "https://robohash.org/set_set3/bgset_bg1/cwi",
-        "phone": "511-556-2100",
-        "location": "Price",
-        "website": "http://vandervort.info",
+        "first_name": "Madisyn",
+        "last_name": "Rice",
+        "bio": "Accusantium expedita rem ut accusantium tempora adipisci voluptas est nihil! Laborum dolorem corporis soluta?",
+        "avatar_url": "https://robohash.org/set_set2/bgset_bg2/kM12",
+        "phone": "681.786.3551",
+        "location": "Koss",
+        "website": "http://sauer.net",
         "social_links": {
-          "github": "http://crist.org",
-          "twitter": "http://moen.net",
-          "linkedin": "https://grimes.net"
+          "github": "http://mckenzie.info",
+          "twitter": "http://waters.net",
+          "linkedin": "http://leannon.org"
         },
         "user_id": 1,
-        "inserted_at": "2025-04-30T06:16:15",
-        "updated_at": "2025-04-30T06:16:15"
+        "inserted_at": "2025-05-03T00:43:23",
+        "updated_at": "2025-05-03T00:43:23"
       },
       "role": "super_admin",
-      "email": "pink2059@watsica.info"
+      "email": "mary2009@marvin.info"
     }
   ],
   "admins": [
     {
+      "id": 4,
+      "profile": {
+        "id": 4,
+        "first_name": "Albina",
+        "last_name": "Kiehn",
+        "bio": "Sed accusamus debitis vel neque dolore commodi praesentium aut saepe. Ut aut quia dolor eos nam iusto? Atque exercitationem illo dolorum distinctio error assumenda. Quibusdam aut ipsa distinctio. Et quidem corporis necessitatibus illo sunt illum nisi?",
+        "avatar_url": "https://robohash.org/set_set3/bgset_bg1/vc6BreI55rOnEAez",
+        "phone": "966/221-6217",
+        "location": "Lake Shanon",
+        "website": "https://schulist.biz",
+        "social_links": {
+          "github": "http://dibbert.info",
+          "twitter": "http://terry.org",
+          "linkedin": "https://feest.biz"
+        },
+        "user_id": 4,
+        "inserted_at": "2025-05-03T00:43:36",
+        "updated_at": "2025-05-03T00:43:36"
+      },
+      "role": "admin",
+      "subscription": {
+        "id": 3,
+        "stripe_customer_id": "cus_SEy7YJaujAIDG2",
+        "stripe_subscription_id": "sub_1RKUAzQea2kLMz7zGBEFFj55",
+        "paid_tier": "small",
+        "subscription_status": "active",
+        "subscription_period_end": "2025-06-03T00:43:33Z",
+        "user_id": 4,
+        "plan_id": 1
+      },
+      "email": "anabelle1981@zemlak.name"
+    },
+    {
       "id": 3,
       "profile": {
         "id": 3,
-        "first_name": "Emmie",
-        "last_name": "Nienow",
-        "bio": "Alias qui voluptatem quia sed pariatur dolorum est sint. Alias consequatur et consequatur. Quam exercitationem asperiores quod ut corrupti voluptatem.",
-        "avatar_url": "https://robohash.org/set_set3/bgset_bg1/LTtDKCZ7LCUxT",
-        "phone": "433/344-9029",
-        "location": "Wintheiser",
-        "website": "http://west.com",
+        "first_name": "Adrianna",
+        "last_name": "Hoppe",
+        "bio": "Eum nisi voluptatum consequatur nihil optio aut assumenda. Voluptatem quisquam dolor numquam? Asperiores qui atque reprehenderit quae aliquid sed.",
+        "avatar_url": "https://robohash.org/set_set1/bgset_bg2/q6Dd7TA0",
+        "phone": "726/983-4505",
+        "location": "Hills",
+        "website": "https://hane.name",
         "social_links": {
-          "github": "https://crona.org",
-          "twitter": "https://dickinson.com",
-          "linkedin": "https://grimes.name"
+          "github": "https://davis.name",
+          "twitter": "http://murazik.biz",
+          "linkedin": "https://hyatt.biz"
         },
         "user_id": 3,
-        "inserted_at": "2025-04-30T06:16:16",
-        "updated_at": "2025-04-30T06:16:16"
+        "inserted_at": "2025-05-03T00:43:32",
+        "updated_at": "2025-05-03T00:43:32"
       },
       "role": "admin",
-      "email": "aurelie.olson@anderson.org"
+      "subscription": {
+        "id": 2,
+        "stripe_customer_id": "cus_SEy7LbvP9IUIPt",
+        "stripe_subscription_id": "sub_1RKUAvQea2kLMz7zUQJnONbt",
+        "paid_tier": "medium",
+        "subscription_status": "active",
+        "subscription_period_end": "2025-06-03T00:43:29Z",
+        "user_id": 3,
+        "plan_id": 3
+      },
+      "email": "asa_schaefer@wuckert.info"
     },
     {
       "id": 2,
       "profile": {
         "id": 2,
-        "first_name": "Eric",
-        "last_name": "Little",
-        "bio": "Aut magnam impedit ex dolor earum et qui excepturi veritatis? Accusamus quo voluptatem asperiores dicta expedita in! Non dolorem aspernatur dolore voluptatibus eligendi ad ut.",
-        "avatar_url": "https://robohash.org/set_set2/bgset_bg2/Vf3Hw88LjOC",
-        "phone": "318/681-6012",
-        "location": "Hills",
-        "website": "https://prosacco.com",
+        "first_name": "Brandt",
+        "last_name": "Will",
+        "bio": "Dolorem cum cum id autem consequatur qui. Asperiores reprehenderit magni aut corrupti accusamus voluptatum a. Officia deleniti enim et incidunt omnis tempore libero neque rerum! Ipsum natus ut quo facilis.",
+        "avatar_url": "https://robohash.org/set_set2/bgset_bg2/WrmvywWyrL",
+        "phone": "246-404-7408",
+        "location": "New Priscilla",
+        "website": "https://mann.net",
         "social_links": {
-          "github": "http://funk.com",
-          "twitter": "http://schowalter.name",
-          "linkedin": "https://ortiz.org"
+          "github": "http://ratke.com",
+          "twitter": "http://sanford.biz",
+          "linkedin": "http://bosco.net"
         },
         "user_id": 2,
-        "inserted_at": "2025-04-30T06:16:15",
-        "updated_at": "2025-04-30T06:16:15"
+        "inserted_at": "2025-05-03T00:43:27",
+        "updated_at": "2025-05-03T00:43:27"
       },
       "role": "admin",
-      "email": "abigail2063@jakubowski.biz"
+      "subscription": {
+        "id": 1,
+        "stripe_customer_id": "cus_SEy7uGQQFrO5So",
+        "stripe_subscription_id": "sub_1RKUArQea2kLMz7zylPNnGYy",
+        "paid_tier": "large",
+        "subscription_status": "active",
+        "subscription_period_end": "2025-06-03T00:43:25Z",
+        "user_id": 2,
+        "plan_id": 5
+      },
+      "email": "jeanne.moore@hoppe.name"
     }
   ],
   "basic_users": [
     {
+      "id": 7,
+      "profile": {
+        "id": 7,
+        "first_name": "Samantha",
+        "last_name": "Ebert",
+        "bio": "Numquam temporibus quo velit minus dolorem adipisci. Rem consequatur inventore hic voluptas dolorem nihil. Optio officiis autem qui dolorem ea. A et commodi ut culpa sunt impedit consequatur sed.",
+        "avatar_url": "https://robohash.org/set_set3/bgset_bg1/LakGbiJ",
+        "phone": "(413) 603-4885",
+        "location": "Farrell",
+        "website": "https://schimmel.org",
+        "social_links": {
+          "github": "http://senger.info",
+          "twitter": "https://ferry.com",
+          "linkedin": "https://gottlieb.info"
+        },
+        "user_id": 7,
+        "inserted_at": "2025-05-03T00:43:41",
+        "updated_at": "2025-05-03T00:43:41"
+      },
+      "role": "basic",
+      "stripe_customer_id": null,
+      "subscription": null,
+      "email": "chester2097@dietrich.name"
+    },
+    {
       "id": 6,
       "profile": {
         "id": 6,
-        "first_name": "Ulices",
-        "last_name": "Kassulke",
-        "bio": "Sunt harum unde sit voluptatem consequatur tenetur exercitationem nihil? Quis dolores aliquid quo. Quis praesentium est iste quia. Ex beatae inventore explicabo molestias atque?",
-        "avatar_url": "https://robohash.org/set_set3/bgset_bg2/un64RYpTA8lgAKrIX",
-        "phone": "260/642-1686",
-        "location": "Avis",
-        "website": "https://littel.com",
+        "first_name": "Dorthy",
+        "last_name": "Fadel",
+        "bio": "Nihil velit repellendus et quibusdam consequuntur. Quisquam eligendi ad molestiae aspernatur quia dolor.",
+        "avatar_url": "https://robohash.org/set_set1/bgset_bg1/Uy0p4tkw8invR",
+        "phone": "830/742-0268",
+        "location": "West Simone",
+        "website": "https://bernier.net",
         "social_links": {
-          "github": "https://tromp.net",
-          "twitter": "https://kuvalis.biz",
-          "linkedin": "http://corkery.info"
+          "github": "https://wilderman.org",
+          "twitter": "http://hodkiewicz.net",
+          "linkedin": "https://konopelski.org"
         },
         "user_id": 6,
-        "inserted_at": "2025-04-30T06:16:16",
-        "updated_at": "2025-04-30T06:16:16"
+        "inserted_at": "2025-05-03T00:43:41",
+        "updated_at": "2025-05-03T00:43:41"
       },
       "role": "basic",
-      "email": "lina.heathcote@balistreri.org"
+      "stripe_customer_id": "cus_SEy7eEn3VKd0rf",
+      "subscription": {
+        "id": 4,
+        "stripe_customer_id": "cus_SEy7eEn3VKd0rf",
+        "stripe_subscription_id": "sub_1RKUB5Qea2kLMz7zP2wu3MpG",
+        "paid_tier": "medium",
+        "subscription_status": "active",
+        "subscription_period_end": "2025-06-03T00:43:39Z",
+        "user_id": 6,
+        "plan_id": 3
+      },
+      "email": "oswaldo.gaylord@hirthe.biz"
     },
     {
       "id": 5,
       "profile": {
         "id": 5,
-        "first_name": "Carter",
-        "last_name": "Bahringer",
-        "bio": "Culpa repudiandae est voluptatum eum! Inventore dicta totam nostrum aut ut vero corrupti quisquam illo!",
-        "avatar_url": "https://robohash.org/set_set3/bgset_bg2/r5r1gI8",
-        "phone": "780.962.6705",
-        "location": "East Genoveva",
-        "website": "http://ortiz.name",
+        "first_name": "Angela",
+        "last_name": "Wisoky",
+        "bio": "Quaerat eos perspiciatis enim quo! Amet dicta commodi modi totam possimus laboriosam aut dolorem debitis? Inventore error rerum voluptates consequatur? Dolorem voluptatem delectus aperiam vero est voluptatem! Ut ad vel nihil corporis.",
+        "avatar_url": "https://robohash.org/set_set2/bgset_bg2/Ra",
+        "phone": "(663) 784-2987",
+        "location": "Alice",
+        "website": "https://keeling.info",
         "social_links": {
-          "github": "https://langworth.info",
-          "twitter": "https://rath.com",
-          "linkedin": "http://hudson.com"
+          "github": "http://lubowitz.biz",
+          "twitter": "https://lindgren.info",
+          "linkedin": "https://weber.net"
         },
         "user_id": 5,
-        "inserted_at": "2025-04-30T06:16:16",
-        "updated_at": "2025-04-30T06:16:16"
+        "inserted_at": "2025-05-03T00:43:36",
+        "updated_at": "2025-05-03T00:43:36"
       },
       "role": "basic",
-      "email": "janessa1970@homenick.info"
-    },
-    {
-      "id": 4,
-      "profile": {
-        "id": 4,
-        "first_name": "Lance",
-        "last_name": "Wyman",
-        "bio": "Ipsum laudantium velit quis. Ut omnis minus possimus id sit possimus iste omnis. Qui reprehenderit quos deleniti non dolores! Labore quod unde temporibus aperiam recusandae sapiente dolores pariatur laudantium.",
-        "avatar_url": "https://robohash.org/set_set2/bgset_bg2/UKI",
-        "phone": "704/413-2931",
-        "location": "Funk",
-        "website": "https://schmidt.net",
-        "social_links": {
-          "github": "http://jones.com",
-          "twitter": "http://gorczany.name",
-          "linkedin": "https://koss.org"
-        },
-        "user_id": 4,
-        "inserted_at": "2025-04-30T06:16:16",
-        "updated_at": "2025-04-30T06:16:16"
-      },
-      "role": "basic",
-      "email": "audreanne.cummerata@marvin.net"
+      "stripe_customer_id": null,
+      "subscription": null,
+      "email": "estefania1917@schmidt.info"
     }
   ]
 }
