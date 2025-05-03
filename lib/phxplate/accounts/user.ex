@@ -11,6 +11,7 @@ defmodule Phxplate.Accounts.User do
     field :role, Ecto.Enum, values: [:basic, :admin, :super_admin], default: :basic
 
     has_one :profile, Phxplate.Accounts.Profile
+    has_one :subscription, Phxplate.Subscriptions.Subscription
     has_many :tokens, Phxplate.Accounts.UserToken
 
     timestamps(type: :utc_datetime)

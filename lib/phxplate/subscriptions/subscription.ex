@@ -1,8 +1,9 @@
 defmodule Phxplate.Subscriptions.Subscription do
   use Ecto.Schema
-  @derive {Jason.Encoder, only: [:id, :stripe_customer_id, :stripe_subscription_id, :paid_tier, :subscription_status, :subscription_period_end, :user_id]}
+  @derive {Jason.Encoder, only: [:id, :stripe_customer_id, :stripe_subscription_id, :paid_tier, :subscription_status, :subscription_period_end, :user_id, :plan_id]}
   import Ecto.Changeset
   alias Phxplate.Accounts.User
+  alias Phxplate.Subscriptions.Plan
 
   @subscription_statuses [:active, :canceled, :past_due, :incomplete, :trialing]
   @paid_tiers [:small, :medium, :large]
@@ -15,6 +16,7 @@ defmodule Phxplate.Subscriptions.Subscription do
     field :subscription_period_end, :utc_datetime
 
     belongs_to :user, User
+    belongs_to :plan, Plan
 
     timestamps()
   end
@@ -30,7 +32,8 @@ defmodule Phxplate.Subscriptions.Subscription do
       :paid_tier,
       :subscription_status,
       :subscription_period_end,
-      :user_id
+      :user_id,
+      :plan_id
     ])
     |> validate_required([
       :stripe_customer_id,

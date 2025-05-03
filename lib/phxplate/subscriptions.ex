@@ -10,13 +10,15 @@ defmodule Phxplate.Subscriptions do
   @doc """
   Gets a subscription by ID.
   """
-  def get_subscription!(id), do: Repo.get!(Subscription, id)
+  def get_subscription!(id), do: Repo.get!(Subscription, id) |> Repo.preload(:plan)
 
   @doc """
   Gets a subscription by stripe_subscription_id.
   """
   def get_subscription_by_stripe_id(stripe_subscription_id) do
-    Repo.get_by(Subscription, stripe_subscription_id: stripe_subscription_id)
+    Subscription
+    |> Repo.get_by(stripe_subscription_id: stripe_subscription_id)
+    |> Repo.preload(:plan)
   end
 
   @doc """
@@ -51,6 +53,7 @@ defmodule Phxplate.Subscriptions do
     Subscription
     |> where([s], s.user_id == ^user_id)
     |> Repo.one()
+    |> Repo.preload(:plan)
   end
 
   @doc """

@@ -148,11 +148,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
           class="group/collapsible block"
         > --%>
         <.sidebar_menu_item>
-            <.as_child
-              tag={&collapsible_trigger/1}
-              child={&sidebar_menu_button/1}
-              tooltip={item.title}
-            >
+          <.as_child tag={&collapsible_trigger/1} child={&sidebar_menu_button/1} tooltip={item.title}>
             <.dynamic :if={not is_nil(item.icon)} tag={item.icon} />
 
             <span>
@@ -245,9 +241,16 @@ defmodule PhxplateWeb.Components.DashboardLayout do
                 <.menu_separator></.menu_separator>
               <% end %>
               <dropdownmenugroup>
+                <%= if @user.role == :admin do %>
+                  <.link href={~p"/dashboard/billing"}>
+                    <.menu_item>
+                      <Lucideicons.user class="w-4 h-4 mr-2" /> Billing
+                    </.menu_item>
+                  </.link>
+                <% end %>
                 <.link href={~p"/dashboard/profile"}>
                   <.menu_item>
-                    <Lucideicons.user class="w-4 h-4 mr-2" /> Profile
+                    <Lucideicons.settings class="w-4 h-4 mr-2" /> Profile
                   </.menu_item>
                 </.link>
                 <.link href={~p"/dashboard/settings"}>

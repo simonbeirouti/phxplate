@@ -135,7 +135,7 @@ defmodule PhxplateWeb.Router do
       pipe_through [:super_admin]
       live "/super_admin", Dashboard.SuperAdmin.SuperAdminLive, :index
       live "/super_admin/users", Dashboard.SuperAdmin.UsersLive, :index
-      live "/super_admin/super_adminpage2", Dashboard.SuperAdmin.SecondPageLive, :index
+      live "/super_admin/companies", Dashboard.SuperAdmin.CompaniesLive, :index
     end
   end
 end

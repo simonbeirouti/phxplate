@@ -3,17 +3,21 @@ defmodule PhxplateWeb.Dashboard.User.BillingLive do
 
   # alias Phxplate.Accounts
   alias Phxplate.Subscriptions
+  alias Phoenix.LiveView.JS
 
   @impl true
   def mount(_params, _session, socket) do
     if socket.assigns[:current_user] do
       user = socket.assigns.current_user
       subscription = Subscriptions.get_user_subscription(user.id)
+      plans = Subscriptions.list_all_plans()
 
       socket =
         socket
         |> assign(:page_title, "Billing & Subscription")
         |> assign(:subscription, subscription)
+        |> assign(:plans, plans)
+        |> assign(:show_plans_modal, false)
 
       {:ok, socket}
     else
@@ -22,6 +26,23 @@ defmodule PhxplateWeb.Dashboard.User.BillingLive do
        |> put_flash(:error, "You must be logged in to view your subscription.")
        |> redirect(to: ~p"/login")}
     end
+  end
+
+  @impl true
+  def handle_event("show_plans_modal", _, socket) do
+    {:noreply, assign(socket, :show_plans_modal, true)}
+  end
+
+  def handle_event("hide_plans_modal", _, socket) do
+    {:noreply, assign(socket, :show_plans_modal, false)}
+  end
+
+  def handle_event("change_plan", %{"plan_id" => plan_id}, socket) do
+    # TODO: Implement Stripe subscription change
+    {:noreply,
+     socket
+     |> put_flash(:info, "Plan change initiated. You will be redirected to complete the process.")
+     |> assign(:show_plans_modal, false)}
   end
 
   @impl true
@@ -38,22 +59,26 @@ defmodule PhxplateWeb.Dashboard.User.BillingLive do
             <div class="sm:flex sm:items-center sm:justify-between">
               <div>
                 <h3 class="text-lg font-medium leading-6 text-gray-900">
-                  Current Plan: <%= String.capitalize(to_string(@subscription.paid_tier)) %>
+                  Current Plan: {@subscription.plan.name}
                 </h3>
                 <div class="mt-2 max-w-xl text-sm text-gray-500">
-                  <p>Status: <%= String.capitalize(to_string(@subscription.subscription_status)) %></p>
+                  <p>Status: {String.capitalize(to_string(@subscription.subscription_status))}</p>
+                  <p class="mt-1">Billing Frequency: {String.capitalize(@subscription.plan.interval)}ly</p>
                   <p class="mt-1">
-                    Next billing date: <%= Calendar.strftime(@subscription.subscription_period_end, "%B %d, %Y") %>
+                    Next billing date: {Calendar.strftime(
+                      @subscription.subscription_period_end,
+                      "%B %d, %Y"
+                    )}
                   </p>
                 </div>
               </div>
               <div class="mt-5 sm:ml-6 sm:mt-0">
-                <.link
-                  href="#"
+                <button
+                  phx-click="show_plans_modal"
                   class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
                 >
-                  Manage Subscription
-                </.link>
+                  Change Plan
+                </button>
               </div>
             </div>
           </div>
@@ -112,6 +137,111 @@ defmodule PhxplateWeb.Dashboard.User.BillingLive do
         </div>
       <% end %>
     </div>
+
+    <%= if @show_plans_modal do %>
+      <div class="relative z-50" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+
+        <div class="fixed inset-0 z-50 w-screen overflow-y-auto">
+          <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+            <div class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-4xl sm:p-6">
+              <div class="absolute right-0 top-0 hidden pr-4 pt-4 sm:block">
+                <button
+                  phx-click="hide_plans_modal"
+                  type="button"
+                  class="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                >
+                  <span class="sr-only">Close</span>
+                  <svg
+                    class="h-6 w-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke-width="1.5"
+                    stroke="currentColor"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div class="text-center">
+                <h3 class="text-2xl font-semibold leading-6 text-gray-900" id="modal-title">
+                  Available Plans
+                </h3>
+                <p class="mt-2 text-sm text-gray-500">Choose a plan that best fits your needs.</p>
+              </div>
+
+              <div class="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <%= for {tier, plans} <- @plans do %>
+                  <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                    <h3 class="text-lg font-semibold text-gray-900">
+                      {String.capitalize(tier)} Plan
+                      <%= if @subscription && @subscription.paid_tier == tier do %>
+                        <span class="ml-2 inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
+                          Current Tier
+                        </span>
+                      <% end %>
+                    </h3>
+
+                    <div class="mt-4 space-y-4">
+                      <%= for interval <- ["monthly", "yearly"] do %>
+                        <% plan = if interval == "monthly", do: plans.monthly, else: plans.yearly %>
+                        <div class="flex items-center justify-between">
+                          <div>
+                            <p class="text-sm font-medium text-gray-900">
+                              {interval |> String.capitalize()}
+                              <%= if @subscription && @subscription.plan_id == plan.id do %>
+                                <span class="ml-2 text-xs text-green-600">(Current)</span>
+                              <% end %>
+                            </p>
+                            <p class="text-sm text-gray-500">${plan.unit_amount / 100}</p>
+                          </div>
+                          <%= if @subscription && @subscription.paid_tier == tier && @subscription.interval == plan.interval do %>
+                            <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
+                              Current Plan
+                            </span>
+                          <% else %>
+                            <button
+                              phx-click="change_plan"
+                              phx-value-plan_id={plan.id}
+                              class="rounded-md bg-indigo-600 px-2.5 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                            >
+                              Select
+                            </button>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    </div>
+
+                    <div class="mt-6">
+                      <h4 class="text-sm font-medium text-gray-900">Features</h4>
+                      <ul class="mt-2 space-y-2 text-sm text-gray-500">
+                        <%= for {feature, value} <- plans.monthly.features do %>
+                          <li class="flex items-center">
+                            <svg
+                              class="mr-2 h-4 w-4 text-green-500"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path
+                                fill-rule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clip-rule="evenodd"
+                              />
+                            </svg>
+                            {String.capitalize(to_string(feature))}: {value}
+                          </li>
+                        <% end %>
+                      </ul>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% end %>
     """
   end
 end
