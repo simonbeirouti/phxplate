@@ -21,11 +21,9 @@ defmodule PhxplateWeb.Components.DashboardLayout do
   #           <Lucideicons.menu class="h-6 w-6" id="menu-icon" />
   #           <Lucideicons.x class="h-6 w-6 hidden" id="close-icon" />
   #         </button>
-
   #         <.sidebar_trigger target="main-sidebar" class="ml-1 hidden md:block">
   #           <Lucideicons.panel_left class="w-4 h-4" />
   #         </.sidebar_trigger>
-
   #         <.separator orientation="vertical" class="mr-2 h-4" />
   #         <.breadcrumb>
   #           <.breadcrumb_list>
@@ -43,7 +41,6 @@ defmodule PhxplateWeb.Components.DashboardLayout do
   #           </.breadcrumb_list>
   #         </.breadcrumb>
   #       </header>
-
   #       <div id="mobile-menu" class="hidden md:hidden">
   #         <div class="space-y-1 px-2 pb-3 pt-2">
   #           <.mobile_nav_main items={@layout_data.navMain} />
@@ -51,7 +48,6 @@ defmodule PhxplateWeb.Components.DashboardLayout do
   #           <.mobile_nav_user user={@layout_data.user} />
   #         </div>
   #       </div>
-
   #       <div class="p-4">
   #         {@inner_content}
   #       </div>
@@ -234,9 +230,11 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             <.menu>
               <%= if @user.role == :basic do %>
                 <dropdownmenugroup>
-                  <.menu_item>
-                    <.sparkles class="w-4 h-4 mr-2" /> Upgrade to Pro
-                  </.menu_item>
+                  <.link href={~p"/dashboard/billing"}>
+                    <.menu_item>
+                      <.sparkles class="w-4 h-4 mr-2" /> Upgrade to Pro
+                    </.menu_item>
+                  </.link>
                 </dropdownmenugroup>
                 <.menu_separator></.menu_separator>
               <% end %>

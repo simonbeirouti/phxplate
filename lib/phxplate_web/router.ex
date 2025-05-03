@@ -55,6 +55,13 @@ defmodule PhxplateWeb.Router do
     get "/stripe/cancel", StripeController, :cancel
   end
 
+  # Webhook endpoint needs :api pipeline instead of :browser
+  scope "/callbacks", PhxplateWeb do
+    pipe_through :api
+    
+    post "/stripe/webhook", StripeController, :webhook
+  end
+
   # Other scopes may use custom stacks.
   # scope "/api", PhxplateWeb do
   #   pipe_through :api
