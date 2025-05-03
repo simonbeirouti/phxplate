@@ -13,7 +13,7 @@
 alias Phxplate.Repo
 alias Phxplate.Accounts.{User, Profile}
 alias Phxplate.Companies.{Company, Employee}
-alias Phxplate.Subscriptions.Subscription
+alias Phxplate.Subscriptions.{Subscription, Plan}
 
 # Store all created records
 created_data = %{
@@ -33,7 +33,7 @@ Repo.delete_all(Profile)
 Repo.delete_all(Employee)
 Repo.delete_all(Company)
 Repo.delete_all(Subscription)
-Repo.delete_all(Phxplate.Subscriptions.Plan)
+Repo.delete_all(Plan)
 Repo.delete_all(User)
 
 # Create products in Stripe with both monthly and yearly prices
@@ -152,7 +152,7 @@ Application.put_env(:phxplate, :subscriptions, %{
 })
 
 # Add plans to created_data
-all_plans = created_plans |> Enum.map(fn %{monthly: %{db: monthly}, yearly: %{db: yearly}} -> 
+all_plans = created_plans |> Enum.map(fn %{monthly: %{db: monthly}, yearly: %{db: yearly}} ->
   [
     %{
       id: monthly.id,
@@ -253,14 +253,15 @@ created_data = Enum.reduce(1..3, created_data, fn index, acc ->
     items: [%{price: subscription_price_id}]
   })
 
-  # Create subscription record
-  subscription = Repo.insert!(%Subscription{
+  # Store subscription in our database
+  db_subscription = Repo.insert!(%Subscription{
     user_id: user.id,
     stripe_customer_id: stripe_customer.id,
     stripe_subscription_id: stripe_subscription.id,
     paid_tier: tier,
     subscription_status: String.to_atom(stripe_subscription.status),
-    subscription_period_end: DateTime.from_unix!(stripe_subscription.current_period_end)
+    subscription_period_end: DateTime.from_unix!(stripe_subscription.current_period_end),
+    plan_id: plan.monthly.db.id
   })
 
   # Create profile for admin
@@ -281,9 +282,9 @@ created_data = Enum.reduce(1..3, created_data, fn index, acc ->
   })
 
   acc
-  |> Map.update!(:admins, &[%{id: user.id, email: user.email, role: user.role, profile: profile, subscription: subscription} | &1])
+  |> Map.update!(:admins, &[%{id: user.id, email: user.email, role: user.role, profile: profile, subscription: Repo.preload(db_subscription, :plan)} | &1])
   |> Map.update!(:profiles, &[profile | &1])
-  |> Map.update!(:subscriptions, &[subscription | &1])
+  |> Map.update!(:subscriptions, &[Repo.preload(db_subscription, :plan) | &1])
 end)
 
 # Create basic users (some with small subscriptions, some without)
@@ -296,7 +297,7 @@ created_data = Enum.reduce(1..3, created_data, fn index, acc ->
   |> Repo.insert!()
 
   # Only create subscriptions for some basic users
-  {subscription, stripe_customer_id} = if rem(index, 2) == 0 do
+  {db_subscription, stripe_customer_id} = if rem(index, 2) == 0 do
     # Create subscription based on index (large, medium, small)
     plan =
       case rem(index, 3) do
@@ -351,7 +352,8 @@ created_data = Enum.reduce(1..3, created_data, fn index, acc ->
         stripe_subscription_id: subscription.id,
         subscription_status: String.to_atom(subscription.status),
         subscription_period_end: DateTime.from_unix!(subscription.current_period_end),
-        paid_tier: String.to_atom(plan.product.metadata["tier"])
+        paid_tier: String.to_atom(plan.product.metadata["tier"]),
+        plan_id: plan.monthly.db.id
       })
 
     {db_subscription, customer.id}
@@ -382,13 +384,13 @@ created_data = Enum.reduce(1..3, created_data, fn index, acc ->
     email: user.email,
     role: user.role,
     profile: profile,
-    subscription: subscription,
+    subscription: db_subscription,
     stripe_customer_id: stripe_customer_id
   } | &1])
   |> Map.update!(:profiles, &[profile | &1])
 
-  if subscription do
-    Map.update!(acc, :subscriptions, &[subscription | &1])
+  if db_subscription do
+    Map.update!(acc, :subscriptions, &[Repo.preload(db_subscription, :plan) | &1])
   else
     acc
   end
