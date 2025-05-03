@@ -53,4 +53,12 @@ defmodule Phxplate.Companies do
     |> Ecto.assoc(:employees)
     |> Repo.all()
   end
+
+  def count_companies do
+    Repo.aggregate(Company, :count, :id)
+  end
+
+  def count_employees do
+    Repo.aggregate(Employee, :count, :id)
+  end
 end

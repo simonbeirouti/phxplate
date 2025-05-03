@@ -42,7 +42,7 @@ defmodule PhxplateWeb.Dashboard.Companies.CompaniesLive do
     |> assign(:page_title, "Companies")
   end
 
-  defp apply_action(socket, :show, %{"id" => id}) do
+  defp apply_action(socket, :show, %{"id" => _id}) do
     socket
     |> assign(:page_title, "Company Details")
   end
