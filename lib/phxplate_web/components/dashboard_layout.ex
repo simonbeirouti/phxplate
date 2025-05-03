@@ -5,75 +5,67 @@ defmodule PhxplateWeb.Components.DashboardLayout do
 
   import Lucideicons, except: [import: 1, quote: 1, menu: 1, link: 1]
 
-  def render(assigns) do
-    ~H"""
-    <.sidebar_provider>
-      <.sidebar_main data={@layout_data}></.sidebar_main>
-      <.sidebar_inset>
-        <header class="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <button
-            type="button"
-            id="mobile-menu-button"
-            class="md:hidden inline-flex items-center justify-center rounded-md p-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-            phx-hook="NavMenu"
-          >
-            <span class="sr-only">Open main menu</span>
-            <Lucideicons.menu class="h-6 w-6" id="menu-icon" />
-            <Lucideicons.x class="h-6 w-6 hidden" id="close-icon" />
-          </button>
-
-          <.sidebar_trigger target="main-sidebar" class="ml-1 hidden md:block">
-            <Lucideicons.panel_left class="w-4 h-4" />
-          </.sidebar_trigger>
-
-          <.separator orientation="vertical" class="mr-2 h-4" />
-          <.breadcrumb>
-            <.breadcrumb_list>
-              <%= for {item, idx} <- Enum.with_index(dashboard_breadcrumbs(@current_path || "/dashboard")) do %>
-                <.breadcrumb_item class={if idx == 0, do: "hidden md:block", else: nil}>
-                  <.breadcrumb_link href={item.href}>
-                    {item.label}
-                  </.breadcrumb_link>
-                </.breadcrumb_item>
-                <.breadcrumb_separator
-                  :if={idx < length(dashboard_breadcrumbs(@current_path || "/dashboard")) - 1}
-                  class="hidden md:block"
-                />
-              <% end %>
-            </.breadcrumb_list>
-          </.breadcrumb>
-        </header>
-
-        <div id="mobile-menu" class="hidden md:hidden">
-          <div class="space-y-1 px-2 pb-3 pt-2">
-            <.mobile_nav_main items={@layout_data.navMain} />
-            <.mobile_nav_projects projects={@layout_data.projects} />
-            <.mobile_nav_user user={@layout_data.user} />
-          </div>
-        </div>
-
-        <div class="p-4">
-          {@inner_content}
-        </div>
-      </.sidebar_inset>
-    </.sidebar_provider>
-    """
-  end
+  # def render(assigns) do
+  #   ~H"""
+  #   <.sidebar_provider>
+  #     <.sidebar_main data={@layout_data}></.sidebar_main>
+  #     <.sidebar_inset>
+  #       <header class="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+  #         <button
+  #           type="button"
+  #           id="mobile-menu-button"
+  #           class="md:hidden inline-flex items-center justify-center rounded-md p-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+  #           phx-hook="NavMenu"
+  #         >
+  #           <span class="sr-only">Open main menu</span>
+  #           <Lucideicons.menu class="h-6 w-6" id="menu-icon" />
+  #           <Lucideicons.x class="h-6 w-6 hidden" id="close-icon" />
+  #         </button>
+  #         <.sidebar_trigger target="main-sidebar" class="ml-1 hidden md:block">
+  #           <Lucideicons.panel_left class="w-4 h-4" />
+  #         </.sidebar_trigger>
+  #         <.separator orientation="vertical" class="mr-2 h-4" />
+  #         <.breadcrumb>
+  #           <.breadcrumb_list>
+  #             <%= for {item, idx} <- Enum.with_index(dashboard_breadcrumbs(@current_path || "/dashboard")) do %>
+  #               <.breadcrumb_item class={if idx == 0, do: "hidden md:block", else: nil}>
+  #                 <.breadcrumb_link href={item.href}>
+  #                   {item.label}
+  #                 </.breadcrumb_link>
+  #               </.breadcrumb_item>
+  #               <.breadcrumb_separator
+  #                 :if={idx < length(dashboard_breadcrumbs(@current_path || "/dashboard")) - 1}
+  #                 class="hidden md:block"
+  #               />
+  #             <% end %>
+  #           </.breadcrumb_list>
+  #         </.breadcrumb>
+  #       </header>
+  #       <div id="mobile-menu" class="hidden md:hidden">
+  #         <div class="space-y-1 px-2 pb-3 pt-2">
+  #           <.mobile_nav_main items={@layout_data.navMain} />
+  #           <.mobile_nav_projects projects={@layout_data.projects} />
+  #           <.mobile_nav_user user={@layout_data.user} />
+  #         </div>
+  #       </div>
+  #       <div class="p-4">
+  #         {@inner_content}
+  #       </div>
+  #     </.sidebar_inset>
+  #   </.sidebar_provider>
+  #   """
+  # end
 
   def sidebar_main(assigns) do
     ~H"""
     <.sidebar collapsible="icon" id="main-sidebar">
       <.sidebar_header>
-        <%!-- <.team_switcher user={@data.user} teams={@data.teams} /> --%>
         <.nav_user user={@data.user} />
       </.sidebar_header>
       <.sidebar_content>
         <.nav_main items={@data.navMain} />
         <.nav_projects projects={@data.projects} />
       </.sidebar_content>
-      <%!-- <.sidebar_footer>
-        <.nav_user user={@data.user} />
-      </.sidebar_footer> --%>
       <.sidebar_rail />
     </.sidebar>
     """
@@ -152,11 +144,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
           class="group/collapsible block"
         > --%>
         <.sidebar_menu_item>
-            <.as_child
-              tag={&collapsible_trigger/1}
-              child={&sidebar_menu_button/1}
-              tooltip={item.title}
-            >
+          <.as_child tag={&collapsible_trigger/1} child={&sidebar_menu_button/1} tooltip={item.title}>
             <.dynamic :if={not is_nil(item.icon)} tag={item.icon} />
 
             <span>
@@ -242,16 +230,25 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             <.menu>
               <%= if @user.role == :basic do %>
                 <dropdownmenugroup>
-                  <.menu_item>
-                    <.sparkles class="w-4 h-4 mr-2" /> Upgrade to Pro
-                  </.menu_item>
+                  <.link href={~p"/dashboard/billing"}>
+                    <.menu_item>
+                      <.sparkles class="w-4 h-4 mr-2" /> Upgrade to Pro
+                    </.menu_item>
+                  </.link>
                 </dropdownmenugroup>
                 <.menu_separator></.menu_separator>
               <% end %>
               <dropdownmenugroup>
+                <%= if @user.role == :admin do %>
+                  <.link href={~p"/dashboard/billing"}>
+                    <.menu_item>
+                      <Lucideicons.user class="w-4 h-4 mr-2" /> Billing
+                    </.menu_item>
+                  </.link>
+                <% end %>
                 <.link href={~p"/dashboard/profile"}>
                   <.menu_item>
-                    <Lucideicons.user class="w-4 h-4 mr-2" /> Profile
+                    <Lucideicons.settings class="w-4 h-4 mr-2" /> Profile
                   </.menu_item>
                 </.link>
                 <.link href={~p"/dashboard/settings"}>

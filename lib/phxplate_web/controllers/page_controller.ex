@@ -28,13 +28,4 @@ defmodule PhxplateWeb.PageController do
     )
     |> render(:contact, layout: false)
   end
-
-  def pricing(conn, _params) do
-    conn
-    |> PageMeta.assign_metadata(
-      title: "Pricing",
-      description: "Get in touch with us"
-    )
-    |> render(:pricing, layout: false)
-  end
 end

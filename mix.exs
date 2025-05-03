@@ -63,7 +63,8 @@ defmodule Phxplate.MixProject do
       {:let_me, "~> 1.2.5"},
       {:salad_ui, "~> 0.14.9"},
       {:lucide_icons, "~> 2.0"},
-      {:faker, "~> 0.18.0"}
+      {:faker, "~> 0.18.0"},
+      {:stripity_stripe, "~> 2.0"}
     ]
   end
 

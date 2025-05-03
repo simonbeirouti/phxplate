@@ -65,16 +65,16 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
         icon: &Lucideicons.crown/1,
         items: [
           %{
-            title: "Super Admin Dashboard",
+            title: "Dashboard",
             url: "/dashboard/super_admin"
           },
           %{
-            title: "Super Admin Page",
-            url: "/dashboard/super_admin/super_adminpage"
+            title: "Platform Users",
+            url: "/dashboard/super_admin/users"
           },
           %{
-            title: "Super Admin Page 2",
-            url: "/dashboard/super_admin/super_adminpage2"
+            title: "Platform Companies",
+            url: "/dashboard/super_admin/companies"
           }
         ],
         required_role: :super_admin
