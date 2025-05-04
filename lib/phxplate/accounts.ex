@@ -6,9 +6,7 @@ defmodule Phxplate.Accounts do
   import Ecto.Query, warn: false
   alias Phxplate.Repo
 
-  alias Phxplate.Accounts.{User, UserToken, UserNotifier}
-
-  ## Database getters
+  alias Phxplate.Accounts.{User, UserToken, UserNotifier, Profile}
 
   @doc """
   Gets a user by email.
@@ -396,4 +394,83 @@ defmodule Phxplate.Accounts do
     |> Repo.update()
   end
 
+  @doc """
+  Gets a profile by user_id.
+
+  ## Examples
+
+      iex> get_profile_by_user_id(123)
+      %Profile{}
+
+      iex> get_profile_by_user_id(456)
+      nil
+
+  """
+  def get_profile_by_user_id(user_id) do
+    Repo.get_by(Profile, user_id: user_id)
+  end
+
+  @doc """
+  Creates a profile for a user.
+
+  ## Examples
+
+      iex> create_profile(user, %{field: value})
+      {:ok, %Profile{}}
+
+      iex> create_profile(user, %{field: bad_value})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def create_profile(%User{} = user, attrs) do
+    %Profile{user_id: user.id}
+    |> Profile.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a profile.
+
+  ## Examples
+
+      iex> update_profile(profile, %{field: new_value})
+      {:ok, %Profile{}}
+
+      iex> update_profile(profile, %{field: bad_value})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def update_profile(%Profile{} = profile, attrs) do
+    profile
+    |> Profile.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for tracking profile changes.
+
+  ## Examples
+
+      iex> change_profile(profile)
+      %Ecto.Changeset{data: %Profile{}}
+
+  """
+  def change_profile(%Profile{} = profile, attrs \\ %{}) do
+    Profile.changeset(profile, attrs)
+  end
+
+  @doc """
+  Marks a user's onboarding as completed.
+  """
+  def complete_onboarding(user) do
+    user
+    |> Ecto.Changeset.change(onboarding_completed: true)
+    |> Repo.update()
+  end
+
+  @doc """
+  Checks if a user has completed onboarding.
+  """
+  def onboarding_completed?(%Phxplate.Accounts.User{onboarding_completed: onboarding_completed}), do: onboarding_completed
+  def onboarding_completed?(_), do: false
 end

@@ -153,7 +153,13 @@ defmodule PhxplateWeb.UserAuth do
     socket = mount_current_user(socket, session)
 
     if socket.assigns.current_user do
-      {:cont, socket}
+      # Check if user has completed onboarding
+      if !Accounts.onboarding_completed?(socket.assigns.current_user) && 
+         !onboarding_path?(socket) do
+        {:halt, Phoenix.LiveView.redirect(socket, to: ~p"/onboarding")}
+      else
+        {:cont, socket}
+      end
     else
       socket =
         socket
@@ -168,7 +174,7 @@ defmodule PhxplateWeb.UserAuth do
     socket = mount_current_user(socket, session)
 
     if socket.assigns.current_user do
-      {:halt, Phoenix.LiveView.redirect(socket, to: signed_in_path(socket))}
+      {:halt, Phoenix.LiveView.redirect(socket, to: signed_in_path(socket.assigns.current_user))}
     else
       {:cont, socket}
     end
@@ -180,6 +186,11 @@ defmodule PhxplateWeb.UserAuth do
         Accounts.get_user_by_session_token(user_token)
       end
     end)
+  end
+
+  defp onboarding_path?(socket) do
+    # Check if the current view is part of the onboarding flow
+    socket.view in [PhxplateWeb.Onboarding.ProfileLive, PhxplateWeb.Onboarding.CompleteLive]
   end
 
   @doc """
@@ -203,7 +214,15 @@ defmodule PhxplateWeb.UserAuth do
   """
   def require_authenticated_user(conn, _opts) do
     if conn.assigns[:current_user] do
-      conn
+      # Check if user has completed onboarding
+      if !Accounts.onboarding_completed?(conn.assigns.current_user) && 
+         !String.starts_with?(conn.request_path, "/onboarding") do
+        conn
+        |> redirect(to: ~p"/onboarding")
+        |> halt()
+      else
+        conn
+      end
     else
       conn
       |> put_flash(:error, "You must log in to access this page.")
@@ -225,5 +244,21 @@ defmodule PhxplateWeb.UserAuth do
 
   defp maybe_store_return_to(conn), do: conn
 
-  defp signed_in_path(_conn), do: ~p"/dashboard"
+  defp signed_in_path(%Plug.Conn{} = conn) do
+    if conn.assigns[:current_user] && !Accounts.onboarding_completed?(conn.assigns.current_user) do
+      ~p"/onboarding"
+    else
+      ~p"/dashboard"
+    end
+  end
+
+  defp signed_in_path(user) when is_struct(user, Phxplate.Accounts.User) do
+    if !Accounts.onboarding_completed?(user) do
+      ~p"/onboarding"
+    else
+      ~p"/dashboard"
+    end
+  end
+
+  defp signed_in_path(_), do: ~p"/dashboard"
 end

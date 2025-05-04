@@ -95,14 +95,25 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
       _ -> "/dashboard"
     end
 
-    layout_data = %{
-      current_path: current_path,
-      user: %{
+    user_data = if current_user.profile do
+      %{
         name: current_user.profile.first_name,
         email: current_user.email,
         role: current_user.role,
-        avatar: current_user.profile.avatar_url
-      },
+        avatar: current_user.profile.avatar_url || ""
+      }
+    else
+      %{
+        name: current_user.email,
+        email: current_user.email,
+        role: current_user.role,
+        avatar: ""
+      }
+    end
+
+    layout_data = %{
+      current_path: current_path,
+      user: user_data,
       teams: [
         %{
           name: "Acme Inc",

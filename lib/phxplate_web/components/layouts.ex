@@ -16,21 +16,30 @@ defmodule PhxplateWeb.Layouts do
   embed_templates "layouts/*"
 
   def auth(assigns) do
-    current_path = case assigns do
-      %{socket: %{private: %{connect_params: %{"_mounts" => 0}}}} ->
-        assigns.socket.private.connect_params["request_path"]
-      %{conn: conn} ->
-        conn.request_path
-      _ ->
-        "/"
-    end
+    current_path =
+      case assigns do
+        %{socket: %{private: %{connect_params: %{"_mounts" => 0}}}} ->
+          assigns.socket.private.connect_params["request_path"]
+
+        %{conn: conn} ->
+          conn.request_path
+
+        _ ->
+          "/"
+      end
+
     assigns = Map.put_new(assigns, :current_path, current_path)
+
     ~H"""
     <div class="flex flex-col lg:flex-row h-[calc(100vh-4rem)]">
       <div class="w-full lg:w-1/2 p-4">
         {@inner_content}
       </div>
-      <div class="w-full lg:w-1/2 bg-cover bg-center" style="background-image: url('/images/coffee.jpg')"></div>
+      <div
+        class="w-full lg:w-1/2 bg-cover bg-center"
+        style="background-image: url('/images/coffee.jpg')"
+      >
+      </div>
     </div>
     """
   end
@@ -39,8 +48,17 @@ defmodule PhxplateWeb.Layouts do
     ~H"""
     <div class="min-h-[calc(100vh-4rem)]">
       <main>
-        <.flash_group flash={@flash} />
-        <%= @inner_content %>
+        {@inner_content}
+      </main>
+    </div>
+    """
+  end
+
+  def onboarding(assigns) do
+    ~H"""
+    <div class="min-h-[calc(100vh-4rem)]">
+      <main>
+        {@inner_content}
       </main>
     </div>
     """

@@ -9,6 +9,7 @@ defmodule Phxplate.Accounts.User do
     field :current_password, :string, virtual: true, redact: true
     field :confirmed_at, :utc_datetime
     field :role, Ecto.Enum, values: [:basic, :admin, :super_admin], default: :basic
+    field :onboarding_completed, :boolean, default: false
 
     has_one :profile, Phxplate.Accounts.Profile
     has_one :subscription, Phxplate.Subscriptions.Subscription
