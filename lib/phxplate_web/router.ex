@@ -58,7 +58,7 @@ defmodule PhxplateWeb.Router do
   # Webhook endpoint needs :api pipeline instead of :browser
   scope "/callbacks", PhxplateWeb do
     pipe_through :api
-    
+
     post "/stripe/webhook", StripeController, :webhook
   end
 
@@ -110,6 +110,19 @@ defmodule PhxplateWeb.Router do
       on_mount: [{PhxplateWeb.UserAuth, :mount_current_user}] do
       live "/confirm/:token", UserConfirmationLive, :edit
       live "/confirm", UserConfirmationInstructionsLive, :new
+    end
+  end
+
+  scope "/onboarding", PhxplateWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    live_session :onboarding,
+      layout: {PhxplateWeb.Layouts, :onboarding},
+      on_mount: [
+        {PhxplateWeb.UserAuth, :ensure_authenticated}
+      ] do
+      live "/", Onboarding.ProfileLive, :index
+      live "/complete", Onboarding.CompleteLive, :index
     end
   end
 
