@@ -2,8 +2,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
   use PhxplateWeb, :live_view
   alias Phxplate.{Companies, Repo}
   alias PhxplateWeb.PageMeta
-  alias PhxplateWeb.Components.UI.Tabs
-  import Tabs
 
   def mount(_params, _session, socket) do
     companies =

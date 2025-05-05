@@ -227,5 +227,43 @@ defmodule Phxplate.Subscriptions do
     end
   end
 
+  @doc """
+  Admin-only function to update a subscription's status.
+  This bypasses Stripe and only updates the local database record.
+  Should only be used by super admins for administrative purposes.
+  """
+  def admin_update_subscription_status(%Subscription{} = subscription, status) when status in [:active, :canceled, :past_due, :incomplete, :trialing] do
+    update_subscription(subscription, %{subscription_status: status})
+  end
+  def admin_update_subscription_status(_subscription, _status), do: {:error, :invalid_status}
+
+  @doc """
+  Admin-only function to update a subscription's tier.
+  This bypasses Stripe and only updates the local database record.
+  Should only be used by super admins for administrative purposes.
+  """
+  def admin_update_subscription_tier(%Subscription{} = subscription, tier) when tier in [:small, :medium, :large] do
+    # Find a plan that matches the tier (using monthly plan as default)
+    plans = list_all_plans()
+    tier_string = Atom.to_string(tier)
+    
+    plan = plans
+      |> Enum.find(fn {t, _} -> t == tier_string end)
+      |> case do
+        {_, %{monthly: plan}} when not is_nil(plan) -> plan
+        _ -> nil
+      end
+    
+    if plan do
+      update_subscription(subscription, %{
+        paid_tier: tier,
+        plan_id: plan.id
+      })
+    else
+      {:error, :plan_not_found}
+    end
+  end
+  def admin_update_subscription_tier(_subscription, _tier), do: {:error, :invalid_tier}
+
 
 end

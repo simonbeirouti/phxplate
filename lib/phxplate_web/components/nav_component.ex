@@ -36,14 +36,14 @@ defmodule PhxplateWeb.Components.NavComponent do
           <div class="hidden md:flex md:items-center">
             <%= if @current_user do %>
               <.link href={~p"/dashboard"}>
-                <SButton.button>Dashboard</SButton.button>
+                <.button>Dashboard</.button>
               </.link>
             <% else %>
               <.link href={~p"/register"}>
-                <SButton.button class="mr-2" variant="outline">Sign up</SButton.button>
+                <.button class="mr-2" variant="outline">Sign up</.button>
               </.link>
               <.link href={~p"/login"}>
-                <SButton.button>Sign in</SButton.button>
+                <.button>Sign in</.button>
               </.link>
             <% end %>
           </div>
@@ -57,7 +57,7 @@ defmodule PhxplateWeb.Components.NavComponent do
             id="nav-menu-button"
           >
             <span class="sr-only">Open main menu</span>
-            <.icon name="hero-bars-3" class="h-6 w-6" />
+            <Lucideicons.rows_3 class="h-6 w-6" />
           </button>
         </div>
       </div>
@@ -74,15 +74,15 @@ defmodule PhxplateWeb.Components.NavComponent do
           <% end %>
           <%= if @current_user do %>
             <.link href={~p"/dashboard"}>
-              <SButton.button>Dashboard</SButton.button>
+              <.button>Dashboard</.button>
             </.link>
           <% else %>
             <div class="flex items-center space-x-2 w-full">
               <.link href={~p"/register"} class="w-full">
-                <SButton.button class="w-full" variant="outline">Sign up</SButton.button>
+                <.button class="w-full" variant="outline">Sign up</.button>
               </.link>
               <.link href={~p"/login"} class="w-full">
-                <SButton.button class="w-full">Sign in</SButton.button>
+                <.button class="w-full">Sign in</.button>
               </.link>
             </div>
           <% end %>

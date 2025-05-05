@@ -10,7 +10,7 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
       <.modal :if={@show_success} id="success-modal" show>
         <div class="text-center">
           <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
-            <.icon name="hero-check" class="h-8 w-8 text-green-600" />
+            <Lucideicons.check class="h-8 w-8 text-green-600" />
           </div>
           <.header>
             Onboarding Complete!
@@ -20,7 +20,7 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
           </.header>
         </div>
       </.modal>
-      
+
       <div class="mb-8 flex justify-center">
         <div class="h-12 w-12 rounded-full bg-primary-100 flex items-center justify-center">
           <Lucideicons.user class="h-6 w-6 text-primary-600" />
@@ -118,7 +118,7 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
           {:ok, _profile} ->
             # Mark onboarding as completed
             {:ok, _updated_user} = Accounts.complete_onboarding(user)
-            
+
             # Show success modal and schedule redirect
             Process.send_after(self(), :redirect_to_dashboard, 2000)
             {:noreply, assign(socket, show_success: true)}
@@ -133,7 +133,7 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
           {:ok, _profile} ->
             # Mark onboarding as completed
             {:ok, _updated_user} = Accounts.complete_onboarding(user)
-            
+
             # Show success modal and schedule redirect
             Process.send_after(self(), :redirect_to_dashboard, 2000)
             {:noreply, assign(socket, show_success: true)}

@@ -1,4 +1,4 @@
-defmodule Phxplate.Accounts do
+  defmodule Phxplate.Accounts do
   @moduledoc """
   The Accounts context.
   """
@@ -60,16 +60,41 @@ defmodule Phxplate.Accounts do
 
   @doc """
   Lists all users.
+
+  ## Options
+
+    * `:page` - The page number (starting with 1)
+    * `:per_page` - The number of users per page
+
+  ## Examples
+
+      iex> list_users()
+      [%User{}, ...]
+
+      iex> list_users(page: 2, per_page: 10)
+      [%User{}, ...]
+
   """
-  def list_users do
-    Repo.all(User)
+  def list_users(opts \\ []) do
+    page = Keyword.get(opts, :page, 1)
+    per_page = Keyword.get(opts, :per_page, 10)  # Default to 10 users per page
+    offset = (page - 1) * per_page
+
+    User
+    |> where([u], u.id != 1)  # Exclude the super admin (ID 1)
+    |> limit(^per_page)
+    |> offset(^offset)
+    |> order_by([u], asc: u.id)
+    |> Repo.all()
   end
 
   @doc """
-  Counts all users.
+  Counts all users (excluding the super admin).
   """
   def count_users do
-    Repo.aggregate(User, :count, :id)
+    User
+    |> where([u], u.id != 1)  # Exclude the super admin (ID 1)
+    |> Repo.aggregate(:count, :id)
   end
 
   @doc """
