@@ -67,7 +67,7 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
 
   def plan_card(assigns) do
     ~H"""
-    <.card class={["relative rounded-sm", @is_popular && "border-2 border-primary/50 lg:scale-110"]}>
+    <.card class={"relative rounded-sm" <> if @is_popular, do: "border-2 border-primary/50 lg:scale-110"}>
       <%= if @is_popular do %>
         <div class="absolute -top-3 right-4 bg-primary text-primary-foreground px-3 py-1 rounded-full text-sm">
           Most Popular

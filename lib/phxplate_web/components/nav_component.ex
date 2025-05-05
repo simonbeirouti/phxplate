@@ -11,7 +11,7 @@ defmodule PhxplateWeb.Components.NavComponent do
       %{href: ~p"/pricing", label: "Pricing"}
     ]
 
-    show_nav = !String.starts_with?(assigns.current_path, "/dashboard") && !String.starts_with?(assigns.current_path, "/onboarding")
+    show_nav = !String.starts_with?(assigns.current_path, "/dashboard")
     assigns = assign(assigns, :show_nav, show_nav)
     assigns = assign(assigns, :public_links, public_links)
 

@@ -117,12 +117,11 @@ defmodule PhxplateWeb.Router do
     pipe_through [:browser, :require_authenticated_user]
 
     live_session :onboarding,
-      layout: {PhxplateWeb.Layouts, :onboarding},
+      layout: {PhxplateWeb.Layouts, :auth},
       on_mount: [
         {PhxplateWeb.UserAuth, :ensure_authenticated}
       ] do
       live "/", Onboarding.ProfileLive, :index
-      live "/complete", Onboarding.CompleteLive, :index
     end
   end
 

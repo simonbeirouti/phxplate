@@ -7,9 +7,23 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
   def render(assigns) do
     ~H"""
     <div class="max-w-2xl mx-auto py-16 px-4">
+      <.modal :if={@show_success} id="success-modal" show>
+        <div class="text-center">
+          <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
+            <.icon name="hero-check" class="h-8 w-8 text-green-600" />
+          </div>
+          <.header>
+            Onboarding Complete!
+            <:subtitle>
+              Thank you for setting up your profile. Redirecting to dashboard...
+            </:subtitle>
+          </.header>
+        </div>
+      </.modal>
+      
       <div class="mb-8 flex justify-center">
         <div class="h-12 w-12 rounded-full bg-primary-100 flex items-center justify-center">
-          <.icon name="hero-user" class="h-6 w-6 text-primary-600" />
+          <Lucideicons.user class="h-6 w-6 text-primary-600" />
         </div>
       </div>
       <.header class="text-center">
@@ -34,9 +48,12 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
           <.input field={@form[:last_name]} type="text" label="Last Name" required />
         </div>
 
-        <.input field={@form[:job_title]} type="text" label="Job Title" />
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <.input field={@form[:phone]} type="text" label="Phone" required />
+          <.input field={@form[:location]} type="text" label="Location" required />
+        </div>
+
         <.input field={@form[:bio]} type="textarea" label="Bio" />
-        <.input field={@form[:location]} type="text" label="Location" />
 
         <:actions>
           <.button phx-disable-with="Saving..." class="w-full">Save Profile</.button>
@@ -60,9 +77,14 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
     socket =
       socket
       |> assign(:check_errors, false)
+      |> assign(:show_success, false)
       |> assign_form(changeset)
 
     {:ok, socket}
+  end
+
+  def handle_info(:redirect_to_dashboard, socket) do
+    {:noreply, push_navigate(socket, to: ~p"/dashboard")}
   end
 
   def handle_event("validate", %{"profile" => profile_params}, socket) do
@@ -86,13 +108,20 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
     save_profile(user, profile_params, socket)
   end
 
+
+
   defp save_profile(user, profile_params, socket) do
     case Accounts.get_profile_by_user_id(user.id) do
       nil ->
         # Create new profile
         case Accounts.create_profile(user, profile_params) do
           {:ok, _profile} ->
-            {:noreply, push_navigate(socket, to: ~p"/onboarding/complete")}
+            # Mark onboarding as completed
+            {:ok, _updated_user} = Accounts.complete_onboarding(user)
+            
+            # Show success modal and schedule redirect
+            Process.send_after(self(), :redirect_to_dashboard, 2000)
+            {:noreply, assign(socket, show_success: true)}
 
           {:error, %Ecto.Changeset{} = changeset} ->
             {:noreply, assign(socket, check_errors: true) |> assign_form(changeset)}
@@ -102,7 +131,12 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
         # Update existing profile
         case Accounts.update_profile(profile, profile_params) do
           {:ok, _profile} ->
-            {:noreply, push_navigate(socket, to: ~p"/onboarding/complete")}
+            # Mark onboarding as completed
+            {:ok, _updated_user} = Accounts.complete_onboarding(user)
+            
+            # Show success modal and schedule redirect
+            Process.send_after(self(), :redirect_to_dashboard, 2000)
+            {:noreply, assign(socket, show_success: true)}
 
           {:error, %Ecto.Changeset{} = changeset} ->
             {:noreply, assign(socket, check_errors: true) |> assign_form(changeset)}

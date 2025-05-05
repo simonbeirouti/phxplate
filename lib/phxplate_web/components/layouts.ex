@@ -53,14 +53,4 @@ defmodule PhxplateWeb.Layouts do
     </div>
     """
   end
-
-  def onboarding(assigns) do
-    ~H"""
-    <div class="min-h-[calc(100vh-4rem)]">
-      <main>
-        {@inner_content}
-      </main>
-    </div>
-    """
-  end
 end
