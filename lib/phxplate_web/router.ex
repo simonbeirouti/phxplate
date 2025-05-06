@@ -140,8 +140,6 @@ defmodule PhxplateWeb.Router do
         {PhxplateWeb.Live.Hooks.LayoutHooks, :default}
       ] do
       live "/", DashboardLive, :index
-      live "/companies", Dashboard.Companies.CompaniesLive, :index
-      live "/companies/:id", Dashboard.Companies.CompaniesLive, :show
       live "/profile", Dashboard.User.UserProfileLive, :index
       live "/settings", Dashboard.User.UserSettingsLive, :edit
       live "/billing", Dashboard.User.BillingLive, :index
@@ -154,8 +152,8 @@ defmodule PhxplateWeb.Router do
 
       pipe_through [:admin]
       live "/admin", Dashboard.Admin.AdminLive, :index
-      live "/admin/adminpage", Dashboard.Admin.BasicPageLive, :index
-      live "/admin/adminpage2", Dashboard.Admin.SecondPageLive, :index
+      live "/admin/company", Dashboard.Admin.CompanyLive, :index
+      live "/admin/company/:id", Dashboard.Admin.CompanyShowLive, :index
 
       pipe_through [:super_admin]
       live "/super_admin", Dashboard.SuperAdmin.SuperAdminLive, :index

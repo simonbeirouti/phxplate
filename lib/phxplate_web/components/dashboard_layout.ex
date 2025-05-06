@@ -64,7 +64,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
       </.sidebar_header>
       <.sidebar_content>
         <.nav_main items={@data.navMain} />
-        <.nav_projects projects={@data.projects} />
+        <.nav_projects :if={length(@data.projects) >= 1} projects={@data.projects} />
       </.sidebar_content>
       <.sidebar_rail />
     </.sidebar>
@@ -185,7 +185,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
                 {String.slice(project.name, 0, 2)}
               </.avatar_fallback>
             </.avatar>
-            <a href={~p"/dashboard/companies/#{project.id}"} class="truncate">
+            <a href={~p"/dashboard/admin/company/#{project.id}"} class="truncate">
               {project.name}
             </a>
           </.sidebar_menu_button>

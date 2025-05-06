@@ -14,6 +14,17 @@ defmodule Phxplate.Companies do
     |> Repo.all()
   end
 
+  def list_companies_by_owner(user_id, opts \\ []) do
+    page = Keyword.get(opts, :page, 1)
+    per_page = Keyword.get(opts, :per_page, 10)
+
+    Company
+    |> where(owner_id: ^user_id)
+    |> offset((^page - 1) * ^per_page)
+    |> limit(^per_page)
+    |> Repo.all()
+  end
+
   def get_company!(id), do: Repo.get!(Company, id)
 
   def create_company(attrs \\ %{}) do
