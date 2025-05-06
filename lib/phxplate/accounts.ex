@@ -498,4 +498,11 @@
   """
   def onboarding_completed?(%Phxplate.Accounts.User{onboarding_completed: onboarding_completed}), do: onboarding_completed
   def onboarding_completed?(_), do: false
+
+  @doc """
+  Delete the user from the application
+  """
+  def delete_user(user) do
+    Repo.delete(user)
+  end
 end

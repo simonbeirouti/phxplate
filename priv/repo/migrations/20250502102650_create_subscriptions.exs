@@ -3,7 +3,7 @@ defmodule Phxplate.Repo.Migrations.CreateSubscriptions do
 
   def change do
     execute "CREATE TYPE subscription_status AS ENUM ('active', 'canceled', 'past_due', 'incomplete', 'trialing')"
-    execute "CREATE TYPE paid_tier AS ENUM ('small', 'medium', 'large')"
+    execute "CREATE TYPE paid_tier AS ENUM ('none', 'small', 'medium', 'large')"
 
     create table(:subscriptions) do
       add :stripe_customer_id, :string

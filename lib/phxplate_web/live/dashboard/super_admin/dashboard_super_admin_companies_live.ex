@@ -4,23 +4,54 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
   alias PhxplateWeb.PageMeta
 
   def mount(_params, _session, socket) do
-    companies =
-      Companies.list_companies()
-      |> Repo.preload([:employees])
+    socket =
+      socket
+      |> assign(:selected_company, nil)
+      |> PageMeta.assign_metadata(
+        title: "Companies Management",
+        description: "Manage companies across the application"
+      )
 
-    {:ok,
-     socket
-     |> assign(:companies, companies)
-     |> assign(:selected_company, nil)
-     |> PageMeta.assign_metadata(
-       title: "Companies Management",
-       description: "Manage companies across the application"
-     )}
+    {:ok, load_companies(socket, 1)}
   end
 
   def handle_event("select_company", %{"id" => company_id}, socket) do
     company = Companies.get_company!(company_id) |> Repo.preload([:employees])
     {:noreply, assign(socket, selected_company: company)}
+  end
+
+  def handle_event("paginate", %{"page" => page}, socket) do
+    page = String.to_integer(page)
+    {:noreply, load_companies(socket, page)}
+  end
+
+  def handle_params(params, _uri, socket) do
+    page =
+      case params["page"] do
+        nil -> 1
+        page_param -> String.to_integer(page_param)
+      end
+
+    {:noreply, load_companies(socket, page)}
+  end
+
+  defp load_companies(socket, page) do
+    per_page = 10
+
+    # Get total count for pagination
+    total_companies = Companies.count_companies()
+    total_pages = max(1, ceil(total_companies / per_page))
+
+    # Get paginated companies
+    companies =
+      Companies.list_companies(page: page, per_page: per_page)
+      |> Repo.preload([:employees])
+
+    socket
+    |> assign(:companies, companies)
+    |> assign(:page, page)
+    |> assign(:total_pages, total_pages)
+    |> assign(:per_page, per_page)
   end
 
   def render(assigns) do
@@ -46,11 +77,47 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
                     <p class="font-medium">{company.name}</p>
                     <p class="text-sm text-gray-500">Plan: {company.plan}</p>
                   </div>
-                  <span class="text-gray-400">&rarr;</span>
+                  <Lucideicons.arrow_right class="w-5 h-5 mr-2" />
                 </div>
               </div>
             <% end %>
           </div>
+
+          <%= if @total_pages > 1 do %>
+            <div class="mt-6">
+              <.pagination>
+                <.pagination_content class="w-full flex justify-center items-center">
+                  <%= if @page > 1 do %>
+                    <.pagination_item>
+                      <.pagination_link phx-click="paginate" phx-value-page={@page - 1}>
+                        <Lucideicons.arrow_left class="w-3.5 h-3.5" />
+                      </.pagination_link>
+                    </.pagination_item>
+                  <% end %>
+
+                  <%= for page_num <- max(1, @page - 2)..min(@total_pages, @page + 2) do %>
+                    <.pagination_item>
+                      <.pagination_link
+                        phx-click="paginate"
+                        phx-value-page={page_num}
+                        is-active={page_num == @page}
+                      >
+                        {page_num}
+                      </.pagination_link>
+                    </.pagination_item>
+                  <% end %>
+
+                  <%= if @page < @total_pages do %>
+                    <.pagination_item>
+                      <.pagination_link phx-click="paginate" phx-value-page={@page + 1}>
+                        <Lucideicons.arrow_right class="w-3.5 h-3.5" />
+                      </.pagination_link>
+                    </.pagination_item>
+                  <% end %>
+                </.pagination_content>
+              </.pagination>
+            </div>
+          <% end %>
         </div>
 
         <div class="col-span-3 md:col-span-2">
@@ -89,7 +156,11 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
                     <h4 class="text-sm font-medium text-gray-500">Website</h4>
                     <p class="mt-1">
                       <%= if @selected_company.website do %>
-                        <a href={@selected_company.website} target="_blank" class="text-primary-600 hover:text-primary-700">
+                        <a
+                          href={@selected_company.website}
+                          target="_blank"
+                          class="text-primary-600 hover:text-primary-700"
+                        >
                           {@selected_company.website}
                         </a>
                       <% else %>
@@ -108,10 +179,10 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
                         <div class="py-4">
                           <div class="flex items-center justify-between">
                             <div>
-                              <p class="font-medium"><%= employee.first_name %> <%= employee.last_name %></p>
-                              <p class="text-sm text-gray-500"><%= employee.email %></p>
-                              <p class="text-sm text-gray-500">Position: <%= employee.position %></p>
-                              <p class="text-sm text-gray-500">Department: <%= employee.department %></p>
+                              <p class="font-medium">{employee.first_name} {employee.last_name}</p>
+                              <p class="text-sm text-gray-500">{employee.email}</p>
+                              <p class="text-sm text-gray-500">Position: {employee.position}</p>
+                              <p class="text-sm text-gray-500">Department: {employee.department}</p>
                             </div>
                           </div>
                         </div>

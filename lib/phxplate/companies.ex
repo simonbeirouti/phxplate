@@ -4,8 +4,14 @@ defmodule Phxplate.Companies do
   alias Phxplate.Companies.Company
   alias Phxplate.Companies.Employee
 
-  def list_companies do
-    Repo.all(Company)
+  def list_companies(opts \\ []) do
+    page = Keyword.get(opts, :page, 1)
+    per_page = Keyword.get(opts, :per_page, 10)
+
+    Company
+    |> offset((^page - 1) * ^per_page)
+    |> limit(^per_page)
+    |> Repo.all()
   end
 
   def get_company!(id), do: Repo.get!(Company, id)

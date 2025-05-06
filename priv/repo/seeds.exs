@@ -188,7 +188,8 @@ created_data = Enum.reduce(1..1, created_data, fn _, acc ->
   user = User.registration_changeset(%User{}, %{
     email: Faker.Internet.email(),
     password: "password1234",
-    role: :super_admin
+    role: :super_admin,
+    onboarding_completed: true
   })
   |> Repo.insert!()
 
@@ -210,7 +211,7 @@ created_data = Enum.reduce(1..1, created_data, fn _, acc ->
   })
 
   acc
-  |> Map.update!(:super_admins, &[%{id: user.id, email: user.email, role: user.role, profile: profile} | &1])
+  |> Map.update!(:super_admins, &[%{id: user.id, email: user.email, role: user.role, profile: profile, onboarding_completed: user.onboarding_completed} | &1])
   |> Map.update!(:profiles, &[profile | &1])
 end)
 
@@ -219,7 +220,8 @@ created_data = Enum.reduce(1..3, created_data, fn index, acc ->
   user = User.registration_changeset(%User{}, %{
     email: Faker.Internet.email(),
     password: "password1234",
-    role: :admin
+    role: :admin,
+    onboarding_completed: true
   })
   |> Repo.insert!()
 
@@ -282,7 +284,7 @@ created_data = Enum.reduce(1..3, created_data, fn index, acc ->
   })
 
   acc
-  |> Map.update!(:admins, &[%{id: user.id, email: user.email, role: user.role, profile: profile, subscription: Repo.preload(db_subscription, :plan)} | &1])
+  |> Map.update!(:admins, &[%{id: user.id, email: user.email, role: user.role, profile: profile, subscription: Repo.preload(db_subscription, :plan), onboarding_completed: user.onboarding_completed} | &1])
   |> Map.update!(:profiles, &[profile | &1])
   |> Map.update!(:subscriptions, &[Repo.preload(db_subscription, :plan) | &1])
 end)
@@ -292,7 +294,8 @@ created_data = Enum.reduce(1..3, created_data, fn index, acc ->
   user = User.registration_changeset(%User{}, %{
     email: Faker.Internet.email(),
     password: "password1234",
-    role: :basic
+    role: :basic,
+    onboarding_completed: true
   })
   |> Repo.insert!()
 
@@ -385,7 +388,8 @@ created_data = Enum.reduce(1..3, created_data, fn index, acc ->
     role: user.role,
     profile: profile,
     subscription: db_subscription,
-    stripe_customer_id: stripe_customer_id
+    stripe_customer_id: stripe_customer_id,
+    onboarding_completed: user.onboarding_completed
   } | &1])
   |> Map.update!(:profiles, &[profile | &1])
 
