@@ -30,46 +30,25 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
 
   def render(assigns) do
     ~H"""
-    <main>
-      <div class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-2xl font-semibold text-gray-900">{@data.message}</h2>
-        <div class="mt-4">
-          <h3 class="text-lg font-medium text-gray-900">Available Features:</h3>
-          <ul class="mt-2 list-disc list-inside">
-            <%= for feature <- @data.features do %>
-              <li class="text-gray-600">{feature}</li>
-            <% end %>
-          </ul>
-        </div>
-        <div class="mt-6">
-          <h3 class="text-lg font-medium text-gray-900">User List:</h3>
-          <div class="mt-2 overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Role
-                  </th>
-                </tr>
-              </thead>
-              <tbody class="bg-white divide-y divide-gray-200">
-                <%= for user <- @data.users do %>
-                  <tr>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {user.email}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.role}</td>
-                  </tr>
-                <% end %>
-              </tbody>
-            </table>
+    <div class="flex-1 h-[calc(100vh-100px)]">
+      <.header>
+        <h2 class="text-2xl font-semibold text-gray-900">Admin Dashboard</h2>
+        <:subtitle>View your company dashboard here</:subtitle>
+      </.header>
+      <div class="mt-4">
+        <.link navigate="#">
+          <div class="relative overflow-hidden rounded-lg p-4 shadow hover:bg-gray-50 transition-colors">
+            <div class="absolute rounded-md p-3">
+              <Lucideicons.building class="h-8 w-8 text-black" />
+            </div>
+            <div class="ml-16">
+              <p class="truncate text-sm font-medium text-gray-500">Total Companies</p>
+              <p class="mt-1 text-3xl font-semibold text-gray-900">{@stats.total_companies}</p>
+            </div>
           </div>
-        </div>
+        </.link>
       </div>
-    </main>
+    </div>
     """
   end
 end

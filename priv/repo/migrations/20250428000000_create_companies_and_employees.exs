@@ -11,6 +11,7 @@ defmodule Phxplate.Repo.Migrations.CreateCompaniesAndEmployees do
       add :plan, :string, null: false, default: "basic"
       add :logo, :string
       add :website, :string
+      add :owner_id, references(:users, on_delete: :nothing), null: false
 
       timestamps()
     end
@@ -30,5 +31,6 @@ defmodule Phxplate.Repo.Migrations.CreateCompaniesAndEmployees do
 
     create index(:employees, [:company_id])
     create unique_index(:employees, [:email])
+    create index(:companies, [:owner_id])
   end
 end

@@ -36,7 +36,7 @@ defmodule PhxplateWeb.UserAuth do
     conn
     |> renew_session()
     |> put_token_in_session(token)
-    |> delete_session(:impersonated_user_id) # Clear any impersonation when logging in
+    |> delete_session(:impersonated_user_id)
     |> maybe_write_remember_me_cookie(token, params)
     |> redirect(to: user_return_to || signed_in_path(conn))
   end
@@ -85,7 +85,8 @@ defmodule PhxplateWeb.UserAuth do
     conn
     |> renew_session()
     |> delete_resp_cookie(@remember_me_cookie)
-    |> delete_session(:impersonated_user_id) # Clear impersonation on logout
+    # Clear impersonation on logout
+    |> delete_session(:impersonated_user_id)
     |> redirect(to: ~p"/")
   end
 
@@ -97,15 +98,16 @@ defmodule PhxplateWeb.UserAuth do
     {user_token, conn} = ensure_user_token(conn)
     user = user_token && Accounts.get_user_by_session_token(user_token)
     impersonated_user_id = get_session(conn, :impersonated_user_id)
-    
+
     cond do
       # If there's an impersonated user and the real user is a super admin
       impersonated_user_id && user && user.role == :super_admin ->
         impersonated_user = Accounts.get_user!(impersonated_user_id)
+
         conn
         |> assign(:current_user, impersonated_user)
         |> assign(:real_user, user)
-      
+
       # Normal case - no impersonation
       true ->
         assign(conn, :current_user, user)
@@ -163,22 +165,20 @@ defmodule PhxplateWeb.UserAuth do
   """
   def on_mount(:mount_current_user, _params, session, socket) do
     socket = mount_current_user(socket, session)
-    
+
     # Add real_user to socket assigns if present
-    real_user = if user_token = session["user_token"] do
-      real_user = Accounts.get_user_by_session_token(user_token)
-      if real_user && real_user.role == :super_admin && session["impersonated_user_id"] do
-        real_user
+    real_user =
+      if user_token = session["user_token"] do
+        real_user = Accounts.get_user_by_session_token(user_token)
+
+        if real_user && real_user.role == :super_admin && session["impersonated_user_id"] do
+          real_user
+        end
       end
-    end
-    
+
     {:cont, assign(socket, :real_user, real_user)}
   end
 
-  @doc """
-  Ensures users can only access routes appropriate for their role.
-  Super admin pages are only accessible when not impersonating.
-  """
   def on_mount(:ensure_proper_role, _params, _session, socket) do
     user = socket.assigns.current_user
     real_user = socket.assigns[:real_user]
@@ -189,12 +189,15 @@ defmodule PhxplateWeb.UserAuth do
       String.contains?(request_path, "/super_admin") && real_user != nil ->
         {:halt,
          socket
-         |> Phoenix.LiveView.put_flash(:error, "Cannot access super admin pages while impersonating")
+         |> Phoenix.LiveView.put_flash(
+           :error,
+           "Cannot access super admin pages while impersonating"
+         )
          |> Phoenix.LiveView.redirect(to: "/dashboard")}
 
       # Block access to admin routes for non-admin users
-      String.contains?(request_path, "/admin") && 
-        !(user.role in [:admin, :super_admin]) ->
+      String.contains?(request_path, "/admin") &&
+          !(user.role in [:admin, :super_admin]) ->
         {:halt,
          socket
          |> Phoenix.LiveView.put_flash(:error, "You don't have permission to access this page")
@@ -210,8 +213,8 @@ defmodule PhxplateWeb.UserAuth do
 
     if socket.assigns.current_user do
       # Check if user has completed onboarding
-      if !Accounts.onboarding_completed?(socket.assigns.current_user) && 
-         !onboarding_path?(socket) do
+      if !Accounts.onboarding_completed?(socket.assigns.current_user) &&
+           !onboarding_path?(socket) do
         {:halt, Phoenix.LiveView.redirect(socket, to: ~p"/onboarding")}
       else
         {:cont, socket}
@@ -271,8 +274,8 @@ defmodule PhxplateWeb.UserAuth do
   def require_authenticated_user(conn, _opts) do
     if conn.assigns[:current_user] do
       # Check if user has completed onboarding
-      if !Accounts.onboarding_completed?(conn.assigns.current_user) && 
-         !String.starts_with?(conn.request_path, "/onboarding") do
+      if !Accounts.onboarding_completed?(conn.assigns.current_user) &&
+           !String.starts_with?(conn.request_path, "/onboarding") do
         conn
         |> redirect(to: ~p"/onboarding")
         |> halt()
