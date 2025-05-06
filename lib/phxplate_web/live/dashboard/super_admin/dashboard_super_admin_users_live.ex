@@ -193,7 +193,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
         <:subtitle>Manage users across the application</:subtitle>
       </.header>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4 h-[calc(100vh-200px)]">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-4 h-[calc(100vh-200px)]">
         <div class="h-[calc(100vh-200px)] col-span-1">
           <h2 class="text-xl font-semibold mb-4">User List</h2>
           <div class="divide-y">
@@ -300,16 +300,16 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
                       </div>
                       <div class="col-span-2">
                         <h4 class="text-sm font-medium text-gray-500">Social Links</h4>
-                        <div class="mt-1 w-full flex flex-wrap">
+                        <div class="mt-1 w-full flex justify-between">
                           <%= if @selected_user.profile.social_links && map_size(@selected_user.profile.social_links) > 0 do %>
                             <%= for {platform, url} <- @selected_user.profile.social_links do %>
                               <a
                                 href={url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                class="inline-flex mr-2"
+                                class="inline-flex mr-2 w-full"
                               >
-                                <.button class="flex flex-row items-center gap-2">
+                                <.button class="flex flex-row items-center gap-2 w-full">
                                   <span class="capitalize">{platform}</span>
                                   <Lucideicons.external_link class="w-3.5 h-3.5 ml-2" />
                                 </.button>
@@ -465,28 +465,30 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
 
                   <div class="mt-8 border-t pt-6">
                     <%= if @delete_confirmation do %>
-                      <div class="flex space-x-4">
-                        <button
+                      <div class="flex w-full justify-between space-x-4">
+                        <.button
+                          variant="destructive"
                           phx-click="confirm_delete_user"
                           phx-value-user_id={@selected_user.id}
-                          class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                          class="w-full"
                         >
                           Confirm Delete
-                        </button>
-                        <button
-                          phx-click="cancel_delete"
-                          class="inline-flex items-center px-3 py-2 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                        >
+                        </.button>
+                        <.button phx-click="cancel_delete" class="w-full">
                           Cancel
-                        </button>
+                        </.button>
                       </div>
                     <% else %>
-                      <button
-                        phx-click="delete_user"
-                        class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                      >
-                        Delete User Account
-                      </button>
+                      <div class="flex w-full justify-between space-x-4">
+                        <.link class="w-full" href={~p"/dashboard/impersonate/#{@selected_user.id}"}>
+                          <.button class="w-full">
+                            <Lucideicons.user_cog class="-ml-0.5 mr-2 h-4 w-4" /> Impersonate User
+                          </.button>
+                        </.link>
+                        <.button variant="destructive" phx-click="delete_user" class="w-full">
+                          Delete User Account
+                        </.button>
+                      </div>
                     <% end %>
                   </div>
                 </div>

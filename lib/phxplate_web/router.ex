@@ -128,10 +128,15 @@ defmodule PhxplateWeb.Router do
   scope "/dashboard", PhxplateWeb do
     pipe_through [:browser, :require_authenticated_user]
 
+    # Impersonation routes
+    get "/impersonate/:id", UserImpersonationController, :impersonate
+    get "/stop_impersonating", UserImpersonationController, :stop_impersonating
+
     live_session :dashboard,
       layout: {PhxplateWeb.Layouts, :app},
       on_mount: [
         {PhxplateWeb.UserAuth, :ensure_authenticated},
+        {PhxplateWeb.UserAuth, :ensure_proper_role},
         {PhxplateWeb.Live.Hooks.LayoutHooks, :default}
       ] do
       live "/", DashboardLive, :index
