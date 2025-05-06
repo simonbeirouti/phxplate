@@ -152,7 +152,7 @@ defmodule PhxplateWeb.Router do
 
       pipe_through [:admin]
       live "/admin", Dashboard.Admin.AdminLive, :index
-      live "/admin/company", Dashboard.Admin.CompanyLive, :index
+      live "/admin/companies", Dashboard.Admin.CompanyLive, :index
       live "/admin/company/:id", Dashboard.Admin.CompanyShowLive, :index
 
       pipe_through [:super_admin]

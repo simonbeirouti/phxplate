@@ -49,8 +49,8 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
             url: "/dashboard/admin"
           },
           %{
-            title: "Company Access",
-            url: "/dashboard/admin/company"
+            title: "Companies",
+            url: "/dashboard/admin/companies"
           }
         ],
         required_role: :admin

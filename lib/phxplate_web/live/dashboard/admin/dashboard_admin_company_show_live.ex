@@ -14,7 +14,9 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
        company: company,
        employees: employees,
        show_edit_modal: false,
-       selected_employee: nil
+       selected_employee: nil,
+       confirming_delete: MapSet.new(),
+       invite_email: ""
      )}
   end
 
@@ -23,22 +25,46 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     {:noreply, assign(socket, show_edit_modal: true, selected_employee: employee)}
   end
 
+  def handle_event("send_invite", %{"email" => email}, socket) do
+    # TODO: Implement actual email invitation logic here
+    {:noreply,
+     socket
+     |> put_flash(:info, "Invitation sent to #{email}")
+     |> assign(:invite_email, "")}
+  end
+
   def handle_event("delete_employee", %{"id" => employee_id}, socket) do
-    employee = Enum.find(socket.assigns.employees, &(&1.id == employee_id))
+    # Convert employee_id to integer since it comes as string from the template
+    employee_id = String.to_integer(employee_id)
 
-    case Companies.delete_employee(employee) do
-      {:ok, _} ->
-        employees = Companies.get_company_employees(socket.assigns.company)
+    if MapSet.member?(socket.assigns.confirming_delete, employee_id) do
+      employee = Enum.find(socket.assigns.employees, &(&1.id == employee_id))
 
-        {:noreply,
-         socket
-         |> put_flash(:info, "Employee deleted successfully.")
-         |> assign(employees: employees)}
+      case Companies.delete_employee(employee) do
+        {:ok, _} ->
+          employees = Companies.get_company_employees(socket.assigns.company)
 
-      {:error, _} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "Could not delete employee.")}
+          {:noreply,
+           socket
+           |> assign(
+             confirming_delete: MapSet.delete(socket.assigns.confirming_delete, employee_id)
+           )
+           |> put_flash(:info, "Employee deleted successfully.")
+           |> assign(employees: employees)}
+
+        {:error, _} ->
+          {:noreply,
+           socket
+           |> assign(
+             confirming_delete: MapSet.delete(socket.assigns.confirming_delete, employee_id)
+           )
+           |> put_flash(:error, "Could not delete employee.")}
+      end
+    else
+      {:noreply,
+       assign(socket,
+         confirming_delete: MapSet.put(socket.assigns.confirming_delete, employee_id)
+       )}
     end
   end
 
@@ -124,28 +150,28 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                       <.table_cell>{employee.department || "N/A"}</.table_cell>
                       <.table_cell class="text-right">
                         <.button
-                          variant="outline"
-                          phx-click="edit_employee"
-                          phx-value-id={employee.id}
-                        >
-                          <Lucideicons.pencil class="h-4 w-4" />
-                        </.button>
-                        <.button
-                          variant="outline"
+                          variant="destructive"
                           phx-click="delete_employee"
                           phx-value-id={employee.id}
-                          data-confirm="Are you sure you want to delete this employee?"
                         >
-                          <Lucideicons.trash class="h-4 w-4" />
+                          <%= if MapSet.member?(@confirming_delete, employee.id) do %>
+                            <Lucideicons.check class="h-4 w-4" />
+                          <% else %>
+                            <Lucideicons.trash class="h-4 w-4" />
+                          <% end %>
                         </.button>
                       </.table_cell>
                     </.table_row>
                   <% end %>
                 </.table_body>
-              </.table>
+                </.table>
+                <div class="w-1/4">
+                <.invite_user_dialog invite_email={@invite_email} />
+                </div>
             </div>
 
             <div class="lg:hidden space-y-4" class="h-[calc(100vh-250px)]">
+              <.invite_user_dialog invite_email={@invite_email} />
               <%= for employee <- @employees do %>
                 <div class="bg-white shadow rounded-lg p-4">
                   <div class="flex justify-between items-start mb-4">
@@ -167,23 +193,17 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                           id={"dropdown-#{employee.id}-card"}
                           class="hidden absolute right-0 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100"
                         >
-                          <div>
-                            <button
-                              class="group flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                              phx-click="edit_employee"
-                              phx-value-id={employee.id}
-                            >
-                              <Lucideicons.pencil class="mr-2 h-4 w-4" /> Edit Employee
-                            </button>
-                            <button
-                              class="group flex w-full items-center px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
-                              phx-click="delete_employee"
-                              phx-value-id={employee.id}
-                              data-confirm="Are you sure you want to delete this employee?"
-                            >
+                          <button
+                            class="group flex w-full items-center px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                            phx-click="delete_employee"
+                            phx-value-id={employee.id}
+                          >
+                            <%= if MapSet.member?(@confirming_delete, employee.id) do %>
+                              <Lucideicons.check class="mr-2 h-4 w-4" /> Confirm Delete
+                            <% else %>
                               <Lucideicons.trash class="mr-2 h-4 w-4" /> Delete Employee
-                            </button>
-                          </div>
+                            <% end %>
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -225,6 +245,47 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
           </div>
         </.tabs_content>
       </.tabs>
+    </div>
+    """
+  end
+
+  defp invite_user_dialog(assigns) do
+    assigns = assign_new(assigns, :invite_email, fn -> "" end)
+    ~H"""
+    <div class="mt-4">
+      <.button class="w-full" variant="outline" phx-click={JS.show(to: "#invite-user-dialog")}>
+        <Lucideicons.plus class="w-4 h-4 mr-2" /> Invite User
+      </.button>
+      <.dialog id="invite-user-dialog" show={false}>
+        <div class="relative grid gap-4 border-none p-2">
+          <form phx-submit="send_invite" class="space-y-4">
+            <div class="flex flex-col">
+              <.label for="email">
+                Email
+              </.label>
+              <.input
+                id="email"
+                name="email"
+                type="email"
+                value={@invite_email}
+                placeholder="user@example.com"
+                required
+              />
+            </div>
+            <.dialog_footer class="flex flex-col gap-2">
+              <.button type="submit" class="w-full">Send Invite</.button>
+              <.button
+                variant="outline"
+                type="button"
+                phx-click={JS.hide(to: "#invite-user-dialog")}
+                class="w-full"
+              >
+                Cancel
+              </.button>
+            </.dialog_footer>
+          </form>
+        </div>
+      </.dialog>
     </div>
     """
   end
