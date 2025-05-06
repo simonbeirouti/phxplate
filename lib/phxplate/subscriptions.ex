@@ -228,6 +228,26 @@ defmodule Phxplate.Subscriptions do
   end
 
   @doc """
+  Acount total subscriptions on the platform
+  """
+  def count_active_subscriptions do
+    Subscription
+    |> where([s], s.subscription_status == :active)
+    |> Repo.aggregate(:count, :id)
+  end
+
+  @doc """
+  Calculate total revenue on the platform
+  """
+  def calculate_total_revenue do
+    Subscription
+    |> where([s], s.subscription_status == :active)
+    |> join(:inner, [s], p in assoc(s, :plan))
+    |> select([s, p], sum(p.unit_amount))
+    |> Repo.one() || 0
+  end
+
+  @doc """
   Admin-only function to update a subscription's status.
   This bypasses Stripe and only updates the local database record.
   Should only be used by super admins for administrative purposes.
