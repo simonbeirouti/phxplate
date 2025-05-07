@@ -8,12 +8,8 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
 
   defp get_company_limit(subscription) do
     case subscription do
-      nil ->
-        0
-
-      %{plan: nil} ->
-        0
-
+      nil -> 999_999  # For super admin or no subscription
+      %{plan: nil} -> 999_999  # For super admin
       %{plan: plan} ->
         case plan.features["projects"] do
           "Unlimited" -> 999_999

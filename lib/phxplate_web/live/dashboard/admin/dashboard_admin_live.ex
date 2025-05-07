@@ -4,8 +4,14 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
   import PhxplateWeb.Components.CompaniesGrid
 
   def mount(_params, _session, socket) do
-    companies = Companies.list_companies_by_owner(socket.assigns.current_user.id)
-    subscription = Subscriptions.get_user_subscription(socket.assigns.current_user.id)
+    current_user = socket.assigns.current_user
+    companies = Companies.list_companies_by_owner(current_user.id)
+    # For super admin, we pass nil subscription which will give unlimited access
+    subscription = if current_user.role == :super_admin do
+      %{plan: %{features: %{"projects" => "Unlimited"}}}
+    else
+      Subscriptions.get_user_subscription(current_user.id)
+    end
 
     {:ok,
      assign(socket,

@@ -27,7 +27,11 @@ defmodule PhxplateWeb.Dashboard.Basic.BasicLive do
   def render(assigns) do
     ~H"""
     <main>
-      <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <.header>
+        <h1>User Stats</h1>
+        <:subtitle>View your user stats</:subtitle>
+      </.header>
+      <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 mt-4">
         <.link navigate={~p"/dashboard/basic/bookmarks"} class="block">
           <div class="bg-white shadow rounded-lg p-4">
             <div class="flex items-center">
