@@ -149,8 +149,7 @@ defmodule PhxplateWeb.Router do
 
       pipe_through [:basic]
       live "/basic", Dashboard.Basic.BasicLive, :index
-      live "/basic/basicpage", Dashboard.Basic.BasicPageLive, :index
-      live "/basic/basicpage2", Dashboard.Basic.SecondPageLive, :index
+      live "/basic/bookmarks", Dashboard.Basic.BookmarksLive, :index
 
       pipe_through [:admin]
       live "/admin", Dashboard.Admin.AdminLive, :index

@@ -3,18 +3,27 @@ defmodule PhxplateWeb.Public.CompanyShowLive do
   use SaladUI
 
   alias Phxplate.Companies
+  alias Phxplate.Bookmarks
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
     company = Companies.get_company!(id)
-    {:ok, assign(socket, company: company)}
+
+    bookmarked =
+      if socket.assigns.current_user do
+        Bookmarks.bookmarked?(socket.assigns.current_user.id, company.id)
+      else
+        false
+      end
+
+    {:ok, assign(socket, company: company, bookmarked: bookmarked)}
   end
 
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div class="mb-6">
+    <div class="max-w-7xl mx-auto">
+      <div class="my-6">
         <.link navigate={~p"/companies"}>
           <.button variant="outline">
             ← Back to Companies
@@ -35,7 +44,20 @@ defmodule PhxplateWeb.Public.CompanyShowLive do
         </div>
 
         <div class="px-4 py-5 sm:px-6">
-          <h3 class="text-3xl font-bold text-gray-900">{@company.name}</h3>
+          <div class="flex items-center justify-between">
+            <h3 class="text-3xl font-bold text-gray-900">{@company.name}</h3>
+            <%= if @current_user do %>
+              <button
+                phx-click={if @bookmarked, do: "unbookmark", else: "bookmark"}
+                class="inline-flex items-center px-4 py-2 border rounded-md shadow-sm text-sm font-medium">
+                <%= if @bookmarked do %>
+                  <Lucideicons.bookmark fill="currentColor" class="h-5 w-5" />
+                <% else %>
+                  <Lucideicons.bookmark fill="none" class="h-5 w-5" />
+                <% end %>
+              </button>
+            <% end %>
+          </div>
           <%= if @company.description do %>
             <p class="mt-4 text-gray-600">{@company.description}</p>
           <% end %>
@@ -87,5 +109,53 @@ defmodule PhxplateWeb.Public.CompanyShowLive do
       </div>
     </div>
     """
+  end
+
+  @impl true
+  def handle_event("bookmark", _params, socket) do
+    case Bookmarks.create_bookmark(%{
+           user_id: socket.assigns.current_user.id,
+           company_id: socket.assigns.company.id
+         }) do
+      {:ok, _bookmark} ->
+        {:noreply,
+         socket
+         |> assign(:bookmarked, true)
+         |> put_flash(:info, "Company bookmarked successfully.")}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, error_to_string(changeset))}
+    end
+  end
+
+  @impl true
+  def handle_event("unbookmark", _params, socket) do
+    bookmark = Bookmarks.get_bookmark(socket.assigns.current_user.id, socket.assigns.company.id)
+
+    case Bookmarks.delete_bookmark(bookmark) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign(:bookmarked, false)
+         |> put_flash(:info, "Bookmark removed successfully.")}
+
+      {:error, _} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Could not remove bookmark.")}
+    end
+  end
+
+  defp error_to_string(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+      Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
+        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
+      end)
+    end)
+    |> Enum.map(fn {_key, value} -> value end)
+    |> List.flatten()
+    |> Enum.join(", ")
   end
 end

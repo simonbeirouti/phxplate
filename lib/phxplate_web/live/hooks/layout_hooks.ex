@@ -29,12 +29,8 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
             url: "/dashboard/basic"
           },
           %{
-            title: "Basic Page",
-            url: "/dashboard/basic/basicpage"
-          },
-          %{
-            title: "Basic Page 2",
-            url: "/dashboard/basic/basicpage2"
+            title: "Bookmarks",
+            url: "/dashboard/basic/bookmarks"
           }
         ],
         required_role: :basic
