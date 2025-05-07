@@ -12,12 +12,89 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
        page_title: "#{company.name} Details",
        page_description: "Company details and employee management",
        company: company,
+       form:
+         to_form(%{
+           "name" => company.name,
+           "email" => company.email,
+           "phone" => company.phone,
+           "website" => company.website,
+           "plan" => company.plan,
+           "address" => company.address,
+           "description" => company.description
+         }),
        employees: employees,
        show_edit_modal: false,
        selected_employee: nil,
        confirming_delete: MapSet.new(),
-       invite_email: ""
+       invite_email: "",
+       form_changed: false
      )}
+  end
+
+  def handle_event("validate_company", params, socket) do
+    form_data = %{
+      "name" => socket.assigns.company.name,
+      "email" => socket.assigns.company.email,
+      "phone" => socket.assigns.company.phone,
+      "website" => socket.assigns.company.website,
+      "plan" => socket.assigns.company.plan,
+      "address" => socket.assigns.company.address,
+      "description" => socket.assigns.company.description
+    }
+
+    form_changed = params != form_data
+
+    {:noreply,
+     socket
+     |> assign(:form, to_form(params))
+     |> assign(:form_changed, form_changed)}
+  end
+
+  def handle_event("save_company", params, socket) do
+    case Companies.update_company(socket.assigns.company, params) do
+      {:ok, company} ->
+        {:noreply,
+         socket
+         |> assign(:company, company)
+         |> assign(
+           :form,
+           to_form(%{
+             "name" => company.name,
+             "email" => company.email,
+             "phone" => company.phone,
+             "website" => company.website,
+             "plan" => company.plan,
+             "address" => company.address,
+             "description" => company.description
+           })
+         )
+         |> assign(:form_changed, false)
+         |> put_flash(:info, "Company updated successfully.")}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply,
+         socket
+         |> assign(:form, to_form(changeset))
+         |> put_flash(:error, "Error updating company.")}
+    end
+  end
+
+  def handle_event("reset_company", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(
+       :form,
+       to_form(%{
+         "name" => socket.assigns.company.name,
+         "email" => socket.assigns.company.email,
+         "phone" => socket.assigns.company.phone,
+         "website" => socket.assigns.company.website,
+         "plan" => socket.assigns.company.plan,
+         "address" => socket.assigns.company.address,
+         "description" => socket.assigns.company.description
+       })
+     )
+     |> assign(:form_changed, false)}
   end
 
   def handle_event("edit_employee", %{"id" => employee_id}, socket) do
@@ -87,40 +164,50 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
 
         <.tabs_content value="profile" class="h-[calc(100vh-250px)]">
           <div class="space-y-4 p-4">
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <h4 class="text-sm font-medium text-gray-500">Name</h4>
-                <p class="mt-1">{@company.name}</p>
+            <img src={@company.logo} alt="Company Logo" class="w-24 h-24" />
+            <.form
+              for={@form}
+              phx-change="validate_company"
+              phx-submit="save_company"
+              class="space-y-8"
+            >
+              <div class="grid grid-cols-2 gap-4">
+                <div class="col-span-2 sm:col-span-1 space-y-2">
+                  <.label for="company_name">Name</.label>
+                  <.input field={@form[:name]} type="text" />
+                </div>
+                <div class="col-span-2 sm:col-span-1 space-y-2">
+                  <.label for="company_email">Email</.label>
+                  <.input field={@form[:email]} type="email" />
+                </div>
+                <div class="col-span-2 sm:col-span-1 space-y-2">
+                  <.label for="company_phone">Phone</.label>
+                  <.input field={@form[:phone]} type="tel" />
+                </div>
+                <div class="col-span-2 sm:col-span-1 space-y-2">
+                  <.label for="company_website">Website</.label>
+                  <.input field={@form[:website]} type="url" />
+                </div>
+                <div class="col-span-2 sm:col-span-1 space-y-2">
+                  <.label for="company_plan">Plan</.label>
+                  <.input field={@form[:plan]} type="text" />
+                </div>
+                <div class="col-span-2 sm:col-span-1 space-y-2">
+                  <.label for="company_address">Address</.label>
+                  <.input field={@form[:address]} type="text" />
+                </div>
+                <div class="col-span-2 space-y-2">
+                  <.label for="company_description">Description</.label>
+                  <.input field={@form[:description]} type="textarea" />
+                </div>
               </div>
-              <div>
-                <h4 class="text-sm font-medium text-gray-500">Email</h4>
-                <p class="mt-1">{@company.email}</p>
+              <div class="flex justify-end gap-4">
+                <.button :if={@form_changed} type="button" variant="outline" phx-click="reset_company">
+                  Reset
+                </.button>
+                <.button :if={@form_changed} type="submit">Save Changes</.button>
               </div>
-              <div>
-                <h4 class="text-sm font-medium text-gray-500">Phone</h4>
-                <p class="mt-1">{@company.phone}</p>
-              </div>
-              <div>
-                <h4 class="text-sm font-medium text-gray-500">Website</h4>
-                <p class="mt-1">{@company.website || "Not provided"}</p>
-              </div>
-              <div>
-                <h4 class="text-sm font-medium text-gray-500">Plan</h4>
-                <p class="mt-1 capitalize">{@company.plan}</p>
-              </div>
-              <div>
-                <h4 class="text-sm font-medium text-gray-500">Logo</h4>
-                <p class="mt-1">{@company.logo || "Not provided"}</p>
-              </div>
-              <div class="col-span-2">
-                <h4 class="text-sm font-medium text-gray-500">Address</h4>
-                <p class="mt-1">{@company.address}</p>
-              </div>
-              <div class="col-span-2">
-                <h4 class="text-sm font-medium text-gray-500">Description</h4>
-                <p class="mt-1">{@company.description || "No description provided"}</p>
-              </div>
-            </div>
+            </.form>
           </div>
         </.tabs_content>
 
@@ -164,10 +251,10 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                     </.table_row>
                   <% end %>
                 </.table_body>
-                </.table>
-                <div class="w-1/4">
+              </.table>
+              <div class="w-1/4">
                 <.invite_user_dialog invite_email={@invite_email} />
-                </div>
+              </div>
             </div>
 
             <div class="lg:hidden space-y-4" class="h-[calc(100vh-250px)]">
@@ -179,6 +266,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                       <h3 class="text-lg font-medium">{employee.first_name} {employee.last_name}</h3>
                       <p class="text-sm text-gray-500">{employee.position || "No position"}</p>
                     </div>
+
                     <div>
                       <div class="relative inline-block text-left">
                         <.button
@@ -251,6 +339,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
 
   defp invite_user_dialog(assigns) do
     assigns = assign_new(assigns, :invite_email, fn -> "" end)
+
     ~H"""
     <div class="mt-4">
       <.button class="w-full" variant="outline" phx-click={JS.show(to: "#invite-user-dialog")}>
