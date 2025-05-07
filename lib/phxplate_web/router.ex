@@ -45,6 +45,8 @@ defmodule PhxplateWeb.Router do
       on_mount: [{PhxplateWeb.UserAuth, :mount_current_user}],
       layout: {PhxplateWeb.Layouts, :public} do
       live "/pricing", PricingLive, :index
+      live "/companies", Public.CompaniesLive, :index
+      live "/companies/:id", Public.CompanyShowLive, :show
     end
   end
 

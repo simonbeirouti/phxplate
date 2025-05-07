@@ -8,7 +8,8 @@ defmodule PhxplateWeb.Components.NavComponent do
     public_links = [
       %{href: ~p"/about", label: "About"},
       %{href: ~p"/contact", label: "Contact"},
-      %{href: ~p"/pricing", label: "Pricing"}
+      %{href: ~p"/pricing", label: "Pricing"},
+      %{href: ~p"/companies", label: "Companies"}
     ]
 
     show_nav = !String.starts_with?(assigns.current_path, "/dashboard")

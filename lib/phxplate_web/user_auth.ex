@@ -176,7 +176,7 @@ defmodule PhxplateWeb.UserAuth do
         end
       end
 
-    {:cont, assign(socket, :real_user, real_user)}
+    {:cont, Phoenix.Component.assign(socket, :real_user, real_user)}
   end
 
   def on_mount(:ensure_proper_role, _params, _session, socket) do
