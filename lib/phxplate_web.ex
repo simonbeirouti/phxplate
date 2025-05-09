@@ -92,8 +92,38 @@ defmodule PhxplateWeb do
       # Core UI components
       import PhxplateWeb.CoreComponents
 
-      alias SaladUI.Button, as: SButton
-      import SaladUI.Card
+      # Salad UI components
+      alias SaladUI.Input, as: SInput
+      alias SaladUI.Label, as: SLabel
+      import SaladUI.{
+        Alert,
+        Avatar,
+        Badge,
+        Button,
+        Card,
+        Checkbox,
+        Dialog,
+        DropdownMenu,
+        Form,
+        HoverCard,
+        Icon,
+        Pagination,
+        Popover,
+        Progress,
+        RadioGroup,
+        ScrollArea,
+        Select,
+        Separator,
+        Sheet,
+        Skeleton,
+        Slider,
+        Switch,
+        Table,
+        Tabs,
+        Textarea,
+        Toggle,
+        Tooltip
+      }
 
       # Shortcut for generating JS commands
       alias Phoenix.LiveView.JS

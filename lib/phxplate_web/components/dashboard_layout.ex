@@ -64,7 +64,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
       </.sidebar_header>
       <.sidebar_content>
         <.nav_main items={@data.navMain} />
-        <.nav_projects projects={@data.projects} />
+        <.nav_projects :if={length(@data.projects) >= 1} projects={@data.projects} />
       </.sidebar_content>
       <.sidebar_rail />
     </.sidebar>
@@ -185,7 +185,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
                 {String.slice(project.name, 0, 2)}
               </.avatar_fallback>
             </.avatar>
-            <a href={~p"/dashboard/companies/#{project.id}"} class="truncate">
+            <a href={~p"/dashboard/admin/company/#{project.id}"} class="truncate">
               {project.name}
             </a>
           </.sidebar_menu_button>
@@ -310,7 +310,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
       <div class="px-3 py-2 text-sm font-medium text-gray-500">Projects</div>
       <%= for item <- @projects do %>
         <.link
-          href={~p"/companies/#{item.id}"}
+          href={~p"/dashboard/companies/#{item.id}"}
           class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
         >
           <.avatar class="h-8 w-8 rounded-lg">

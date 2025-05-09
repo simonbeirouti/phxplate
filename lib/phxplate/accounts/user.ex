@@ -43,7 +43,7 @@ defmodule Phxplate.Accounts.User do
   """
   def registration_changeset(user, attrs, opts \\ []) do
     user
-    |> cast(attrs, [:email, :password, :role])
+    |> cast(attrs, [:email, :password, :role, :onboarding_completed])
     |> validate_email(opts)
     |> validate_password(opts)
     |> validate_role()

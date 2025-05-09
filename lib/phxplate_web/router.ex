@@ -45,6 +45,8 @@ defmodule PhxplateWeb.Router do
       on_mount: [{PhxplateWeb.UserAuth, :mount_current_user}],
       layout: {PhxplateWeb.Layouts, :public} do
       live "/pricing", PricingLive, :index
+      live "/companies", Public.CompaniesLive, :index
+      live "/companies/:id", Public.CompanyShowLive, :show
     end
   end
 
@@ -117,27 +119,29 @@ defmodule PhxplateWeb.Router do
     pipe_through [:browser, :require_authenticated_user]
 
     live_session :onboarding,
-      layout: {PhxplateWeb.Layouts, :onboarding},
+      layout: {PhxplateWeb.Layouts, :auth},
       on_mount: [
         {PhxplateWeb.UserAuth, :ensure_authenticated}
       ] do
       live "/", Onboarding.ProfileLive, :index
-      live "/complete", Onboarding.CompleteLive, :index
     end
   end
 
   scope "/dashboard", PhxplateWeb do
     pipe_through [:browser, :require_authenticated_user]
 
+    # Impersonation routes
+    get "/impersonate/:id", UserImpersonationController, :impersonate
+    get "/stop_impersonating", UserImpersonationController, :stop_impersonating
+
     live_session :dashboard,
       layout: {PhxplateWeb.Layouts, :app},
       on_mount: [
         {PhxplateWeb.UserAuth, :ensure_authenticated},
+        {PhxplateWeb.UserAuth, :ensure_proper_role},
         {PhxplateWeb.Live.Hooks.LayoutHooks, :default}
       ] do
       live "/", DashboardLive, :index
-      live "/companies", Dashboard.Companies.CompaniesLive, :index
-      live "/companies/:id", Dashboard.Companies.CompaniesLive, :show
       live "/profile", Dashboard.User.UserProfileLive, :index
       live "/settings", Dashboard.User.UserSettingsLive, :edit
       live "/billing", Dashboard.User.BillingLive, :index
@@ -145,13 +149,12 @@ defmodule PhxplateWeb.Router do
 
       pipe_through [:basic]
       live "/basic", Dashboard.Basic.BasicLive, :index
-      live "/basic/basicpage", Dashboard.Basic.BasicPageLive, :index
-      live "/basic/basicpage2", Dashboard.Basic.SecondPageLive, :index
+      live "/basic/bookmarks", Dashboard.Basic.BookmarksLive, :index
 
       pipe_through [:admin]
       live "/admin", Dashboard.Admin.AdminLive, :index
-      live "/admin/adminpage", Dashboard.Admin.BasicPageLive, :index
-      live "/admin/adminpage2", Dashboard.Admin.SecondPageLive, :index
+      live "/admin/companies", Dashboard.Admin.CompanyLive, :index
+      live "/admin/company/:id", Dashboard.Admin.CompanyShowLive, :index
 
       pipe_through [:super_admin]
       live "/super_admin", Dashboard.SuperAdmin.SuperAdminLive, :index

@@ -1,13 +1,15 @@
 defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
   use PhxplateWeb, :live_view
-  alias Phxplate.{Accounts, Companies}
+  alias Phxplate.{Accounts, Companies, Subscriptions}
   alias PhxplateWeb.PageMeta
 
   def mount(_params, _session, socket) do
     stats = %{
       total_users: Accounts.count_users(),
       total_companies: Companies.count_companies(),
-      total_employees: Companies.count_employees()
+      total_employees: Companies.count_employees(),
+      total_subscriptions: Subscriptions.count_active_subscriptions(),
+      total_revenue: Subscriptions.calculate_total_revenue()
     }
 
     {:ok,
@@ -59,6 +61,26 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
           <div class="ml-16">
             <p class="truncate text-sm font-medium text-gray-500">Total Employees</p>
             <p class="mt-1 text-3xl font-semibold text-gray-900">{@stats.total_employees}</p>
+          </div>
+        </div>
+
+        <div class="relative overflow-hidden rounded-lg p-4 shadow">
+          <div class="absolute rounded-md p-3">
+            <Lucideicons.credit_card class="h-8 w-8 text-black" />
+          </div>
+          <div class="ml-16">
+            <p class="truncate text-sm font-medium text-gray-500">Active Subscriptions</p>
+            <p class="mt-1 text-3xl font-semibold text-gray-900">{@stats.total_subscriptions}</p>
+          </div>
+        </div>
+
+        <div class="relative overflow-hidden rounded-lg p-4 shadow">
+          <div class="absolute rounded-md p-3">
+            <Lucideicons.dollar_sign class="h-8 w-8 text-black" />
+          </div>
+          <div class="ml-16">
+            <p class="truncate text-sm font-medium text-gray-500">Total Revenue</p>
+            <p class="mt-1 text-3xl font-semibold text-gray-900">$ {@stats.total_revenue}</p>
           </div>
         </div>
       </div>
