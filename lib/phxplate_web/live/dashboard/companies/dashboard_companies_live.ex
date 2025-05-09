@@ -54,7 +54,7 @@ defmodule PhxplateWeb.Dashboard.Companies.CompaniesLive do
       <:subtitle>Company Details</:subtitle>
       <:actions>
         <.link
-          patch={~p"/dashboard/companies"}
+          href="/dashboard/admin/company"
           class="text-sm font-semibold leading-6 text-zinc-900 hover:text-zinc-700"
         >
           Back to companies
@@ -110,7 +110,7 @@ defmodule PhxplateWeb.Dashboard.Companies.CompaniesLive do
                   </td>
                   <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                     <.link
-                      patch={~p"/dashboard/companies/#{company.id}"}
+                      patch={~p"/dashboard/admin/companies/#{company.id}"}
                       class="text-indigo-600 hover:text-indigo-900"
                     >
                       View<span class="sr-only">, <%= company.name %></span>

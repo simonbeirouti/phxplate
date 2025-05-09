@@ -6,7 +6,7 @@ defmodule Phxplate.Subscriptions.Subscription do
   alias Phxplate.Subscriptions.Plan
 
   @subscription_statuses [:active, :canceled, :past_due, :incomplete, :trialing]
-  @paid_tiers [:small, :medium, :large]
+  @paid_tiers [:none, :small, :medium, :large]
 
   schema "subscriptions" do
     field :stripe_customer_id, :string
@@ -40,8 +40,7 @@ defmodule Phxplate.Subscriptions.Subscription do
       :stripe_subscription_id,
       :paid_tier,
       :subscription_status,
-      :user_id,
-      :plan_id
+      :user_id
     ])
     |> foreign_key_constraint(:user_id)
     |> unique_constraint(:stripe_subscription_id)

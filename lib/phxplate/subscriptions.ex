@@ -227,5 +227,95 @@ defmodule Phxplate.Subscriptions do
     end
   end
 
+  @doc """
+  Acount total subscriptions on the platform
+  """
+  def count_active_subscriptions do
+    Subscription
+    |> where([s], s.subscription_status == :active)
+    |> Repo.aggregate(:count, :id)
+  end
+
+  @doc """
+  Calculate total revenue on the platform
+  """
+  def calculate_total_revenue do
+    Subscription
+    |> where([s], s.subscription_status == :active)
+    |> join(:inner, [s], p in assoc(s, :plan))
+    |> select([s, p], sum(p.unit_amount))
+    |> Repo.one() || 0
+  end
+
+  @doc """
+  Admin-only function to update a subscription's status.
+  This bypasses Stripe and only updates the local database record.
+  Should only be used by super admins for administrative purposes.
+  """
+  def admin_update_subscription_status(%Subscription{} = subscription, status) when status in [:active, :canceled, :past_due, :incomplete, :trialing] do
+    update_subscription(subscription, %{subscription_status: status})
+  end
+  def admin_update_subscription_status(_subscription, _status), do: {:error, :invalid_status}
+
+  @doc """
+  Admin-only function to update a subscription's tier.
+  This bypasses Stripe and only updates the local database record.
+  Should only be used by super admins for administrative purposes.
+  """
+  def admin_update_subscription_tier(%Subscription{} = subscription, tier) when tier in [:small, :medium, :large] do
+    # Find a plan that matches the tier (using monthly plan as default)
+    plans = list_all_plans()
+    tier_string = Atom.to_string(tier)
+
+    plan = plans
+      |> Enum.find(fn {t, _} -> t == tier_string end)
+      |> case do
+        {_, %{monthly: plan}} when not is_nil(plan) -> plan
+        _ -> nil
+      end
+
+    if plan do
+      update_subscription(subscription, %{
+        paid_tier: tier,
+        plan_id: plan.id
+      })
+    else
+      {:error, :plan_not_found}
+    end
+  end
+  def admin_update_subscription_tier(_subscription, _tier), do: {:error, :invalid_tier}
+
+  @doc """
+  Admin-only function to create a subscription for a user.
+  This bypasses Stripe and only creates a local database record.
+  Should only be used by super admins for administrative purposes.
+  """
+  def admin_create_subscription(user_id, tier, status) when tier in [:small, :medium, :large] and status in [:active, :canceled, :past_due, :incomplete, :trialing] do
+    # Find a plan that matches the tier (using monthly plan as default)
+    plans = list_all_plans()
+    tier_string = Atom.to_string(tier)
+
+    plan = plans
+      |> Enum.find(fn {t, _} -> t == tier_string end)
+      |> case do
+        {_, %{monthly: plan}} when not is_nil(plan) -> plan
+        _ -> nil
+      end
+
+    if plan do
+      attrs = %{
+        user_id: user_id,
+        paid_tier: tier,
+        plan_id: plan.id,
+        subscription_status: status,
+        stripe_customer_id: "admin_created_#{user_id}",
+        stripe_subscription_id: "admin_created_#{user_id}"
+      }
+      create_subscription(attrs)
+    else
+      {:error, :plan_not_found}
+    end
+  end
+  def admin_create_subscription(_user_id, _tier, _status), do: {:error, :invalid_parameters}
 
 end
