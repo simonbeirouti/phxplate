@@ -16,7 +16,7 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
   defp assign_layout_data(socket) do
     current_user = socket.assigns.current_user
     current_user = Phxplate.Repo.preload(current_user, [:profile])
-    companies = Phxplate.Companies.list_companies()
+    companies = Phxplate.Companies.list_companies_by_owner(current_user.id)
 
     all_nav_items = [
       %{
@@ -29,32 +29,24 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
             url: "/dashboard/basic"
           },
           %{
-            title: "Basic Page",
-            url: "/dashboard/basic/basicpage"
-          },
-          %{
-            title: "Basic Page 2",
-            url: "/dashboard/basic/basicpage2"
+            title: "Bookmarks",
+            url: "/dashboard/basic/bookmarks"
           }
         ],
         required_role: :basic
       },
       %{
-        title: "Admin Access",
+        title: "Company Management",
         url: "#",
-        icon: &Lucideicons.shield/1,
+        icon: &Lucideicons.briefcase_business/1,
         items: [
           %{
-            title: "Admin Dashboard",
+            title: "Dashboard",
             url: "/dashboard/admin"
           },
           %{
-            title: "User Admin Page",
-            url: "/dashboard/admin/adminpage"
-          },
-          %{
-            title: "User Admin Page 2",
-            url: "/dashboard/admin/adminpage2"
+            title: "Companies",
+            url: "/dashboard/admin/companies"
           }
         ],
         required_role: :admin
