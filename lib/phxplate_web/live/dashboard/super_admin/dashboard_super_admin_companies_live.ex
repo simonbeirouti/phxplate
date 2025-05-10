@@ -7,6 +7,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
     socket =
       socket
       |> assign(:selected_company, nil)
+      |> assign(:activities, [])
       |> PageMeta.assign_metadata(
         title: "Companies Management",
         description: "Manage companies across the application"
@@ -17,7 +18,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
 
   def handle_event("select_company", %{"id" => company_id}, socket) do
     company = Companies.get_company!(company_id) |> Repo.preload([:employees])
-    {:noreply, assign(socket, selected_company: company)}
+    activities = Phxplate.Tracking.get_company_activities(company_id, 20)
+    {:noreply, assign(socket, selected_company: company, activities: activities)}
   end
 
   def handle_event("paginate", %{"page" => page}, socket) do
@@ -33,6 +35,20 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
       end
 
     {:noreply, load_companies(socket, page)}
+  end
+
+  defp humanize_action(action) do
+    action
+    |> to_string()
+    |> String.replace("_", " ")
+    |> String.capitalize()
+  end
+
+  defp humanize_key(key) do
+    key
+    |> to_string()
+    |> String.replace("_", " ")
+    |> String.capitalize()
   end
 
   defp load_companies(socket, page) do
@@ -127,7 +143,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
               <.tabs_list class="grid w-full grid-cols-3">
                 <.tabs_trigger builder={builder} value="details">Details</.tabs_trigger>
                 <.tabs_trigger builder={builder} value="employees">Employees</.tabs_trigger>
-                <.tabs_trigger builder={builder} value="subscription">Subscription</.tabs_trigger>
+                <.tabs_trigger builder={builder} value="timeline">Timeline</.tabs_trigger>
               </.tabs_list>
 
               <.tabs_content value="details">
@@ -194,23 +210,56 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
                 </div>
               </.tabs_content>
 
-              <.tabs_content value="subscription">
+              <.tabs_content value="timeline">
                 <div class="space-y-4 p-4">
-                  <div>
-                    <h4 class="text-sm font-medium text-gray-500">Current Plan</h4>
-                    <p class="mt-1">{String.capitalize(@selected_company.plan)}</p>
+                  <div class="mb-8 grid grid-cols-2">
+                    <div>
+                      <h4 class="text-sm font-medium text-gray-500">Created</h4>
+                      <p class="mt-1">
+                        <%= Calendar.strftime(@selected_company.inserted_at, "%B %d, %Y at %I:%M %p") %>
+                      </p>
+                    </div>
+                    <div>
+                      <h4 class="text-sm font-medium text-gray-500">Last Updated</h4>
+                      <p class="mt-1">
+                        <%= Calendar.strftime(@selected_company.updated_at, "%B %d, %Y at %I:%M %p") %>
+                      </p>
+                    </div>
                   </div>
+
                   <div>
-                    <h4 class="text-sm font-medium text-gray-500">Created</h4>
-                    <p class="mt-1">
-                      {Calendar.strftime(@selected_company.inserted_at, "%B %d, %Y at %I:%M %p")}
-                    </p>
-                  </div>
-                  <div>
-                    <h4 class="text-sm font-medium text-gray-500">Last Updated</h4>
-                    <p class="mt-1">
-                      {Calendar.strftime(@selected_company.updated_at, "%B %d, %Y at %I:%M %p")}
-                    </p>
+                    <h3 class="text-lg font-semibold mb-4">Activity History</h3>
+                    <div class="space-y-4">
+                      <%= for activity <- @activities do %>
+                        <div class="border-l-2 border-gray-200 pl-4 pb-4">
+                          <div class="flex items-start justify-between">
+                            <div>
+                              <p class="font-medium">
+                                <%= humanize_action(activity.action) %>
+                              </p>
+                              <%= if map_size(activity.changes) > 0 do %>
+                                <div class="mt-2 text-sm text-gray-600">
+                                  <p class="font-medium">Changes:</p>
+                                  <ul class="list-disc list-inside">
+                                    <%= for {key, value} <- activity.changes do %>
+                                      <li><%= humanize_key(key) %>: <%= inspect(value) %></li>
+                                    <% end %>
+                                  </ul>
+                                </div>
+                              <% end %>
+                            </div>
+                            <p class="text-sm text-gray-500">
+                              <%= Calendar.strftime(activity.inserted_at, "%B %d, %Y at %I:%M %p") %>
+                            </p>
+                          </div>
+                          <%= if activity.actor do %>
+                            <p class="text-sm text-gray-500 mt-1">
+                              by <%= activity.actor.email %>
+                            </p>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    </div>
                   </div>
                 </div>
               </.tabs_content>

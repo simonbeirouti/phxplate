@@ -230,7 +230,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             <.menu>
               <%= if @user.role == :basic do %>
                 <dropdownmenugroup>
-                  <.link href={~p"/dashboard/billing"}>
+                  <.link href={~p"/dashboard/account"}>
                     <.menu_item>
                       <.sparkles class="w-4 h-4 mr-2" /> Upgrade to Pro
                     </.menu_item>
@@ -239,21 +239,9 @@ defmodule PhxplateWeb.Components.DashboardLayout do
                 <.menu_separator></.menu_separator>
               <% end %>
               <dropdownmenugroup>
-                <%= if @user.role == :admin do %>
-                  <.link href={~p"/dashboard/billing"}>
-                    <.menu_item>
-                      <Lucideicons.user class="w-4 h-4 mr-2" /> Billing
-                    </.menu_item>
-                  </.link>
-                <% end %>
-                <.link href={~p"/dashboard/profile"}>
+                <.link href={~p"/dashboard/account"}>
                   <.menu_item>
-                    <Lucideicons.settings class="w-4 h-4 mr-2" /> Profile
-                  </.menu_item>
-                </.link>
-                <.link href={~p"/dashboard/settings"}>
-                  <.menu_item>
-                    <Lucideicons.settings class="w-4 h-4 mr-2" /> Settings
+                    <Lucideicons.settings class="w-4 h-4 mr-2" /> Account
                   </.menu_item>
                 </.link>
               </dropdownmenugroup>
@@ -310,7 +298,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
       <div class="px-3 py-2 text-sm font-medium text-gray-500">Projects</div>
       <%= for item <- @projects do %>
         <.link
-          href={~p"/dashboard/companies/#{item.id}"}
+          href={~p"/dashboard/admin/company/#{item.id}"}
           class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
         >
           <.avatar class="h-8 w-8 rounded-lg">

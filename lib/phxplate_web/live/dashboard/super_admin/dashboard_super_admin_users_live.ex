@@ -3,6 +3,24 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
   alias Phxplate.{Accounts, Repo}
   alias PhxplateWeb.PageMeta
 
+  # Helper functions for activity display
+  defp humanize_action("role_update"), do: "Role Updated"
+  defp humanize_action("subscription_status_update"), do: "Subscription Status Updated"
+  defp humanize_action("subscription_tier_update"), do: "Subscription Tier Updated"
+  defp humanize_action(action) do
+    action
+    |> to_string()
+    |> String.replace("_", " ")
+    |> String.capitalize()
+  end
+
+  defp humanize_key(key) do
+    key
+    |> to_string()
+    |> String.replace("_", " ")
+    |> String.capitalize()
+  end
+
   def mount(_params, _session, socket) do
     # Load available plans for the subscription management
     plans = Phxplate.Subscriptions.list_all_plans()
@@ -43,21 +61,24 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
 
   def handle_event("select_user", %{"id" => user_id}, socket) do
     user = Accounts.get_user!(user_id) |> Repo.preload([:profile, :subscription])
-    {:noreply, assign(socket, selected_user: user)}
+    activities = Phxplate.Tracking.get_user_activities(user_id, 20)
+    {:noreply, assign(socket, selected_user: user, activities: activities)}
   end
 
   def handle_event("update_role", %{"role" => role, "user_id" => user_id}, socket) do
     role = String.to_existing_atom(role)
     user = Accounts.get_user!(user_id)
 
-    case Accounts.update_user(user, %{role: role}) do
+    case Accounts.update_user(user, %{role: role}, socket.assigns.current_user) do
       {:ok, updated_user} ->
         # Reload the user with associations
         updated_user = Repo.preload(updated_user, [:profile, :subscription])
+        activities = Phxplate.Tracking.get_user_activities(user_id, 20)
 
         socket =
           socket
           |> assign(:selected_user, updated_user)
+          |> assign(:activities, activities)
           |> load_users(socket.assigns.page)
           |> put_flash(:info, "User role updated successfully")
 
@@ -78,7 +99,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
          status = String.to_existing_atom(status) do
       result =
         if user.subscription do
-          Phxplate.Subscriptions.admin_update_subscription_status(user.subscription, status)
+          Phxplate.Subscriptions.admin_update_subscription_status(user.subscription, status, socket.assigns.current_user)
         else
           # Create a new subscription with basic tier if none exists
           Phxplate.Subscriptions.admin_create_subscription(user_id, :small, status)
@@ -88,10 +109,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
         {:ok, _subscription} ->
           # Reload the user to get the updated subscription
           updated_user = Accounts.get_user!(user_id) |> Repo.preload([:profile, :subscription])
+          activities = Phxplate.Tracking.get_user_activities(user_id, 20)
 
           socket =
             socket
             |> assign(:selected_user, updated_user)
+            |> assign(:activities, activities)
             |> load_users(socket.assigns.page)
             |> put_flash(:info, "Subscription status updated successfully")
 
@@ -112,24 +135,22 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
          tier = String.to_existing_atom(tier) do
       result =
         if user.subscription do
-          Phxplate.Subscriptions.admin_update_subscription_tier(user.subscription, tier)
+          Phxplate.Subscriptions.admin_update_subscription_tier(user.subscription, tier, socket.assigns.current_user)
         else
-          # Create a new subscription
-          Phxplate.Subscriptions.admin_create_subscription(
-            user_id,
-            tier,
-            if(tier == :none, do: :canceled, else: :active)
-          )
+          # Create a new subscription with the selected tier
+          Phxplate.Subscriptions.admin_create_subscription(user_id, tier, :active)
         end
 
       case result do
         {:ok, _subscription} ->
           # Reload the user to get the updated subscription
           updated_user = Accounts.get_user!(user_id) |> Repo.preload([:profile, :subscription])
+          activities = Phxplate.Tracking.get_user_activities(user_id, 20)
 
           socket =
             socket
             |> assign(:selected_user, updated_user)
+            |> assign(:activities, activities)
             |> load_users(socket.assigns.page)
             |> put_flash(:info, "Subscription tier updated successfully")
 
@@ -496,26 +517,63 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
 
               <.tabs_content value="timeline">
                 <div class="space-y-4 p-4">
-                  <div>
-                    <h4 class="text-sm font-medium text-gray-500">Created</h4>
-                    <p class="mt-1">
-                      {Calendar.strftime(@selected_user.inserted_at, "%B %d, %Y at %I:%M %p")}
-                    </p>
-                  </div>
-                  <div>
-                    <h4 class="text-sm font-medium text-gray-500">Last Updated</h4>
-                    <p class="mt-1">
-                      {Calendar.strftime(@selected_user.updated_at, "%B %d, %Y at %I:%M %p")}
-                    </p>
-                  </div>
-                  <%= if @selected_user.confirmed_at do %>
+                  <div class="mb-8 grid grid-cols-2">
+                    <%= if @selected_user.confirmed_at do %>
+                      <div class="col-span-2">
+                        <h4 class="text-sm font-medium text-gray-500">Email Confirmed</h4>
+                        <p class="mt-1">
+                          {Calendar.strftime(@selected_user.confirmed_at, "%B %d, %Y at %I:%M %p")}
+                        </p>
+                      </div>
+                    <% end %>
                     <div>
-                      <h4 class="text-sm font-medium text-gray-500">Email Confirmed</h4>
+                      <h4 class="text-sm font-medium text-gray-500">Created</h4>
                       <p class="mt-1">
-                        {Calendar.strftime(@selected_user.confirmed_at, "%B %d, %Y at %I:%M %p")}
+                        {Calendar.strftime(@selected_user.inserted_at, "%B %d, %Y at %I:%M %p")}
                       </p>
                     </div>
-                  <% end %>
+                    <div>
+                      <h4 class="text-sm font-medium text-gray-500">Last Updated</h4>
+                      <p class="mt-1">
+                        {Calendar.strftime(@selected_user.updated_at, "%B %d, %Y at %I:%M %p")}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 class="text-lg font-semibold mb-4">Activity History</h3>
+                    <div class="space-y-4">
+                      <%= for activity <- @activities do %>
+                        <div class="border-l-2 border-gray-200 pl-4 pb-4">
+                          <div class="flex items-start justify-between">
+                            <div>
+                              <p class="font-medium">
+                                {humanize_action(activity.action)}
+                              </p>
+                              <%= if map_size(activity.changes) > 0 do %>
+                                <div class="mt-2 text-sm text-gray-600">
+                                  <p class="font-medium">Changes:</p>
+                                  <ul class="list-disc list-inside">
+                                    <%= for {key, value} <- activity.changes do %>
+                                      <li>{humanize_key(key)}: {inspect(value)}</li>
+                                    <% end %>
+                                  </ul>
+                                </div>
+                              <% end %>
+                            </div>
+                            <p class="text-sm text-gray-500">
+                              {Calendar.strftime(activity.inserted_at, "%B %d, %Y at %I:%M %p")}
+                            </p>
+                          </div>
+                          <%= if activity.actor do %>
+                            <p class="text-sm text-gray-500 mt-1">
+                              by {activity.actor.email}
+                            </p>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
                 </div>
               </.tabs_content>
             </.tabs>

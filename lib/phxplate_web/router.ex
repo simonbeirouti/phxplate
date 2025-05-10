@@ -142,10 +142,8 @@ defmodule PhxplateWeb.Router do
         {PhxplateWeb.Live.Hooks.LayoutHooks, :default}
       ] do
       live "/", DashboardLive, :index
-      live "/profile", Dashboard.User.UserProfileLive, :index
-      live "/settings", Dashboard.User.UserSettingsLive, :edit
-      live "/billing", Dashboard.User.BillingLive, :index
-      live "/settings/confirm_email/:token", Dashboard.User.UserSettingsLive, :confirm_email
+      live "/account", Dashboard.User.UserAccountLive, :index
+      live "/account/confirm_email/:token", Dashboard.User.UserAccountLive, :confirm_email
 
       pipe_through [:basic]
       live "/basic", Dashboard.Basic.BasicLive, :index

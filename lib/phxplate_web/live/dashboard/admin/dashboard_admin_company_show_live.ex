@@ -6,6 +6,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
   def mount(%{"id" => company_id}, _session, socket) do
     company = Companies.get_company!(company_id)
     employees = Companies.get_company_employees(company)
+    activities = Phxplate.Tracking.get_company_activities(company_id)
 
     {:ok,
      assign(socket,
@@ -23,6 +24,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
            "description" => company.description
          }),
        employees: employees,
+       activities: activities,
        show_edit_modal: false,
        selected_employee: nil,
        confirming_delete: MapSet.new(),
@@ -51,11 +53,14 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
   end
 
   def handle_event("save_company", params, socket) do
-    case Companies.update_company(socket.assigns.company, params) do
+    case Companies.update_company(socket.assigns.company, params, socket.assigns.current_user) do
       {:ok, company} ->
+        activities = Phxplate.Tracking.get_company_activities(company.id)
+
         {:noreply,
          socket
          |> assign(:company, company)
+         |> assign(:activities, activities)
          |> assign(
            :form,
            to_form(%{
@@ -117,23 +122,27 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     if MapSet.member?(socket.assigns.confirming_delete, employee_id) do
       employee = Enum.find(socket.assigns.employees, &(&1.id == employee_id))
 
-      case Companies.delete_employee(employee) do
-        {:ok, _} ->
+      case Companies.delete_employee(employee, socket.assigns.current_user) do
+        {:ok, _deleted_employee} ->
           employees = Companies.get_company_employees(socket.assigns.company)
+          activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
 
           {:noreply,
            socket
+           |> assign(:employees, employees)
+           |> assign(:activities, activities)
            |> assign(
-             confirming_delete: MapSet.delete(socket.assigns.confirming_delete, employee_id)
+             :confirming_delete,
+             MapSet.delete(socket.assigns.confirming_delete, employee_id)
            )
-           |> put_flash(:info, "Employee deleted successfully.")
-           |> assign(employees: employees)}
+           |> put_flash(:info, "Employee deleted successfully.")}
 
-        {:error, _} ->
+        {:error, _changeset} ->
           {:noreply,
            socket
            |> assign(
-             confirming_delete: MapSet.delete(socket.assigns.confirming_delete, employee_id)
+             :confirming_delete,
+             MapSet.delete(socket.assigns.confirming_delete, employee_id)
            )
            |> put_flash(:error, "Could not delete employee.")}
       end
@@ -318,18 +327,35 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
 
         <.tabs_content value="timeline">
           <div class="space-y-4 p-4">
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">Created</h4>
-              <p class="mt-1">
-                {Calendar.strftime(@company.inserted_at, "%B %d, %Y at %I:%M %p")}
-              </p>
-            </div>
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">Last Updated</h4>
-              <p class="mt-1">
-                {Calendar.strftime(@company.updated_at, "%B %d, %Y at %I:%M %p")}
-              </p>
-            </div>
+            <%= for activity <- @activities do %>
+              <div class="border-l-2 border-gray-200 pl-4 pb-4">
+                <div class="flex items-start justify-between">
+                  <div>
+                    <p class="font-medium">
+                      {humanize_action(activity.action)}
+                    </p>
+                    <%= if map_size(activity.changes) > 0 do %>
+                      <div class="mt-2 text-sm text-gray-600">
+                        <p class="font-medium">Changes:</p>
+                        <ul class="list-disc list-inside">
+                          <%= for {key, value} <- activity.changes do %>
+                            <li>{humanize_key(key)}: {inspect(value)}</li>
+                          <% end %>
+                        </ul>
+                      </div>
+                    <% end %>
+                  </div>
+                  <p class="text-sm text-gray-500">
+                    {Calendar.strftime(activity.inserted_at, "%B %d, %Y at %I:%M %p")}
+                  </p>
+                </div>
+                <%= if activity.actor do %>
+                  <p class="text-sm text-gray-500 mt-1">
+                    by {activity.actor.email}
+                  </p>
+                <% end %>
+              </div>
+            <% end %>
           </div>
         </.tabs_content>
       </.tabs>
@@ -378,4 +404,17 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     </div>
     """
   end
+
+  defp humanize_action("company_create"), do: "Company Created"
+  defp humanize_action("company_update"), do: "Company Updated"
+  defp humanize_action("employee_delete"), do: "Employee Deleted"
+  defp humanize_action(action), do: Phoenix.Naming.humanize(action)
+
+  defp humanize_key(key) when is_binary(key) do
+    key
+    |> String.replace("_", " ")
+    |> String.capitalize()
+  end
+
+  defp humanize_key(key), do: Phoenix.Naming.humanize(key)
 end

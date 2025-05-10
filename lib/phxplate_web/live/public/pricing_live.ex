@@ -60,7 +60,7 @@ defmodule PhxplateWeb.PricingLive do
 
       _user ->
         # User logged in: redirect to billing page to manage subscription
-        {:noreply, push_navigate(socket, to: ~p"/dashboard/billing")}
+        {:noreply, push_navigate(socket, to: ~p"/dashboard/account")}
     end
   end
 end
