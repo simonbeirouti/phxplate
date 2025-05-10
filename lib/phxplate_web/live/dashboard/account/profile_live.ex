@@ -1,7 +1,6 @@
 defmodule PhxplateWeb.Dashboard.Account.ProfileLive do
   use PhxplateWeb, :live_component
   alias Phxplate.Accounts
-  require Logger
 
   @social_networks [:github, :twitter, :linkedin, :facebook, :instagram]
 
@@ -46,25 +45,15 @@ defmodule PhxplateWeb.Dashboard.Account.ProfileLive do
   end
 
   def handle_event("save", %{"profile" => profile_params}, socket) do
-    Logger.debug("Starting profile save with params: #{inspect(profile_params)}")
-
-    # Clean up params by removing _unused_ fields
     profile_params = clean_params(profile_params)
-    Logger.debug("Cleaned profile params: #{inspect(profile_params)}")
 
-    # Extract and validate social links
     social_links = extract_social_links(profile_params)
     profile_params = Map.put(profile_params, "social_links", social_links)
-    Logger.debug("Profile params with social links: #{inspect(profile_params)}")
 
     case Accounts.update_user_profile(socket.assigns.user, profile_params) do
       {:ok, updated_profile} ->
-        Logger.debug("Profile updated successfully for user: #{updated_profile.user_id}")
-        # Send success message to parent and update socket with new profile
         send(self(), {:flash_msg, :info, "Profile updated successfully!"})
-        # Also send the updated profile to parent for state update
         send(self(), {:profile_updated, updated_profile})
-        Logger.debug("Sent success flash message and profile update to parent")
 
         {:noreply,
          socket
@@ -73,8 +62,6 @@ defmodule PhxplateWeb.Dashboard.Account.ProfileLive do
          |> assign(:loading, false)}
 
       {:error, changeset} ->
-        Logger.debug("Profile update failed with errors: #{inspect(changeset.errors)}")
-        # Extract error messages from changeset
         error_message =
           case changeset.errors do
             [] ->
@@ -88,11 +75,7 @@ defmodule PhxplateWeb.Dashboard.Account.ProfileLive do
               |> Enum.join(". ")
           end
 
-        Logger.debug("Generated error message: #{error_message}")
-
-        # Send error message to parent and update socket
         send(self(), {:flash_msg, :error, error_message})
-        Logger.debug("Sent error flash message to parent")
 
         {:noreply,
          socket

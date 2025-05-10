@@ -2,11 +2,19 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
   use PhxplateWeb, :live_component
 
   alias Phxplate.Subscriptions
+  import PhxplateWeb.Components.Subscription.PlanSelector
 
   @impl true
   def update(%{user: user} = assigns, socket) do
     subscription = Subscriptions.get_user_subscription(user.id)
     plans = Subscriptions.list_all_plans()
+
+    status_message = case assigns[:status] do
+      "success" -> {:info, "Your subscription has been updated successfully."}
+      "error" -> {:error, "There was an error processing your subscription. Please try again."}
+      "canceled" -> {:info, "Your subscription change was canceled."}
+      _ -> nil
+    end
 
     socket =
       socket
@@ -17,6 +25,13 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
       |> assign(:loading, false)
       |> assign(:loading_payment, false)
       |> assign(:checkout_url, nil)
+
+    socket = if status_message do
+      {type, msg} = status_message
+      put_flash(socket, type, msg)
+    else
+      socket
+    end
 
     {:ok, socket}
   end
@@ -38,7 +53,7 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
       # Create a Stripe portal session for managing payment methods
       case Stripe.BillingPortal.Session.create(%{
         customer: subscription.stripe_customer_id,
-        return_url: "#{Application.get_env(:phxplate, :base_url)}/dashboard/billing"
+        return_url: "#{Application.get_env(:phxplate, :base_url)}/dashboard/account"
       }) do
         {:ok, %{url: portal_url}} ->
           {:noreply,
@@ -60,7 +75,7 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
     end
   end
 
-  def handle_event("change_plan", %{"plan_id" => plan_id}, socket) do
+  def handle_event("select_plan", %{"plan-id" => plan_id}, socket) do
     user = socket.assigns.user
     plan = Subscriptions.get_plan!(plan_id)
 
@@ -100,11 +115,6 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
   def render(assigns) do
     ~H"""
     <div class="space-y-8">
-      <.header class="text-center">
-        Billing & Subscription
-        <:subtitle>Manage your subscription and payment methods</:subtitle>
-      </.header>
-
       <%= if @subscription do %>
         <div class="overflow-hidden rounded-lg bg-white shadow">
           <div class="px-4 py-5 sm:p-6">
@@ -139,31 +149,6 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
                   <% end %>
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="overflow-hidden rounded-lg bg-white shadow">
-          <div class="px-4 py-5 sm:p-6">
-            <h3 class="text-lg font-medium leading-6 text-gray-900">Payment Method</h3>
-            <div class="mt-2 max-w-xl text-sm text-gray-500">
-              <p>Payment method on file</p>
-              <p class="mt-1">Managed by Stripe</p>
-            </div>
-            <div class="mt-5">
-              <button
-                phx-click="update_payment_method"
-                phx-target={@myself}
-                disabled={@loading_payment}
-                class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <%= if @loading_payment do %>
-                  <div class="inline-block animate-spin h-4 w-4 mr-2 border-2 border-gray-900 rounded-full border-t-transparent" />
-                  Updating...
-                <% else %>
-                  Update Payment Method
-                <% end %>
-              </button>
             </div>
           </div>
         </div>
@@ -237,79 +222,12 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
                   <p class="mt-2 text-sm text-gray-500">Choose a plan that best fits your needs.</p>
                 </div>
 
-                <div class="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <%= for {tier, plans} <- @plans do %>
-                    <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-                      <h3 class="text-lg font-semibold text-gray-900">
-                        {String.capitalize(tier)} Plan
-                        <%= if @subscription && @subscription.paid_tier == tier do %>
-                          <span class="ml-2 inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
-                            Current Tier
-                          </span>
-                        <% end %>
-                      </h3>
-
-                      <div class="mt-4 space-y-4">
-                        <%= for interval <- ["monthly", "yearly"] do %>
-                          <% plan = if interval == "monthly", do: plans.monthly, else: plans.yearly %>
-                          <div class="flex items-center justify-between">
-                            <div>
-                              <p class="text-sm font-medium text-gray-900">
-                                {interval |> String.capitalize()}
-                                <%= if @subscription && @subscription.plan_id == plan.id do %>
-                                  <span class="ml-2 text-xs text-green-600">(Current)</span>
-                                <% end %>
-                              </p>
-                              <p class="text-sm text-gray-500">${plan.unit_amount / 100}</p>
-                            </div>
-                            <%= if @subscription && @subscription.plan_id == plan.id do %>
-                              <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
-                                Current Plan
-                              </span>
-                            <% else %>
-                              <button
-                                phx-click="change_plan"
-                                phx-target={@myself}
-                                phx-value-plan_id={plan.id}
-                                disabled={@loading}
-                                class="rounded-md bg-indigo-600 px-2.5 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                <%= if @loading do %>
-                                  <div class="inline-block animate-spin h-4 w-4 mr-2 border-2 border-white rounded-full border-t-transparent" />
-                                  Changing...
-                                <% else %>
-                                  Select
-                                <% end %>
-                              </button>
-                            <% end %>
-                          </div>
-                        <% end %>
-                      </div>
-
-                      <div class="mt-6">
-                        <h4 class="text-sm font-medium text-gray-900">Features</h4>
-                        <ul class="mt-2 space-y-2 text-sm text-gray-500">
-                          <%= for {feature, value} <- plans.monthly.features do %>
-                            <li class="flex items-center">
-                              <svg
-                                class="mr-2 h-4 w-4 text-green-500"
-                                viewBox="0 0 20 20"
-                                fill="currentColor"
-                              >
-                                <path
-                                  fill-rule="evenodd"
-                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                  clip-rule="evenodd"
-                                />
-                              </svg>
-                              {String.capitalize(to_string(feature))}: {value}
-                            </li>
-                          <% end %>
-                        </ul>
-                      </div>
-                    </div>
-                  <% end %>
-                </div>
+                <.plan_selector
+                  plans={@plans}
+                  current_user={@user}
+                  current_subscription={@subscription}
+                  target={@myself}
+                />
               </div>
             </div>
           </div>

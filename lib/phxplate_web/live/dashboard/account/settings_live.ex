@@ -10,6 +10,7 @@ defmodule PhxplateWeb.Dashboard.Account.SettingsLive do
       |> assign(:email_form, to_form(%{}, as: :user))
       |> assign(:email_form_current_password, nil)
       |> assign(:password_form, to_form(%{}, as: :user))
+      |> assign(:password_form_current_password, nil)
       |> assign(:loading_email, false)
       |> assign(:loading_password, false)
 
@@ -30,9 +31,15 @@ defmodule PhxplateWeb.Dashboard.Account.SettingsLive do
   end
 
   def handle_event("validate_password", params, socket) do
-    %{"user" => user_params} = params
+    %{"current_password" => password, "user" => user_params} = params
     password_form = to_form(user_params, as: :user)
-    {:noreply, assign(socket, :password_form, password_form)}
+
+    socket =
+      socket
+      |> assign(:password_form, password_form)
+      |> assign(:password_form_current_password, password)
+
+    {:noreply, socket}
   end
 
   def handle_event("update_email", params, socket) do
@@ -49,17 +56,33 @@ defmodule PhxplateWeb.Dashboard.Account.SettingsLive do
           &url(~p"/dashboard/account/confirm_email/#{&1}")
         )
 
-        {:noreply,
-         socket
-         |> assign(:loading_email, false)
-         |> put_flash(:info, "A link to confirm your email change has been sent to the new address.")}
+        send(self(), {:flash_msg, :info, "A link to confirm your email change has been sent to the new address."})
 
-      {:error, _changeset} ->
         {:noreply,
          socket
          |> assign(:loading_email, false)
-         |> assign(:email_form, to_form(Map.put(user_params, "action", :validate), as: :user))
-         |> put_flash(:error, "Failed to update email. Please check the errors below.")}
+         |> assign(:email_form, to_form(%{}, as: :user))
+         |> assign(:email_form_current_password, nil)}
+
+      {:error, changeset} ->
+        message = cond do
+          changeset.errors[:current_password] ->
+            "Failed to update email. The current password is not valid."
+          changeset.errors[:email] ->
+            case changeset.errors[:email] do
+              {"did not change", _} -> "The new email must be different from your current email."
+              {msg, _} -> "Failed to update email: #{msg}"
+            end
+          true ->
+            "Failed to update email. Please check your inputs and try again."
+        end
+
+        send(self(), {:flash_msg, :error, message})
+
+        {:noreply,
+         socket
+         |> assign(:loading_email, false)
+         |> assign(:email_form, to_form(Map.put(user_params, "action", :validate), as: :user))}
     end
   end
 
@@ -71,33 +94,43 @@ defmodule PhxplateWeb.Dashboard.Account.SettingsLive do
 
     case Accounts.update_user_password(user, password, user_params) do
       {:ok, user} ->
+        send(self(), {:flash_msg, :info, "Password updated successfully. Please log in again."})
+
         {:noreply,
          socket
          |> assign(:loading_password, false)
          |> assign(:password_form, to_form(%{}, as: :user))
-         |> assign(:user, user)
-         |> put_flash(:info, "Password updated successfully.")}
+         |> assign(:password_form_current_password, nil)
+         |> assign(:user, user)}
 
-      {:error, _changeset} ->
+      {:error, changeset} ->
+        message = if changeset.errors[:current_password] do
+          "Failed to update password. The current password is not valid."
+        else
+          "Failed to update password. Please check the errors below."
+        end
+
+        send(self(), {:flash_msg, :error, message})
+
         {:noreply,
          socket
          |> assign(:loading_password, false)
-         |> assign(:password_form, to_form(Map.put(user_params, "action", :validate), as: :user))
-         |> put_flash(:error, "Failed to update password. Please check the errors below.")}
+         |> assign(:password_form, to_form(Map.put(changeset, :action, :validate), as: :user))
+         |> assign(:password_form_current_password, password)}
     end
   end
 
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="space-y-12">
+    <div class="mt-4">
       <div>
-        <.header class="text-center">
+        <.header>
           Change Email
           <:subtitle>Change your account email address</:subtitle>
         </.header>
 
-        <div class="mt-6">
+        <div class="-mt-8">
           <.simple_form
             for={@email_form}
             id="email_form"
@@ -133,13 +166,13 @@ defmodule PhxplateWeb.Dashboard.Account.SettingsLive do
         </div>
       </div>
 
-      <div>
-        <.header class="text-center">
+      <div class="mt-8">
+        <.header>
           Change Password
           <:subtitle>Change your account password</:subtitle>
         </.header>
 
-        <div class="mt-6">
+        <div class="-mt-8">
           <.simple_form
             for={@password_form}
             id="password_form"
@@ -152,6 +185,7 @@ defmodule PhxplateWeb.Dashboard.Account.SettingsLive do
               name="current_password"
               type="password"
               label="Current password"
+              value={@password_form_current_password}
               required
             />
             <.input field={@password_form[:password]} type="password" label="New password" required />

@@ -8,11 +8,12 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
 
   ## Examples
 
-      <.plan_selector plans={@plans} current_user={@current_user} current_subscription={@current_subscription} />
+      <.plan_selector plans={@plans} current_user={@current_user} current_subscription={@current_subscription} target={@myself} />
   """
   attr :plans, :map, required: true, doc: "Map of plans returned by list_all_plans()."
   attr :current_user, :any, default: nil, doc: "The currently logged-in user, if any."
   attr :current_subscription, :any, default: nil, doc: "The user's current subscription, if any."
+  attr :target, :any, default: nil, doc: "The target for phx-target, if any."
 
   def plan_selector(assigns) do
     ~H"""
@@ -32,6 +33,7 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
                 is_popular={plan.metadata["tier"] == "medium"}
                 current_user={@current_user}
                 current_subscription={@current_subscription}
+                target={@target}
               />
             </div>
           </div>
@@ -46,6 +48,7 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
                 is_popular={plan.metadata["tier"] == "medium"}
                 current_user={@current_user}
                 current_subscription={@current_subscription}
+                target={@target}
               />
             </div>
           </div>
@@ -62,6 +65,7 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
   attr :is_popular, :boolean, default: false
   attr :current_user, :any, default: nil
   attr :current_subscription, :any, default: nil
+  attr :target, :any, default: nil
 
   def plan_card(assigns) do
     ~H"""
@@ -95,7 +99,12 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
         <%= if @current_user && @current_subscription && @current_subscription.plan_id == @plan.id do %>
           <.button class="w-full" disabled>Current Plan</.button>
         <% else %>
-          <.button phx-click="select_plan" phx-value-plan-id={@plan.id} class="w-full">
+          <.button
+            phx-click="select_plan"
+            phx-value-plan-id={@plan.id}
+            phx-target={@target}
+            class="w-full"
+          >
             Select Plan
           </.button>
         <% end %>

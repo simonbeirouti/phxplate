@@ -105,23 +105,12 @@ defmodule Phxplate.Accounts.User do
   It requires the email to change otherwise an error is added.
   """
   def email_changeset(user, attrs, opts \\ []) do
-    changeset = user
+    user
     |> cast(attrs, [:email])
     |> validate_email(opts)
     |> case do
       %{changes: %{email: _}} = changeset -> changeset
       %{} = changeset -> add_error(changeset, :email, "did not change")
-    end
-
-    if changeset.valid? do
-      case Phxplate.Repo.update(changeset) do
-        {:ok, updated_user} ->
-          Phxplate.Tracking.track_user_activity("email_update", updated_user, updated_user, %{old_email: user.email, new_email: updated_user.email})
-          {:ok, updated_user}
-        error -> error
-      end
-    else
-      {:error, changeset}
     end
   end
 
@@ -138,21 +127,10 @@ defmodule Phxplate.Accounts.User do
       Defaults to `true`.
   """
   def password_changeset(user, attrs, opts \\ []) do
-    changeset = user
+    user
     |> cast(attrs, [:password])
     |> validate_confirmation(:password, message: "does not match password")
     |> validate_password(opts)
-
-    if changeset.valid? do
-      case Phxplate.Repo.update(changeset) do
-        {:ok, updated_user} ->
-          Phxplate.Tracking.track_user_activity("password_update", updated_user, updated_user)
-          {:ok, updated_user}
-        error -> error
-      end
-    else
-      {:error, changeset}
-    end
   end
 
   @doc """
@@ -193,8 +171,6 @@ defmodule Phxplate.Accounts.User do
   Validates the current password otherwise adds an error to the changeset.
   """
   def validate_current_password(changeset, password) do
-    changeset = cast(changeset, %{current_password: password}, [:current_password])
-
     if valid_password?(changeset.data, password) do
       changeset
     else

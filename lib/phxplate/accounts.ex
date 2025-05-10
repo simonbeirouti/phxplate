@@ -1,9 +1,10 @@
-  defmodule Phxplate.Accounts do
+defmodule Phxplate.Accounts do
   @moduledoc """
   The Accounts context.
   """
 
   import Ecto.Query, warn: false
+  import Ecto.Changeset, only: [get_change: 2]
   alias Phxplate.Repo
 
   alias Phxplate.Accounts.{User, UserToken, UserNotifier, Profile}
@@ -167,10 +168,15 @@
 
   """
   def apply_user_email(user, password, attrs) do
-    user
-    |> User.email_changeset(attrs)
-    |> User.validate_current_password(password)
-    |> Ecto.Changeset.apply_action(:update)
+    changeset =
+      user
+      |> User.email_changeset(attrs)
+      |> User.validate_current_password(password)
+
+    case changeset.valid? do
+      true -> {:ok, %{user | email: get_change(changeset, :email)}}
+      false -> {:error, %{changeset | action: :update}}
+    end
   end
 
   @doc """
@@ -253,6 +259,9 @@
     Ecto.Multi.new()
     |> Ecto.Multi.update(:user, changeset)
     |> Ecto.Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, :all))
+    |> Ecto.Multi.run(:activity, fn _repo, %{user: updated_user} ->
+      {:ok, Phxplate.Tracking.track_user_activity("password_update", updated_user, updated_user)}
+    end)
     |> Repo.transaction()
     |> case do
       {:ok, %{user: user}} -> {:ok, user}
