@@ -413,10 +413,23 @@
       {:error, %Ecto.Changeset{}}
 
   """
-  def update_user(%User{} = user, attrs) do
+  def update_user(%User{} = user, attrs, actor \\ nil) do
     user
     |> User.role_changeset(attrs)
     |> Repo.update()
+    |> case do
+      {:ok, updated_user} ->
+        if Map.has_key?(attrs, :role) || Map.has_key?(attrs, "role") do
+          Phxplate.Tracking.track_user_activity(
+            "role_update",
+            updated_user,
+            actor || updated_user,
+            %{"role" => updated_user.role}
+          )
+        end
+        {:ok, updated_user}
+      error -> error
+    end
   end
 
   @doc """
@@ -504,5 +517,39 @@
   """
   def delete_user(user) do
     Repo.delete(user)
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for tracking user profile changes.
+
+  ## Examples
+
+      iex> change_user_profile(user)
+      %Ecto.Changeset{data: %Profile{}}
+
+  """
+  def change_user_profile(%User{} = user) do
+    profile = user.profile || %Profile{user_id: user.id}
+    Profile.changeset(profile, %{})
+  end
+
+  @doc """
+  Updates a user's profile.
+
+  ## Examples
+
+      iex> update_user_profile(user, %{field: new_value})
+      {:ok, %Profile{}}
+
+      iex> update_user_profile(user, %{field: bad_value})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def update_user_profile(%User{} = user, attrs) do
+    profile = user.profile || %Profile{user_id: user.id}
+
+    profile
+    |> Profile.changeset(attrs)
+    |> Repo.insert_or_update()
   end
 end

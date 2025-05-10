@@ -105,12 +105,23 @@ defmodule Phxplate.Accounts.User do
   It requires the email to change otherwise an error is added.
   """
   def email_changeset(user, attrs, opts \\ []) do
-    user
+    changeset = user
     |> cast(attrs, [:email])
     |> validate_email(opts)
     |> case do
       %{changes: %{email: _}} = changeset -> changeset
       %{} = changeset -> add_error(changeset, :email, "did not change")
+    end
+
+    if changeset.valid? do
+      case Phxplate.Repo.update(changeset) do
+        {:ok, updated_user} ->
+          Phxplate.Tracking.track_user_activity("email_update", updated_user, updated_user, %{old_email: user.email, new_email: updated_user.email})
+          {:ok, updated_user}
+        error -> error
+      end
+    else
+      {:error, changeset}
     end
   end
 
@@ -127,18 +138,39 @@ defmodule Phxplate.Accounts.User do
       Defaults to `true`.
   """
   def password_changeset(user, attrs, opts \\ []) do
-    user
+    changeset = user
     |> cast(attrs, [:password])
     |> validate_confirmation(:password, message: "does not match password")
     |> validate_password(opts)
+
+    if changeset.valid? do
+      case Phxplate.Repo.update(changeset) do
+        {:ok, updated_user} ->
+          Phxplate.Tracking.track_user_activity("password_update", updated_user, updated_user)
+          {:ok, updated_user}
+        error -> error
+      end
+    else
+      {:error, changeset}
+    end
   end
 
   @doc """
   Confirms the account by setting `confirmed_at`.
   """
   def confirm_changeset(user) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
-    change(user, confirmed_at: now)
+    changeset = change(user, confirmed_at: DateTime.utc_now() |> DateTime.truncate(:second))
+
+    if changeset.valid? do
+      case Phxplate.Repo.update(changeset) do
+        {:ok, confirmed_user} ->
+          Phxplate.Tracking.track_user_activity("account_confirmed", confirmed_user, confirmed_user)
+          {:ok, confirmed_user}
+        error -> error
+      end
+    else
+      {:error, changeset}
+    end
   end
 
   @doc """

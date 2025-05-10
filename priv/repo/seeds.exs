@@ -185,13 +185,16 @@ created_data = Map.put(created_data, :plans, all_plans)
 
 # Create super admins (without subscriptions)
 created_data = Enum.reduce(1..1, created_data, fn _, acc ->
-  user = User.registration_changeset(%User{}, %{
+  {:ok, user} = %User{}
+  |> User.registration_changeset(%{
     email: Faker.Internet.email(),
     password: "password1234",
     role: :super_admin,
     onboarding_completed: true
   })
-  |> Repo.insert!()
+  |> Repo.insert()
+
+  Phxplate.Tracking.track_user_activity("registration", user, user)
 
   # Create profile for super admin
   profile = Repo.insert!(%Profile{
@@ -217,13 +220,16 @@ end)
 
 # Create admins with varied subscriptions (large, medium, small)
 created_data = Enum.reduce(1..3, created_data, fn index, acc ->
-  user = User.registration_changeset(%User{}, %{
+  {:ok, user} = %User{}
+  |> User.registration_changeset(%{
     email: Faker.Internet.email(),
     password: "password1234",
     role: :admin,
     onboarding_completed: true
   })
-  |> Repo.insert!()
+  |> Repo.insert()
+
+  Phxplate.Tracking.track_user_activity("registration", user, user)
 
   # Create Stripe customer
   {:ok, stripe_customer} = Stripe.Customer.create(%{
@@ -266,6 +272,20 @@ created_data = Enum.reduce(1..3, created_data, fn index, acc ->
     plan_id: plan.monthly.db.id
   })
 
+  # Track subscription creation
+  Phxplate.Tracking.track_user_activity(
+    "subscription_tier_update",
+    %{id: user.id},
+    user,
+    %{"tier" => tier}
+  )
+  Phxplate.Tracking.track_user_activity(
+    "subscription_status_update",
+    %{id: user.id},
+    user,
+    %{"status" => String.to_atom(stripe_subscription.status)}
+  )
+
   # Create profile for admin
   profile = Repo.insert!(%Profile{
     first_name: Faker.Person.first_name(),
@@ -291,13 +311,16 @@ end)
 
 # Create basic users (some with small subscriptions, some without)
 created_data = Enum.reduce(1..3, created_data, fn index, acc ->
-  user = User.registration_changeset(%User{}, %{
+  {:ok, user} = %User{}
+  |> User.registration_changeset(%{
     email: Faker.Internet.email(),
     password: "password1234",
     role: :basic,
     onboarding_completed: true
   })
-  |> Repo.insert!()
+  |> Repo.insert()
+
+  Phxplate.Tracking.track_user_activity("registration", user, user)
 
   # Only create subscriptions for some basic users
   {db_subscription, stripe_customer_id} = if rem(index, 2) == 0 do
@@ -359,6 +382,20 @@ created_data = Enum.reduce(1..3, created_data, fn index, acc ->
         plan_id: plan.monthly.db.id
       })
 
+    # Track subscription creation
+    Phxplate.Tracking.track_user_activity(
+      "subscription_tier_update",
+      %{id: user.id},
+      user,
+      %{"tier" => String.to_atom(plan.product.metadata["tier"])}
+    )
+    Phxplate.Tracking.track_user_activity(
+      "subscription_status_update",
+      %{id: user.id},
+      user,
+      %{"status" => String.to_atom(subscription.status)}
+    )
+
     {db_subscription, customer.id}
   else
     {nil, nil}
@@ -416,6 +453,8 @@ created_data = Enum.reduce(Enum.with_index(created_data.admins), created_data, f
     owner_id: admin.id
   })
 
+  Phxplate.Tracking.track_company_activity("company_creation", company, admin)
+
   company_data = %{
     id: company.id,
     name: company.name,
@@ -463,8 +502,43 @@ created_data = Enum.reduce(Enum.with_index(created_data.admins), created_data, f
   end
 end)
 
-# Write the data to a JSON file
-json_data = Jason.encode!(created_data, pretty: true)
-File.write!("priv/repo/seeds.json", json_data)
+# Get all activities
+user_activities = Enum.flat_map(created_data.basic_users ++ created_data.admins ++ created_data.super_admins, fn user ->
+  Phxplate.Tracking.get_user_activities(user.id, 100)
+end)
 
-IO.puts("Seed data created successfully and written to seeds.json!")
+company_activities = Enum.flat_map(created_data.companies, fn company ->
+  Phxplate.Tracking.get_company_activities(company.id, 100)
+end)
+
+# Combine seed data with activities
+full_data = Map.merge(created_data, %{
+  activities: %{
+    users: Enum.map(user_activities, fn activity ->
+      %{
+        id: activity.id,
+        action: activity.action,
+        entity_type: activity.entity_type,
+        entity_id: activity.entity_id,
+        changes: activity.changes,
+        actor: if(activity.actor, do: %{id: activity.actor.id, email: activity.actor.email}),
+        inserted_at: activity.inserted_at
+      }
+    end),
+    companies: Enum.map(company_activities, fn activity ->
+      %{
+        id: activity.id,
+        action: activity.action,
+        entity_type: activity.entity_type,
+        entity_id: activity.entity_id,
+        changes: activity.changes,
+        actor: if(activity.actor, do: %{id: activity.actor.id, email: activity.actor.email}),
+        inserted_at: activity.inserted_at
+      }
+    end)
+  }
+})
+
+# Write everything to a single file
+File.write!("priv/repo/seeds.json", Jason.encode!(full_data, pretty: true))
+IO.puts("Seed data written to priv/repo/seeds.json")
