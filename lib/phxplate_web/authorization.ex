@@ -8,43 +8,54 @@ defmodule PhxplateWeb.Authorization do
 
   alias Phxplate.Accounts.User
 
-  def init(opts), do: opts
+  def init(role), do: role
 
-  def call(conn, opts) do
-    case fetch_current_user(conn) do
-      {:ok, user} ->
-        case authorize(user, opts) do
-          {:ok, _} -> conn
-          {:error, :forbidden} ->
+  def call(conn, role) do
+    if authorized?(conn.assigns.current_user, role) do
+      conn
+    else
+      conn
+      |> put_flash(:error, "You are not authorized to access this page.")
+      |> redirect(to: "/dashboard")
+      |> halt()
+    end
+  end
+
+  def authorized?(user, role) do
+    case role do
+      :basic -> user.role in [:basic, :admin, :super_admin]
+      :admin -> user.role in [:admin, :super_admin]
+      :super_admin -> user.role == :super_admin
+      _ -> false
+    end
+  end
+
+  def ensure_company_owner(conn, _opts) do
+    case conn.params do
+      %{"id" => company_id} ->
+        case Integer.parse(company_id) do
+          {id, ""} ->
+            company = Phxplate.Companies.get_company!(id)
+            if company.owner_id == conn.assigns.current_user.id do
+              conn
+            else
+              conn
+              |> put_flash(:error, "You don't have access to this company")
+              |> redirect(to: "/dashboard/admin/companies")
+              |> halt()
+            end
+          _ ->
             conn
-            |> put_status(:forbidden)
-            |> put_view(PhxplateWeb.ErrorHTML)
-            |> render(:"403")
+            |> put_flash(:error, "Invalid company ID")
+            |> redirect(to: "/dashboard/admin/companies")
             |> halt()
         end
-      {:error, :unauthorized} ->
-        conn
-        |> put_status(:unauthorized)
-        |> put_view(PhxplateWeb.ErrorHTML)
-        |> render(:"401")
-        |> halt()
+      _ -> conn
     end
   end
 
-  defp fetch_current_user(conn) do
-    case conn.assigns[:current_user] do
-      %User{} = user -> {:ok, user}
-      _ -> {:error, :unauthorized}
-    end
-  end
-
-  defp authorize(user, required_role) do
-    case required_role do
-      :basic -> if User.is_basic?(user) or User.is_admin?(user) or User.is_super_admin?(user), do: {:ok, user}, else: {:error, :forbidden}
-      :admin -> if User.is_admin?(user) or User.is_super_admin?(user), do: {:ok, user}, else: {:error, :forbidden}
-      :super_admin -> if User.is_super_admin?(user), do: {:ok, user}, else: {:error, :forbidden}
-      _ -> {:error, :forbidden}
-    end
+  def is_company_owner?(company, user) do
+    company.owner_id == user.id
   end
 
   @doc """

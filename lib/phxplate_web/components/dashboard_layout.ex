@@ -185,7 +185,14 @@ defmodule PhxplateWeb.Components.DashboardLayout do
                 {String.slice(project.name, 0, 2)}
               </.avatar_fallback>
             </.avatar>
-            <a href={~p"/dashboard/admin/company/#{project.id}"} class="truncate">
+            <a
+              href={
+                if project[:is_owner],
+                do: ~p"/dashboard/admin/company/#{project.id}",
+                else: ~p"/dashboard/company/#{project.id}"
+              }
+              class="truncate"
+            >
               {project.name}
             </a>
           </.sidebar_menu_button>
@@ -238,6 +245,13 @@ defmodule PhxplateWeb.Components.DashboardLayout do
                 </dropdownmenugroup>
                 <.menu_separator></.menu_separator>
               <% end %>
+              <dropdownmenugroup>
+                <.link href={~p"/dashboard/invites"}>
+                  <.menu_item>
+                    <Lucideicons.mail class="w-4 h-4 mr-2" /> Invites
+                  </.menu_item>
+                </.link>
+              </dropdownmenugroup>
               <dropdownmenugroup>
                 <.link href={~p"/dashboard/account"}>
                   <.menu_item>

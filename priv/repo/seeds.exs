@@ -470,15 +470,43 @@ created_data = Enum.reduce(Enum.with_index(created_data.admins), created_data, f
 
   # Create employees for each company
   {employees, acc} = Enum.reduce(1..2, {[], acc}, fn _, {employees, acc} ->
-    employee = Repo.insert!(%Employee{
+    # Create a new user for the employee
+    {:ok, user} = %User{}
+    |> User.registration_changeset(%{
+      email: Faker.Internet.email(),
+      password: "password1234",
+      role: :basic,
+      onboarding_completed: true
+    })
+    |> Repo.insert()
+
+    # Create a profile for the employee
+    profile = Repo.insert!(%Profile{
       first_name: Faker.Person.first_name(),
       last_name: Faker.Person.last_name(),
-      email: Faker.Internet.email(),
+      bio: Faker.Lorem.paragraph(),
+      avatar_url: Faker.Avatar.image_url(),
       phone: Faker.Phone.EnUs.phone(),
+      location: Faker.Address.city(),
+      website: Faker.Internet.url(),
+      social_links: %{
+        twitter: Faker.Internet.url(),
+        linkedin: Faker.Internet.url(),
+        github: Faker.Internet.url()
+      },
+      user_id: user.id
+    })
+
+    employee = Repo.insert!(%Employee{
+      first_name: profile.first_name,
+      last_name: profile.last_name,
+      email: user.email,  # Use the user's email
+      phone: profile.phone,  # Use the profile's phone
       position: Faker.Company.bs(),
-      department: Faker.Commerce.department(),
-      salary: Enum.random(30_000..150_000),
-      company_id: company.id
+      department: Faker.Company.bs(),
+      salary: Decimal.new(to_string(Faker.Commerce.price())),
+      company_id: company.id,
+      profile_id: profile.id  # Link to the profile
     })
 
     employee_data = %{
@@ -490,10 +518,24 @@ created_data = Enum.reduce(Enum.with_index(created_data.admins), created_data, f
       position: employee.position,
       department: employee.department,
       salary: employee.salary,
-      company_id: employee.company_id
+      company_id: employee.company_id,
+      profile_id: employee.profile_id
     }
 
-    {[employee_data | employees], Map.update!(acc, :employees, &[employee_data | &1])}
+    # Add the user to basic_users list and profile to profiles list
+    acc = acc
+    |> Map.update!(:basic_users, &[%{
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      profile: profile,
+      subscription: nil,
+      stripe_customer_id: nil,
+      onboarding_completed: user.onboarding_completed
+    } | &1])
+    |> Map.update!(:profiles, &[profile | &1])
+
+    {[employee_data | employees], acc}
   end)
 
     Map.update!(acc, :companies, &[Map.put(company_data, :employees, employees) | &1])

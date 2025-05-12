@@ -27,7 +27,12 @@ defmodule Phxplate.Companies do
     |> Repo.all()
   end
 
-  def get_company!(id), do: Repo.get!(Company, id)
+  def get_company!(id) do
+    Company
+    |> where(id: ^id)
+    |> preload([employees: [:profile]])
+    |> Repo.one!()
+  end
 
   def create_company(attrs \\ %{}) do
     %Company{}
@@ -108,6 +113,7 @@ defmodule Phxplate.Companies do
   def get_company_employees(%Company{} = company) do
     company
     |> Ecto.assoc(:employees)
+    |> preload(:profile)
     |> Repo.all()
   end
 
@@ -142,7 +148,7 @@ defmodule Phxplate.Companies do
 
     # Create the invitation record
     with {:ok, invitation} <- create_invitation(invitation_attrs),
-         invitation_url = PhxplateWeb.Endpoint.url() <> "/companies/invitations/#{token}",
+         invitation_url = PhxplateWeb.Endpoint.url() <> "/dashboard/invites/#{token}",
          {:ok, _email} <- Phxplate.Accounts.UserNotifier.deliver_company_invitation(email, company, invitation_url) do
       # Track the invitation activity
       Phxplate.Tracking.track_company_activity(
@@ -173,6 +179,7 @@ defmodule Phxplate.Companies do
   def get_invitation_by_token(token) do
     Invitation
     |> where([i], i.token == ^token and is_nil(i.accepted_at))
+    |> preload([:company])
     |> Repo.one()
   end
 
@@ -198,21 +205,48 @@ defmodule Phxplate.Companies do
   """
   def accept_invitation(%Invitation{} = invitation, user) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
+    user = Phxplate.Repo.preload(user, :profile)
 
-    # Create the employee record
-    employee_attrs = %{
-      email: user.email,
-      company_id: invitation.company_id,
-      user_id: user.id
-    }
+    # First check if employee exists
+    case Repo.get_by(Employee, email: user.email, company_id: invitation.company_id) do
+      nil ->
+        # Create new employee
+        employee_changeset = Employee.changeset(%Employee{}, %{
+          email: user.email,
+          company_id: invitation.company_id,
+          first_name: user.profile.first_name,
+          last_name: user.profile.last_name,
+          profile_id: user.profile.id
+        })
 
-    Multi.new()
-    |> Multi.update(:invitation, Invitation.changeset(invitation, %{accepted_at: now}))
-    |> Multi.insert(:employee, Employee.changeset(%Employee{}, employee_attrs))
-    |> Repo.transaction()
-    |> case do
-      {:ok, %{employee: employee}} -> {:ok, employee}
-      {:error, _failed_operation, failed_value, _changes_so_far} -> {:error, failed_value}
+        Repo.transaction(fn ->
+          with {:ok, employee} <- Repo.insert(employee_changeset),
+               {:ok, _invitation} <- Repo.update(Invitation.changeset(invitation, %{accepted_at: now})) do
+            # Clean up other invitations
+            from(i in Invitation,
+              where: i.email == ^user.email and
+                     i.company_id == ^invitation.company_id and
+                     i.id != ^invitation.id and
+                     is_nil(i.accepted_at)
+            ) |> Repo.delete_all()
+
+            employee
+          end
+        end)
+
+      employee ->
+        # Just update invitation and cleanup for existing employee
+        Repo.update(Invitation.changeset(invitation, %{accepted_at: now}))
+
+        # Clean up other invitations
+        from(i in Invitation,
+          where: i.email == ^user.email and
+                 i.company_id == ^invitation.company_id and
+                 i.id != ^invitation.id and
+                 is_nil(i.accepted_at)
+        ) |> Repo.delete_all()
+
+        {:ok, employee}
     end
   end
 
@@ -225,5 +259,39 @@ defmodule Phxplate.Companies do
         {:ok, %{company_id: company_id, email: email}}
       error -> error
     end
+  end
+
+  @doc """
+  Lists all pending invitations for a user by email.
+  """
+  def list_user_pending_invitations(email) do
+    Invitation
+    |> where([i], i.email == ^email and is_nil(i.accepted_at))
+    |> preload([:inviter, :company])
+    |> Repo.all()
+  end
+
+  @doc """
+  Lists all companies where the user is an employee.
+  """
+  def list_companies_by_employee(email, opts \\ []) do
+    page = Keyword.get(opts, :page, 1)
+    per_page = Keyword.get(opts, :per_page, 10)
+
+    Company
+    |> join(:inner, [c], e in Employee, on: e.company_id == c.id)
+    |> where([_c, e], e.email == ^email)
+    |> offset((^page - 1) * ^per_page)
+    |> limit(^per_page)
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets an employee by company ID and email.
+  """
+  def get_employee_by_company_and_email(company_id, email) do
+    Employee
+    |> where([e], e.company_id == ^company_id and e.email == ^email)
+    |> Repo.one()
   end
 end

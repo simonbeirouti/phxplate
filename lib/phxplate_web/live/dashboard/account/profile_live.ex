@@ -1,6 +1,7 @@
 defmodule PhxplateWeb.Dashboard.Account.ProfileLive do
   use PhxplateWeb, :live_component
   alias Phxplate.Accounts
+  alias PhxplateWeb.Components.ImageUploadComponent
 
   @social_networks [:github, :twitter, :linkedin, :facebook, :instagram]
 
@@ -84,6 +85,24 @@ defmodule PhxplateWeb.Dashboard.Account.ProfileLive do
     end
   end
 
+  def handle_info({:image_uploaded, %{type: :avatar, url: url}}, socket) do
+    profile_params = %{"avatar_url" => url}
+
+    case Accounts.update_user_profile(socket.assigns.user, profile_params) do
+      {:ok, updated_profile} ->
+        send(self(), {:flash_msg, :info, "Avatar updated successfully!"})
+        send(self(), {:profile_updated, updated_profile})
+
+        {:noreply,
+         socket
+         |> assign(:form, to_form(Accounts.change_profile(updated_profile)))}
+
+      {:error, _changeset} ->
+        send(self(), {:flash_msg, :error, "Failed to update avatar"})
+        {:noreply, socket}
+    end
+  end
+
   # Clean params by removing _unused_ fields
   defp clean_params(params) do
     params
@@ -117,28 +136,12 @@ defmodule PhxplateWeb.Dashboard.Account.ProfileLive do
         phx-submit="save"
       >
         <div class="flex justify-center">
-          <div class="w-32 h-32 relative">
-            <div class="w-full h-full rounded-full overflow-hidden border-2 border-gray-200">
-              <img
-                src={@form[:avatar_url].value || "/images/default-avatar.png"}
-                alt="Profile avatar"
-                class="w-full h-full object-cover"
-              />
-              <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 hover:opacity-100 transition-opacity cursor-pointer rounded-full">
-                <div class="relative">
-                  <Lucideicons.camera class="w-8 h-8 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="file"
-                    name={@form[:avatar_url].name}
-                    accept="image/*"
-                    class="sr-only"
-                    phx-change="upload_avatar"
-                    phx-target={@myself}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+          <.live_component
+            module={ImageUploadComponent}
+            id="profile-avatar"
+            type={:avatar}
+            image_url={@form[:avatar_url].value}
+          />
         </div>
 
         <div class="grid grid-cols-2 gap-4">
