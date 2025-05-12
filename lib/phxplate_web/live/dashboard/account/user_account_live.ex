@@ -146,7 +146,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
                 Subscription Status
             <% end %>
             <:subtitle><%= @status_message %></:subtitle>
-          </.header>
+        </.header>
 
           <.dialog_footer class="mt-4">
             <.button
@@ -161,7 +161,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
 
       <div class="mt-4">
         <TabsNew.tabs :let={builder} default="profile" id="user_tabs" class="w-full" on_change="tab_changed">
-          <TabsNew.tabs_list>
+          <TabsNew.tabs_list class="grid w-full lg:w-1/2 grid-cols-4">
             <TabsNew.tabs_trigger value="profile" builder={builder}>
               Profile
             </TabsNew.tabs_trigger>

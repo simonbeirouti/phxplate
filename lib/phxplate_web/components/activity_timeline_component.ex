@@ -40,16 +40,16 @@ defmodule PhxplateWeb.Components.ActivityTimelineComponent do
   def render(assigns) do
     ~H"""
     <div class="space-y-4">
-      <div class="mb-8 grid grid-cols-2">
+      <%!-- <div class="mb-8 grid grid-cols-2">
         <%= if @show_timestamps && @timestamps do %>
-          <%!-- <%= if @timestamps.confirmed_at do %>
+          <%= if @timestamps.confirmed_at do %>
             <div class="col-span-2">
               <h4 class="text-sm font-medium text-gray-500">Email Confirmed</h4>
               <p class="mt-1">
                 {Calendar.strftime(@timestamps.confirmed_at, "%B %d, %Y at %I:%M %p")}
               </p>
             </div>
-          <% end %> --%>
+          <% end %>
           <div>
             <h4 class="text-sm font-medium text-gray-500">Created</h4>
             <p class="mt-1">
@@ -63,11 +63,10 @@ defmodule PhxplateWeb.Components.ActivityTimelineComponent do
             </p>
           </div>
         <% end %>
-      </div>
+      </div> --%>
 
       <div>
-        <h3 class="text-lg font-semibold mb-4">Activity History</h3>
-        <div class="space-y-4">
+        <div class="mt-4 space-y-4">
           <%= for activity <- @activities do %>
             <div class="border-l-2 border-gray-200 pl-4 pb-4">
               <div class="flex items-start justify-between">

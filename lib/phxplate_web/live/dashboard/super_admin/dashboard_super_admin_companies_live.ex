@@ -60,7 +60,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">
       <.header>
-        <h1>Companies Management</h1>
+        Companies Management
         <:subtitle>Manage companies across the application</:subtitle>
       </.header>
 

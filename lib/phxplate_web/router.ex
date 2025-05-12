@@ -160,4 +160,12 @@ defmodule PhxplateWeb.Router do
       live "/super_admin/companies", Dashboard.SuperAdmin.CompaniesLive, :index
     end
   end
+
+  scope "/", PhxplateWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    live_session :default, on_mount: [{PhxplateWeb.UserAuth, :ensure_authenticated}] do
+      live "/companies/invitations/:token", CompanyInvitationLive
+    end
+  end
 end

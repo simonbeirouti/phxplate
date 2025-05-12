@@ -8,6 +8,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     company = Companies.get_company!(company_id)
     employees = Companies.get_company_employees(company)
     activities = Phxplate.Tracking.get_company_activities(company_id)
+    pending_invitations = Companies.list_pending_invitations(company)
 
     {:ok,
      assign(socket,
@@ -30,7 +31,8 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
        selected_employee: nil,
        confirming_delete: MapSet.new(),
        invite_email: "",
-       form_changed: false
+       form_changed: false,
+       pending_invitations: pending_invitations
      )}
   end
 
@@ -108,12 +110,44 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     {:noreply, assign(socket, show_edit_modal: true, selected_employee: employee)}
   end
 
-  def handle_event("send_invite", %{"email" => email}, socket) do
-    # TODO: Implement actual email invitation logic here
+  def handle_event("open_invite_dialog", _params, socket) do
     {:noreply,
      socket
-     |> put_flash(:info, "Invitation sent to #{email}")
-     |> assign(:invite_email, "")}
+     |> assign(:invite_email, "")
+     |> push_event("reset-form", %{id: "invite-form"})}
+  end
+
+  def handle_event("send_invite", %{"email" => email}, socket) do
+    case Companies.invite_to_company(socket.assigns.company, email, socket.assigns.current_user) do
+      {:ok, _invitation} ->
+        activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
+        {:noreply,
+         socket
+         |> assign(:activities, activities)
+         |> assign(:invite_email, "")
+         |> push_event("reset-form", %{id: "invite-form"})
+         |> put_flash(:info, "Invitation sent successfully to #{email}")
+         |> push_event("hide-modal", %{id: "invite-user-dialog"})}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        error_message =
+          case changeset.errors do
+            [{:email, {msg, _}}] -> msg
+            [{:company_id, {msg, _}}] -> msg
+            _ -> "Failed to send invitation. Please try again."
+          end
+
+        {:noreply,
+         socket
+         |> put_flash(:error, error_message)
+         |> assign(:invite_email, email)}
+
+      {:error, _reason} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to send invitation. Please try again.")
+         |> assign(:invite_email, email)}
+    end
   end
 
   def handle_event("delete_employee", %{"id" => employee_id}, socket) do
@@ -155,11 +189,33 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     end
   end
 
+  def handle_event("cancel_invitation", %{"id" => invitation_id}, socket) do
+    invitation_id = String.to_integer(invitation_id)
+    invitation = Enum.find(socket.assigns.pending_invitations, &(&1.id == invitation_id))
+
+    case Companies.delete_invitation(invitation) do
+      {:ok, _deleted_invitation} ->
+        pending_invitations = Companies.list_pending_invitations(socket.assigns.company)
+        activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
+
+        {:noreply,
+         socket
+         |> assign(:pending_invitations, pending_invitations)
+         |> assign(:activities, activities)
+         |> put_flash(:info, "Invitation canceled successfully.")}
+
+      {:error, _reason} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Could not cancel invitation.")}
+    end
+  end
+
   def render(assigns) do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">
       <.header>
-        <h2 class="text-2xl font-semibold text-gray-900">{@company.name}</h2>
+        {@company.name}
         <:subtitle>
           {@company.description}
         </:subtitle>
@@ -260,6 +316,28 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                       </.table_cell>
                     </.table_row>
                   <% end %>
+                  <%= for invitation <- @pending_invitations do %>
+                    <.table_row class="bg-black/10">
+                      <.table_cell class="font-medium">
+                        <div class="flex items-center gap-2">
+                          <span class="text-sm text-gray-700">Pending Invite</span>
+                        </div>
+                      </.table_cell>
+                      <.table_cell>{invitation.email}</.table_cell>
+                      <.table_cell>N/A</.table_cell>
+                      <.table_cell>N/A</.table_cell>
+                      <.table_cell>N/A</.table_cell>
+                      <.table_cell class="text-right">
+                        <.button
+                          variant="destructive"
+                          phx-click="cancel_invitation"
+                          phx-value-id={invitation.id}
+                        >
+                          Cancel Invitation
+                        </.button>
+                      </.table_cell>
+                    </.table_row>
+                  <% end %>
                 </.table_body>
               </.table>
               <div class="w-1/4">
@@ -269,6 +347,21 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
 
             <div class="lg:hidden space-y-4" class="h-[calc(100vh-250px)]">
               <.invite_user_dialog invite_email={@invite_email} />
+              <%= for invitation <- @pending_invitations do %>
+                <div class="bg-gray-100/80 rounded-lg p-4 relative">
+                  <div class="flex justify-between items-center">
+                    <div>
+                      <span class="text-sm font-medium text-gray-700">Pending Invitation:</span>
+                      <span class="text-sm text-gray-600">{invitation.email}</span>
+                    </div>
+                    <div class="group relative" phx-click="cancel_invitation" phx-value-id={invitation.id}>
+                      <.button variant="destructive" class="opacity-0 group-hover:opacity-100 transition-opacity">
+                        Cancel Invitation
+                      </.button>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
               <%= for employee <- @employees do %>
                 <div class="bg-white shadow rounded-lg p-4">
                   <div class="flex justify-between items-start mb-4">
@@ -348,13 +441,24 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     assigns = assign_new(assigns, :invite_email, fn -> "" end)
 
     ~H"""
-    <div class="mt-4">
-      <.button class="w-full" variant="outline" phx-click={JS.show(to: "#invite-user-dialog")}>
+    <div class="mt-4" id="invite-user-container" phx-hook="Modal">
+      <.button
+        class="w-full"
+        variant="outline"
+        phx-click={
+          JS.push("open_invite_dialog")
+          |> JS.show(to: "#invite-user-dialog")
+        }
+      >
         <Lucideicons.plus class="w-4 h-4 mr-2" /> Invite User
       </.button>
-      <.dialog id="invite-user-dialog" show={false}>
+      <.dialog
+        id="invite-user-dialog"
+        show={false}
+        on_cancel={JS.hide(to: "#invite-user-dialog")}
+      >
         <div class="relative grid gap-4 border-none p-2">
-          <form phx-submit="send_invite" class="space-y-4">
+          <form id="invite-form" phx-submit="send_invite" class="space-y-4" phx-hook="ResetForm">
             <div class="flex flex-col">
               <.label for="email">
                 Email

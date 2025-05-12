@@ -21,7 +21,7 @@ defmodule PhxplateWeb.Dashboard.Basic.BookmarksLive do
     ~H"""
     <div class="flex-1">
       <.header>
-        <h1>My Bookmarks</h1>
+        My Bookmarks
         <:subtitle>Companies you've bookmarked for quick access</:subtitle>
       </.header>
 

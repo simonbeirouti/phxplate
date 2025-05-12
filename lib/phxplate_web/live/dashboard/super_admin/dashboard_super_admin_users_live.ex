@@ -191,7 +191,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">
       <.header>
-        <h1>User Management</h1>
+        User Management
         <:subtitle>Manage users across the application</:subtitle>
       </.header>
 

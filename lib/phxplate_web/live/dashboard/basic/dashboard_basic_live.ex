@@ -28,7 +28,7 @@ defmodule PhxplateWeb.Dashboard.Basic.BasicLive do
     ~H"""
     <main>
       <.header>
-        <h2 class="text-2xl font-semibold text-gray-900">Basic Dashboard</h2>
+        Basic Dashboard
         <:subtitle>View your user stats</:subtitle>
       </.header>
       <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 mt-4">
