@@ -30,7 +30,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyLive do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">
       <.header>
-        <h2 class="text-2xl font-semibold text-gray-900">Companies</h2>
+        Companies
         <:subtitle>
           View all companies that are owned by you
         </:subtitle>

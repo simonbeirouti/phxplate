@@ -1,9 +1,10 @@
-  defmodule Phxplate.Accounts do
+defmodule Phxplate.Accounts do
   @moduledoc """
   The Accounts context.
   """
 
   import Ecto.Query, warn: false
+  import Ecto.Changeset, only: [get_change: 2]
   alias Phxplate.Repo
 
   alias Phxplate.Accounts.{User, UserToken, UserNotifier, Profile}
@@ -167,10 +168,15 @@
 
   """
   def apply_user_email(user, password, attrs) do
-    user
-    |> User.email_changeset(attrs)
-    |> User.validate_current_password(password)
-    |> Ecto.Changeset.apply_action(:update)
+    changeset =
+      user
+      |> User.email_changeset(attrs)
+      |> User.validate_current_password(password)
+
+    case changeset.valid? do
+      true -> {:ok, %{user | email: get_change(changeset, :email)}}
+      false -> {:error, %{changeset | action: :update}}
+    end
   end
 
   @doc """
@@ -253,6 +259,9 @@
     Ecto.Multi.new()
     |> Ecto.Multi.update(:user, changeset)
     |> Ecto.Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, :all))
+    |> Ecto.Multi.run(:activity, fn _repo, %{user: updated_user} ->
+      {:ok, Phxplate.Tracking.track_user_activity("password_update", updated_user, updated_user)}
+    end)
     |> Repo.transaction()
     |> case do
       {:ok, %{user: user}} -> {:ok, user}
@@ -413,10 +422,23 @@
       {:error, %Ecto.Changeset{}}
 
   """
-  def update_user(%User{} = user, attrs) do
+  def update_user(%User{} = user, attrs, actor \\ nil) do
     user
     |> User.role_changeset(attrs)
     |> Repo.update()
+    |> case do
+      {:ok, updated_user} ->
+        if Map.has_key?(attrs, :role) || Map.has_key?(attrs, "role") do
+          Phxplate.Tracking.track_user_activity(
+            "role_update",
+            updated_user,
+            actor || updated_user,
+            %{"role" => updated_user.role}
+          )
+        end
+        {:ok, updated_user}
+      error -> error
+    end
   end
 
   @doc """
@@ -504,5 +526,39 @@
   """
   def delete_user(user) do
     Repo.delete(user)
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for tracking user profile changes.
+
+  ## Examples
+
+      iex> change_user_profile(user)
+      %Ecto.Changeset{data: %Profile{}}
+
+  """
+  def change_user_profile(%User{} = user) do
+    profile = user.profile || %Profile{user_id: user.id}
+    Profile.changeset(profile, %{})
+  end
+
+  @doc """
+  Updates a user's profile.
+
+  ## Examples
+
+      iex> update_user_profile(user, %{field: new_value})
+      {:ok, %Profile{}}
+
+      iex> update_user_profile(user, %{field: bad_value})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def update_user_profile(%User{} = user, attrs) do
+    profile = user.profile || %Profile{user_id: user.id}
+
+    profile
+    |> Profile.changeset(attrs)
+    |> Repo.insert_or_update()
   end
 end

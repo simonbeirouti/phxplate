@@ -137,8 +137,18 @@ defmodule Phxplate.Accounts.User do
   Confirms the account by setting `confirmed_at`.
   """
   def confirm_changeset(user) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
-    change(user, confirmed_at: now)
+    changeset = change(user, confirmed_at: DateTime.utc_now() |> DateTime.truncate(:second))
+
+    if changeset.valid? do
+      case Phxplate.Repo.update(changeset) do
+        {:ok, confirmed_user} ->
+          Phxplate.Tracking.track_user_activity("account_confirmed", confirmed_user, confirmed_user)
+          {:ok, confirmed_user}
+        error -> error
+      end
+    else
+      {:error, changeset}
+    end
   end
 
   @doc """
@@ -161,8 +171,6 @@ defmodule Phxplate.Accounts.User do
   Validates the current password otherwise adds an error to the changeset.
   """
   def validate_current_password(changeset, password) do
-    changeset = cast(changeset, %{current_password: password}, [:current_password])
-
     if valid_password?(changeset.data, password) do
       changeset
     else

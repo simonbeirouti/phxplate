@@ -1,8 +1,10 @@
 defmodule Phxplate.Companies do
   import Ecto.Query, warn: false
+  alias Ecto.Multi
   alias Phxplate.Repo
   alias Phxplate.Companies.Company
   alias Phxplate.Companies.Employee
+  alias Phxplate.Companies.Invitation
 
   def list_companies(opts \\ []) do
     page = Keyword.get(opts, :page, 1)
@@ -25,18 +27,49 @@ defmodule Phxplate.Companies do
     |> Repo.all()
   end
 
-  def get_company!(id), do: Repo.get!(Company, id)
+  def get_company!(id) do
+    Company
+    |> where(id: ^id)
+    |> preload([employees: [:profile]])
+    |> Repo.one!()
+  end
 
   def create_company(attrs \\ %{}) do
     %Company{}
     |> Company.changeset(attrs)
     |> Repo.insert()
+    |> case do
+      {:ok, company} ->
+        Phxplate.Tracking.track_company_activity("company_create", company, company.owner)
+        {:ok, company}
+      error -> error
+    end
   end
 
-  def update_company(%Company{} = company, attrs) do
+  def update_company(%Company{} = company, attrs, actor \\ nil) do
     company
     |> Company.changeset(attrs)
     |> Repo.update()
+    |> case do
+      {:ok, updated_company} ->
+        # Only track fields that have changed
+        changed_fields = Enum.reduce(["name", "description", "address", "phone", "email", "plan", "logo", "website"], %{}, fn field, acc ->
+          old_value = Map.get(company, String.to_atom(field))
+          new_value = Map.get(attrs, field)
+          if new_value && old_value != new_value do
+            Map.put(acc, field, new_value)
+          else
+            acc
+          end
+        end)
+
+        if map_size(changed_fields) > 0 do
+          Phxplate.Tracking.track_company_activity("company_update", updated_company, actor || updated_company.owner, changed_fields)
+        end
+
+        {:ok, updated_company}
+      error -> error
+    end
   end
 
   def delete_company(%Company{} = company) do
@@ -61,13 +94,26 @@ defmodule Phxplate.Companies do
     |> Repo.update()
   end
 
-  def delete_employee(%Employee{} = employee) do
-    Repo.delete(employee)
+  def delete_employee(%Employee{} = employee, actor \\ nil) do
+    case Repo.delete(employee) do
+      {:ok, deleted_employee} ->
+        if actor do
+          Phxplate.Tracking.track_company_activity(
+            "employee_delete",
+            %{id: deleted_employee.company_id},
+            actor,
+            %{"employee_email" => deleted_employee.email}
+          )
+        end
+        {:ok, deleted_employee}
+      error -> error
+    end
   end
 
   def get_company_employees(%Company{} = company) do
     company
     |> Ecto.assoc(:employees)
+    |> preload(:profile)
     |> Repo.all()
   end
 
@@ -77,5 +123,175 @@ defmodule Phxplate.Companies do
 
   def count_employees do
     Repo.aggregate(Employee, :count, :id)
+  end
+
+  @doc """
+  Sends an invitation to join a company.
+
+  ## Parameters
+    - company: The company struct
+    - email: The email address to send the invitation to
+    - inviter: The user sending the invitation
+  """
+  def invite_to_company(%Company{} = company, email, inviter) do
+    token = Phoenix.Token.sign(PhxplateWeb.Endpoint, "company_invitation", %{
+      company_id: company.id,
+      email: email
+    })
+
+    invitation_attrs = %{
+      email: email,
+      token: token,
+      company_id: company.id,
+      inviter_id: inviter.id
+    }
+
+    # Create the invitation record
+    with {:ok, invitation} <- create_invitation(invitation_attrs),
+         invitation_url = PhxplateWeb.Endpoint.url() <> "/dashboard/invites/#{token}",
+         {:ok, _email} <- Phxplate.Accounts.UserNotifier.deliver_company_invitation(email, company, invitation_url) do
+      # Track the invitation activity
+      Phxplate.Tracking.track_company_activity(
+        "employee_invite",
+        company,
+        inviter,
+        %{"invited_email" => email}
+      )
+      {:ok, invitation}
+    else
+      {:error, changeset} -> {:error, changeset}
+      error -> error
+    end
+  end
+
+  @doc """
+  Creates a company invitation.
+  """
+  def create_invitation(attrs) do
+    %Invitation{}
+    |> Invitation.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Gets a pending invitation by token.
+  """
+  def get_invitation_by_token(token) do
+    Invitation
+    |> where([i], i.token == ^token and is_nil(i.accepted_at))
+    |> preload([:company])
+    |> Repo.one()
+  end
+
+  @doc """
+  Lists all pending invitations for a company.
+  """
+  def list_pending_invitations(%Company{} = company) do
+    Invitation
+    |> where([i], i.company_id == ^company.id and is_nil(i.accepted_at))
+    |> preload([:inviter])
+    |> Repo.all()
+  end
+
+  @doc """
+  Deletes a company invitation.
+  """
+  def delete_invitation(%Invitation{} = invitation) do
+    Repo.delete(invitation)
+  end
+
+  @doc """
+  Accepts a company invitation.
+  """
+  def accept_invitation(%Invitation{} = invitation, user) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    user = Phxplate.Repo.preload(user, :profile)
+
+    # First check if employee exists
+    case Repo.get_by(Employee, email: user.email, company_id: invitation.company_id) do
+      nil ->
+        # Create new employee
+        employee_changeset = Employee.changeset(%Employee{}, %{
+          email: user.email,
+          company_id: invitation.company_id,
+          first_name: user.profile.first_name,
+          last_name: user.profile.last_name,
+          profile_id: user.profile.id
+        })
+
+        Repo.transaction(fn ->
+          with {:ok, employee} <- Repo.insert(employee_changeset),
+               {:ok, _invitation} <- Repo.update(Invitation.changeset(invitation, %{accepted_at: now})) do
+            # Clean up other invitations
+            from(i in Invitation,
+              where: i.email == ^user.email and
+                     i.company_id == ^invitation.company_id and
+                     i.id != ^invitation.id and
+                     is_nil(i.accepted_at)
+            ) |> Repo.delete_all()
+
+            employee
+          end
+        end)
+
+      employee ->
+        # Just update invitation and cleanup for existing employee
+        Repo.update(Invitation.changeset(invitation, %{accepted_at: now}))
+
+        # Clean up other invitations
+        from(i in Invitation,
+          where: i.email == ^user.email and
+                 i.company_id == ^invitation.company_id and
+                 i.id != ^invitation.id and
+                 is_nil(i.accepted_at)
+        ) |> Repo.delete_all()
+
+        {:ok, employee}
+    end
+  end
+
+  @doc """
+  Verifies and processes a company invitation token.
+  """
+  def verify_invitation_token(token) do
+    case Phoenix.Token.verify(PhxplateWeb.Endpoint, "company_invitation", token, max_age: 24 * 3600) do
+      {:ok, %{company_id: company_id, email: email}} ->
+        {:ok, %{company_id: company_id, email: email}}
+      error -> error
+    end
+  end
+
+  @doc """
+  Lists all pending invitations for a user by email.
+  """
+  def list_user_pending_invitations(email) do
+    Invitation
+    |> where([i], i.email == ^email and is_nil(i.accepted_at))
+    |> preload([:inviter, :company])
+    |> Repo.all()
+  end
+
+  @doc """
+  Lists all companies where the user is an employee.
+  """
+  def list_companies_by_employee(email, opts \\ []) do
+    page = Keyword.get(opts, :page, 1)
+    per_page = Keyword.get(opts, :per_page, 10)
+
+    Company
+    |> join(:inner, [c], e in Employee, on: e.company_id == c.id)
+    |> where([_c, e], e.email == ^email)
+    |> offset((^page - 1) * ^per_page)
+    |> limit(^per_page)
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets an employee by company ID and email.
+  """
+  def get_employee_by_company_and_email(company_id, email) do
+    Employee
+    |> where([e], e.company_id == ^company_id and e.email == ^email)
+    |> Repo.one()
   end
 end

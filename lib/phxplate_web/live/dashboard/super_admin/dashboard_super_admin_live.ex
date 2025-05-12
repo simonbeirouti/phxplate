@@ -26,7 +26,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">
       <.header>
-        <h1>Super Admin Dashboard</h1>
+        Super Admin Dashboard
         <:subtitle>View the stats of the application here</:subtitle>
       </.header>
       <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 mt-4">

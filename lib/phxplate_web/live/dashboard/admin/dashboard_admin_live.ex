@@ -35,7 +35,7 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">
       <.header>
-        <h2 class="text-2xl font-semibold text-gray-900">Admin Dashboard</h2>
+        Admin Dashboard
         <:subtitle>
           View your dashboard here and companies that you've created
         </:subtitle>

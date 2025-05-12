@@ -8,23 +8,24 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
 
   ## Examples
 
-      <.plan_selector plans={@plans} current_user={@current_user} current_subscription={@current_subscription} />
+      <.plan_selector plans={@plans} current_user={@current_user} current_subscription={@current_subscription} target={@myself} />
   """
   attr :plans, :map, required: true, doc: "Map of plans returned by list_all_plans()."
   attr :current_user, :any, default: nil, doc: "The currently logged-in user, if any."
   attr :current_subscription, :any, default: nil, doc: "The user's current subscription, if any."
+  attr :target, :any, default: nil, doc: "The target for phx-target, if any."
 
   def plan_selector(assigns) do
     ~H"""
     <div>
-      <.tabs :let={builder} id="plan-interval-tabs" default="monthly" class="mt-8">
-        <.tabs_list class="grid w-1/3 mx-auto grid-cols-2 mb-4">
+      <.tabs :let={builder} id="plan-interval-tabs" default="monthly" class="mt-4">
+        <.tabs_list class="grid w-2/3 mx-auto grid-cols-2 mb-4">
           <.tabs_trigger builder={builder} value="monthly">Monthly</.tabs_trigger>
           <.tabs_trigger builder={builder} value="yearly">Yearly</.tabs_trigger>
         </.tabs_list>
 
         <.tabs_content value="monthly">
-          <div class="space-y-4 p-4 mt-16">
+          <div class="space-y-4 p-4 mt-8">
             <div class="grid lg:grid-cols-3 gap-3 max-w-6xl mx-auto">
               <.plan_card
                 :for={plan <- filter_plans(@plans, "month")}
@@ -32,13 +33,14 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
                 is_popular={plan.metadata["tier"] == "medium"}
                 current_user={@current_user}
                 current_subscription={@current_subscription}
+                target={@target}
               />
             </div>
           </div>
         </.tabs_content>
 
         <.tabs_content value="yearly">
-          <div class="space-y-4 p-4 mt-16">
+          <div class="space-y-4 p-4 mt-8">
             <div class="grid lg:grid-cols-3 gap-3 max-w-6xl mx-auto">
               <.plan_card
                 :for={plan <- filter_plans(@plans, "year")}
@@ -46,6 +48,7 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
                 is_popular={plan.metadata["tier"] == "medium"}
                 current_user={@current_user}
                 current_subscription={@current_subscription}
+                target={@target}
               />
             </div>
           </div>
@@ -62,6 +65,7 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
   attr :is_popular, :boolean, default: false
   attr :current_user, :any, default: nil
   attr :current_subscription, :any, default: nil
+  attr :target, :any, default: nil
 
   def plan_card(assigns) do
     ~H"""
@@ -95,7 +99,12 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
         <%= if @current_user && @current_subscription && @current_subscription.plan_id == @plan.id do %>
           <.button class="w-full" disabled>Current Plan</.button>
         <% else %>
-          <.button phx-click="select_plan" phx-value-plan-id={@plan.id} class="w-full">
+          <.button
+            phx-click="select_plan"
+            phx-value-plan-id={@plan.id}
+            phx-target={@target}
+            class="w-full"
+          >
             Select Plan
           </.button>
         <% end %>
