@@ -1,7 +1,7 @@
 defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
   use PhxplateWeb, :live_view
   alias Phxplate.{Companies, Repo}
-  alias PhxplateWeb.PageMeta
+  alias PhxplateWeb.{PageMeta, Components.ActivityTimelineComponent}
 
   def mount(_params, _session, socket) do
     socket =
@@ -35,20 +35,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
       end
 
     {:noreply, load_companies(socket, page)}
-  end
-
-  defp humanize_action(action) do
-    action
-    |> to_string()
-    |> String.replace("_", " ")
-    |> String.capitalize()
-  end
-
-  defp humanize_key(key) do
-    key
-    |> to_string()
-    |> String.replace("_", " ")
-    |> String.capitalize()
   end
 
   defp load_companies(socket, page) do
@@ -211,57 +197,19 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
               </.tabs_content>
 
               <.tabs_content value="timeline">
-                <div class="space-y-4 p-4">
-                  <div class="mb-8 grid grid-cols-2">
-                    <div>
-                      <h4 class="text-sm font-medium text-gray-500">Created</h4>
-                      <p class="mt-1">
-                        <%= Calendar.strftime(@selected_company.inserted_at, "%B %d, %Y at %I:%M %p") %>
-                      </p>
-                    </div>
-                    <div>
-                      <h4 class="text-sm font-medium text-gray-500">Last Updated</h4>
-                      <p class="mt-1">
-                        <%= Calendar.strftime(@selected_company.updated_at, "%B %d, %Y at %I:%M %p") %>
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 class="text-lg font-semibold mb-4">Activity History</h3>
-                    <div class="space-y-4">
-                      <%= for activity <- @activities do %>
-                        <div class="border-l-2 border-gray-200 pl-4 pb-4">
-                          <div class="flex items-start justify-between">
-                            <div>
-                              <p class="font-medium">
-                                <%= humanize_action(activity.action) %>
-                              </p>
-                              <%= if map_size(activity.changes) > 0 do %>
-                                <div class="mt-2 text-sm text-gray-600">
-                                  <p class="font-medium">Changes:</p>
-                                  <ul class="list-disc list-inside">
-                                    <%= for {key, value} <- activity.changes do %>
-                                      <li><%= humanize_key(key) %>: <%= inspect(value) %></li>
-                                    <% end %>
-                                  </ul>
-                                </div>
-                              <% end %>
-                            </div>
-                            <p class="text-sm text-gray-500">
-                              <%= Calendar.strftime(activity.inserted_at, "%B %d, %Y at %I:%M %p") %>
-                            </p>
-                          </div>
-                          <%= if activity.actor do %>
-                            <p class="text-sm text-gray-500 mt-1">
-                              by <%= activity.actor.email %>
-                            </p>
-                          <% end %>
-                        </div>
-                      <% end %>
-                    </div>
-                  </div>
-                </div>
+                <%= if @selected_company do %>
+                  <.live_component
+                    module={ActivityTimelineComponent}
+                    id={"activity-timeline-#{@selected_company.id}"}
+                    activities={@activities}
+                    company_id={@selected_company.id}
+                    show_timestamps={true}
+                    timestamps={%{
+                      inserted_at: @selected_company.inserted_at,
+                      updated_at: @selected_company.updated_at
+                    }}
+                  />
+                <% end %>
               </.tabs_content>
             </.tabs>
           <% else %>

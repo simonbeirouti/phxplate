@@ -18,14 +18,14 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
   def plan_selector(assigns) do
     ~H"""
     <div>
-      <.tabs :let={builder} id="plan-interval-tabs" default="monthly" class="mt-8">
-        <.tabs_list class="grid w-1/3 mx-auto grid-cols-2 mb-4">
+      <.tabs :let={builder} id="plan-interval-tabs" default="monthly" class="mt-4">
+        <.tabs_list class="grid w-2/3 mx-auto grid-cols-2 mb-4">
           <.tabs_trigger builder={builder} value="monthly">Monthly</.tabs_trigger>
           <.tabs_trigger builder={builder} value="yearly">Yearly</.tabs_trigger>
         </.tabs_list>
 
         <.tabs_content value="monthly">
-          <div class="space-y-4 p-4 mt-16">
+          <div class="space-y-4 p-4 mt-8">
             <div class="grid lg:grid-cols-3 gap-3 max-w-6xl mx-auto">
               <.plan_card
                 :for={plan <- filter_plans(@plans, "month")}
@@ -40,7 +40,7 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
         </.tabs_content>
 
         <.tabs_content value="yearly">
-          <div class="space-y-4 p-4 mt-16">
+          <div class="space-y-4 p-4 mt-8">
             <div class="grid lg:grid-cols-3 gap-3 max-w-6xl mx-auto">
               <.plan_card
                 :for={plan <- filter_plans(@plans, "year")}

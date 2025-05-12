@@ -2,6 +2,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
   use PhxplateWeb, :live_view
 
   alias Phxplate.Companies
+  alias PhxplateWeb.Components.ActivityTimelineComponent
 
   def mount(%{"id" => company_id}, _session, socket) do
     company = Companies.get_company!(company_id)
@@ -326,37 +327,17 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
         </.tabs_content>
 
         <.tabs_content value="timeline">
-          <div class="space-y-4 p-4">
-            <%= for activity <- @activities do %>
-              <div class="border-l-2 border-gray-200 pl-4 pb-4">
-                <div class="flex items-start justify-between">
-                  <div>
-                    <p class="font-medium">
-                      {humanize_action(activity.action)}
-                    </p>
-                    <%= if map_size(activity.changes) > 0 do %>
-                      <div class="mt-2 text-sm text-gray-600">
-                        <p class="font-medium">Changes:</p>
-                        <ul class="list-disc list-inside">
-                          <%= for {key, value} <- activity.changes do %>
-                            <li>{humanize_key(key)}: {inspect(value)}</li>
-                          <% end %>
-                        </ul>
-                      </div>
-                    <% end %>
-                  </div>
-                  <p class="text-sm text-gray-500">
-                    {Calendar.strftime(activity.inserted_at, "%B %d, %Y at %I:%M %p")}
-                  </p>
-                </div>
-                <%= if activity.actor do %>
-                  <p class="text-sm text-gray-500 mt-1">
-                    by {activity.actor.email}
-                  </p>
-                <% end %>
-              </div>
-            <% end %>
-          </div>
+          <.live_component
+            module={ActivityTimelineComponent}
+            id={"activity-timeline-#{@company.id}"}
+            activities={@activities}
+            company_id={@company.id}
+            show_timestamps={true}
+            timestamps={%{
+              inserted_at: @company.inserted_at,
+              updated_at: @company.updated_at
+            }}
+          />
         </.tabs_content>
       </.tabs>
     </div>
@@ -404,17 +385,4 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     </div>
     """
   end
-
-  defp humanize_action("company_create"), do: "Company Created"
-  defp humanize_action("company_update"), do: "Company Updated"
-  defp humanize_action("employee_delete"), do: "Employee Deleted"
-  defp humanize_action(action), do: Phoenix.Naming.humanize(action)
-
-  defp humanize_key(key) when is_binary(key) do
-    key
-    |> String.replace("_", " ")
-    |> String.capitalize()
-  end
-
-  defp humanize_key(key), do: Phoenix.Naming.humanize(key)
 end

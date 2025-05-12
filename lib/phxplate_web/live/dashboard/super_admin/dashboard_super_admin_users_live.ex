@@ -1,28 +1,9 @@
 defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
   use PhxplateWeb, :live_view
   alias Phxplate.{Accounts, Repo}
-  alias PhxplateWeb.PageMeta
-
-  # Helper functions for activity display
-  defp humanize_action("role_update"), do: "Role Updated"
-  defp humanize_action("subscription_status_update"), do: "Subscription Status Updated"
-  defp humanize_action("subscription_tier_update"), do: "Subscription Tier Updated"
-  defp humanize_action(action) do
-    action
-    |> to_string()
-    |> String.replace("_", " ")
-    |> String.capitalize()
-  end
-
-  defp humanize_key(key) do
-    key
-    |> to_string()
-    |> String.replace("_", " ")
-    |> String.capitalize()
-  end
+  alias PhxplateWeb.{PageMeta, Components.ActivityTimelineComponent}
 
   def mount(_params, _session, socket) do
-    # Load available plans for the subscription management
     plans = Phxplate.Subscriptions.list_all_plans()
 
     socket =
@@ -516,65 +497,20 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
               </.tabs_content>
 
               <.tabs_content value="timeline">
-                <div class="space-y-4 p-4">
-                  <div class="mb-8 grid grid-cols-2">
-                    <%= if @selected_user.confirmed_at do %>
-                      <div class="col-span-2">
-                        <h4 class="text-sm font-medium text-gray-500">Email Confirmed</h4>
-                        <p class="mt-1">
-                          {Calendar.strftime(@selected_user.confirmed_at, "%B %d, %Y at %I:%M %p")}
-                        </p>
-                      </div>
-                    <% end %>
-                    <div>
-                      <h4 class="text-sm font-medium text-gray-500">Created</h4>
-                      <p class="mt-1">
-                        {Calendar.strftime(@selected_user.inserted_at, "%B %d, %Y at %I:%M %p")}
-                      </p>
-                    </div>
-                    <div>
-                      <h4 class="text-sm font-medium text-gray-500">Last Updated</h4>
-                      <p class="mt-1">
-                        {Calendar.strftime(@selected_user.updated_at, "%B %d, %Y at %I:%M %p")}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 class="text-lg font-semibold mb-4">Activity History</h3>
-                    <div class="space-y-4">
-                      <%= for activity <- @activities do %>
-                        <div class="border-l-2 border-gray-200 pl-4 pb-4">
-                          <div class="flex items-start justify-between">
-                            <div>
-                              <p class="font-medium">
-                                {humanize_action(activity.action)}
-                              </p>
-                              <%= if map_size(activity.changes) > 0 do %>
-                                <div class="mt-2 text-sm text-gray-600">
-                                  <p class="font-medium">Changes:</p>
-                                  <ul class="list-disc list-inside">
-                                    <%= for {key, value} <- activity.changes do %>
-                                      <li>{humanize_key(key)}: {inspect(value)}</li>
-                                    <% end %>
-                                  </ul>
-                                </div>
-                              <% end %>
-                            </div>
-                            <p class="text-sm text-gray-500">
-                              {Calendar.strftime(activity.inserted_at, "%B %d, %Y at %I:%M %p")}
-                            </p>
-                          </div>
-                          <%= if activity.actor do %>
-                            <p class="text-sm text-gray-500 mt-1">
-                              by {activity.actor.email}
-                            </p>
-                          <% end %>
-                        </div>
-                      <% end %>
-                    </div>
-                  </div>
-                </div>
+                <%= if @selected_user do %>
+                  <.live_component
+                    module={ActivityTimelineComponent}
+                    id={"activity-timeline-#{@selected_user.id}"}
+                    activities={@activities}
+                    user_id={@selected_user.id}
+                    show_timestamps={true}
+                    timestamps={%{
+                      confirmed_at: @selected_user.confirmed_at,
+                      inserted_at: @selected_user.inserted_at,
+                      updated_at: @selected_user.updated_at
+                    }}
+                  />
+                <% end %>
               </.tabs_content>
             </.tabs>
           <% else %>

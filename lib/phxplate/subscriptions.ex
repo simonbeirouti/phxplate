@@ -180,9 +180,22 @@ defmodule Phxplate.Subscriptions do
   Always redirects to Stripe checkout to ensure payment details are collected.
   """
   def change_subscription_plan(%User{} = user, %Plan{} = plan) do
-    # Always create a checkout session for the new plan
-    # This ensures users go through Stripe checkout for payment details
-    create_checkout_session(user, plan)
+    case create_checkout_session(user, plan) do
+      {:ok, session} = result ->
+        # Track the plan change attempt
+        Phxplate.Tracking.track_user_activity(
+          "subscription_plan_change_initiated",
+          %{id: user.id},
+          user,
+          %{
+            "new_plan" => plan.name,
+            "price" => plan.unit_amount,
+            "interval" => plan.interval
+          }
+        )
+        result
+      error -> error
+    end
   end
 
   @doc """
@@ -197,9 +210,22 @@ defmodule Phxplate.Subscriptions do
         case Stripe.Subscription.update(subscription_id, %{cancel_at_period_end: true}) do
           {:ok, _stripe_sub} ->
             # Update local subscription record
-            update_subscription(subscription, %{
-              subscription_status: :canceled
-            })
+            case update_subscription(subscription, %{subscription_status: :canceled}) do
+              {:ok, updated_subscription} ->
+                # Track the cancellation
+                Phxplate.Tracking.track_user_activity(
+                  "subscription_cancelled",
+                  %{id: user.id},
+                  user,
+                  %{
+                    "plan" => subscription.plan.name,
+                    "status" => "canceled",
+                    "end_date" => Calendar.strftime(subscription.subscription_period_end, "%Y-%m-%d")
+                  }
+                )
+                {:ok, updated_subscription}
+              error -> error
+            end
 
           {:error, error} ->
             Logger.error("Failed to cancel Stripe subscription: #{inspect(error)}")
@@ -247,6 +273,7 @@ defmodule Phxplate.Subscriptions do
     |> Repo.one() || 0
   end
 
+  @spec admin_update_subscription_status(any(), any(), any()) :: any()
   @doc """
   Admin-only function to update a subscription's status.
   This bypasses Stripe and only updates the local database record.
@@ -256,14 +283,27 @@ defmodule Phxplate.Subscriptions do
   def admin_update_subscription_status(%Subscription{} = subscription, status, actor) when status in [:active, :canceled, :past_due, :incomplete, :trialing] do
     case update_subscription(subscription, %{subscription_status: status}) do
       {:ok, updated_subscription} ->
-        if actor do
-          Phxplate.Tracking.track_user_activity(
-            "subscription_status_update",
-            %{id: subscription.user_id},
-            actor,
-            %{"status" => status}
-          )
+        # Track the status change
+        user = %{id: subscription.user_id}
+        tracking_actor = actor || user  # If no actor provided, use the user as actor
+
+        action = case status do
+          :active -> "subscription_reactivated"
+          :canceled -> "subscription_cancelled"
+          _ -> "subscription_status_updated"
         end
+
+        Phxplate.Tracking.track_user_activity(
+          action,
+          user,
+          tracking_actor,
+          %{
+            "status" => status,
+            "plan" => subscription.plan.name,
+            "end_date" => Calendar.strftime(subscription.subscription_period_end, "%Y-%m-%d")
+          }
+        )
+
         {:ok, updated_subscription}
       error -> error
     end
