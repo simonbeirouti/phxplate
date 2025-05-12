@@ -28,7 +28,7 @@ defmodule PhxplateWeb.Dashboard.Basic.BasicLive do
     ~H"""
     <main>
       <.header>
-        <h1>User Stats</h1>
+        <h2 class="text-2xl font-semibold text-gray-900">Basic Dashboard</h2>
         <:subtitle>View your user stats</:subtitle>
       </.header>
       <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 mt-4">
@@ -36,7 +36,7 @@ defmodule PhxplateWeb.Dashboard.Basic.BasicLive do
           <div class="bg-white shadow rounded-lg p-4">
             <div class="flex items-center">
               <div class="p-2 bg-green-50 rounded-full">
-                <Lucideicons.bookmark fill="black" class="h-8 w-8" />
+                <Lucideicons.bookmark fill="black" class="h-6 w-6" />
               </div>
               <div class="ml-4">
                 <h3 class="text-lg font-semibold text-gray-900">My Bookmarks</h3>
