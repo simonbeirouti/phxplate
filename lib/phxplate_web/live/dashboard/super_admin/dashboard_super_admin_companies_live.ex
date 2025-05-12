@@ -1,12 +1,13 @@
 defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
   use PhxplateWeb, :live_view
   alias Phxplate.{Companies, Repo}
-  alias PhxplateWeb.PageMeta
+  alias PhxplateWeb.{PageMeta, Components.ActivityTimelineComponent}
 
   def mount(_params, _session, socket) do
     socket =
       socket
       |> assign(:selected_company, nil)
+      |> assign(:activities, [])
       |> PageMeta.assign_metadata(
         title: "Companies Management",
         description: "Manage companies across the application"
@@ -17,7 +18,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
 
   def handle_event("select_company", %{"id" => company_id}, socket) do
     company = Companies.get_company!(company_id) |> Repo.preload([:employees])
-    {:noreply, assign(socket, selected_company: company)}
+    activities = Phxplate.Tracking.get_company_activities(company_id, 20)
+    {:noreply, assign(socket, selected_company: company, activities: activities)}
   end
 
   def handle_event("paginate", %{"page" => page}, socket) do
@@ -58,7 +60,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">
       <.header>
-        <h1>Companies Management</h1>
+        Companies Management
         <:subtitle>Manage companies across the application</:subtitle>
       </.header>
 
@@ -127,7 +129,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
               <.tabs_list class="grid w-full grid-cols-3">
                 <.tabs_trigger builder={builder} value="details">Details</.tabs_trigger>
                 <.tabs_trigger builder={builder} value="employees">Employees</.tabs_trigger>
-                <.tabs_trigger builder={builder} value="subscription">Subscription</.tabs_trigger>
+                <.tabs_trigger builder={builder} value="timeline">Timeline</.tabs_trigger>
               </.tabs_list>
 
               <.tabs_content value="details">
@@ -194,25 +196,20 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
                 </div>
               </.tabs_content>
 
-              <.tabs_content value="subscription">
-                <div class="space-y-4 p-4">
-                  <div>
-                    <h4 class="text-sm font-medium text-gray-500">Current Plan</h4>
-                    <p class="mt-1">{String.capitalize(@selected_company.plan)}</p>
-                  </div>
-                  <div>
-                    <h4 class="text-sm font-medium text-gray-500">Created</h4>
-                    <p class="mt-1">
-                      {Calendar.strftime(@selected_company.inserted_at, "%B %d, %Y at %I:%M %p")}
-                    </p>
-                  </div>
-                  <div>
-                    <h4 class="text-sm font-medium text-gray-500">Last Updated</h4>
-                    <p class="mt-1">
-                      {Calendar.strftime(@selected_company.updated_at, "%B %d, %Y at %I:%M %p")}
-                    </p>
-                  </div>
-                </div>
+              <.tabs_content value="timeline">
+                <%= if @selected_company do %>
+                  <.live_component
+                    module={ActivityTimelineComponent}
+                    id={"activity-timeline-#{@selected_company.id}"}
+                    activities={@activities}
+                    company_id={@selected_company.id}
+                    show_timestamps={true}
+                    timestamps={%{
+                      inserted_at: @selected_company.inserted_at,
+                      updated_at: @selected_company.updated_at
+                    }}
+                  />
+                <% end %>
               </.tabs_content>
             </.tabs>
           <% else %>
