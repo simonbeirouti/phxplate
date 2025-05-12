@@ -1,6 +1,5 @@
 defmodule Phxplate.Companies do
   import Ecto.Query, warn: false
-  alias Ecto.Multi
   alias Phxplate.Repo
   alias Phxplate.Companies.Company
   alias Phxplate.Companies.Employee

@@ -79,6 +79,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     end
   end
 
+  @impl true
   def handle_event("validate_company", params, socket) do
     form_data = %{
       "name" => socket.assigns.company.name,
@@ -129,41 +130,6 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
          socket
          |> assign(:form, to_form(changeset))
          |> put_flash(:error, "Error updating company.")}
-    end
-  end
-
-  def handle_info({:image_uploaded, %{type: :logo, url: url}}, socket) do
-    case Companies.update_company(
-           socket.assigns.company,
-           %{"logo" => url},
-           socket.assigns.current_user
-         ) do
-      {:ok, company} ->
-        activities = Phxplate.Tracking.get_company_activities(company.id)
-
-        {:noreply,
-         socket
-         |> assign(:company, company)
-         |> assign(:activities, activities)
-         |> assign(
-           :form,
-           to_form(%{
-             "name" => company.name,
-             "email" => company.email,
-             "phone" => company.phone,
-             "website" => company.website,
-             "plan" => company.plan,
-             "address" => company.address,
-             "description" => company.description,
-             "logo" => company.logo
-           })
-         )
-         |> put_flash(:info, "Company logo updated successfully.")}
-
-      {:error, _changeset} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "Failed to update company logo.")}
     end
   end
 
@@ -293,6 +259,43 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     end
   end
 
+  @impl true
+  def handle_info({:image_uploaded, %{type: :logo, url: url}}, socket) do
+    case Companies.update_company(
+           socket.assigns.company,
+           %{"logo" => url},
+           socket.assigns.current_user
+         ) do
+      {:ok, company} ->
+        activities = Phxplate.Tracking.get_company_activities(company.id)
+
+        {:noreply,
+         socket
+         |> assign(:company, company)
+         |> assign(:activities, activities)
+         |> assign(
+           :form,
+           to_form(%{
+             "name" => company.name,
+             "email" => company.email,
+             "phone" => company.phone,
+             "website" => company.website,
+             "plan" => company.plan,
+             "address" => company.address,
+             "description" => company.description,
+             "logo" => company.logo
+           })
+         )
+         |> put_flash(:info, "Company logo updated successfully.")}
+
+      {:error, _changeset} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to update company logo.")}
+    end
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">

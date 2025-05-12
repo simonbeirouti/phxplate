@@ -30,8 +30,12 @@ defmodule PhxplateWeb.Components.ImageUploadComponent do
 
   defp process_upload(file_data, type) do
     # TODO: Implement actual file upload logic
-    # This is a placeholder that returns a mock URL
-    {:ok, "/images/#{type}/#{:rand.uniform(1000)}.jpg"}
+    # This is a placeholder that simulates success/failure
+    if is_map(file_data) do
+      {:ok, "/images/#{type}/#{:rand.uniform(1000)}.jpg"}
+    else
+      {:error, "Invalid file data"}
+    end
   end
 
   @impl true

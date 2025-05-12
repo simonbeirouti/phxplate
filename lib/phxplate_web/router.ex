@@ -105,14 +105,14 @@ defmodule PhxplateWeb.Router do
   end
 
   scope "/", PhxplateWeb do
-    pipe_through [:browser, :require_authenticated_user]
+    pipe_through [:browser]
 
-    delete "/users/log_out", UserSessionController, :delete
+    delete "/logout", UserSessionController, :delete
 
-    live_session :require_authenticated_user,
-      on_mount: [{PhxplateWeb.UserAuth, :ensure_authenticated}] do
-      live "/users/settings", UserSettingsLive, :edit
-      live "/users/settings/confirm_email/:token", UserSettingsLive, :confirm_email
+    live_session :current_user,
+      on_mount: [{PhxplateWeb.UserAuth, :mount_current_user}] do
+      live "/confirm/:token", UserConfirmationLive, :edit
+      live "/confirm", UserConfirmationInstructionsLive, :new
     end
   end
 
@@ -140,7 +140,8 @@ defmodule PhxplateWeb.Router do
       on_mount: [
         {PhxplateWeb.UserAuth, :ensure_authenticated},
         {PhxplateWeb.UserAuth, :ensure_proper_role},
-        {PhxplateWeb.Live.Hooks.LayoutHooks, :default}
+        {PhxplateWeb.Live.Hooks.LayoutHooks, :default},
+        {PhxplateWeb.Live.Hooks.CompanyShowHooks, :default}
       ] do
       live "/", DashboardLive, :index
       live "/account", Dashboard.User.UserAccountLive, :index
@@ -162,18 +163,6 @@ defmodule PhxplateWeb.Router do
       live "/super_admin", Dashboard.SuperAdmin.SuperAdminLive, :index
       live "/super_admin/users", Dashboard.SuperAdmin.UsersLive, :index
       live "/super_admin/companies", Dashboard.SuperAdmin.CompaniesLive, :index
-    end
-  end
-
-  scope "/", PhxplateWeb do
-    pipe_through [:browser]
-
-    delete "/users/log_out", UserSessionController, :delete
-
-    live_session :current_user,
-      on_mount: [{PhxplateWeb.UserAuth, :mount_current_user}] do
-      live "/users/confirm/:token", UserConfirmationLive, :edit
-      live "/users/confirm", UserConfirmationInstructionsLive, :new
     end
   end
 end

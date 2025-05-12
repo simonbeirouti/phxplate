@@ -181,7 +181,7 @@ defmodule Phxplate.Subscriptions do
   """
   def change_subscription_plan(%User{} = user, %Plan{} = plan) do
     case create_checkout_session(user, plan) do
-      {:ok, session} = result ->
+      {:ok, _session} = result ->
         # Track the plan change attempt
         Phxplate.Tracking.track_user_activity(
           "subscription_plan_change_initiated",
