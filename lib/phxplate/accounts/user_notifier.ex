@@ -76,4 +76,26 @@ defmodule Phxplate.Accounts.UserNotifier do
     ==============================
     """)
   end
+
+  @doc """
+  Deliver company invitation email.
+  """
+  def deliver_company_invitation(email, company, invitation_url) do
+    deliver(email, "Invitation to join #{company.name}", """
+
+    ==============================
+
+    Hi,
+
+    You have been invited to join #{company.name} on Phxplate.
+
+    You can accept this invitation by visiting the URL below:
+
+    #{invitation_url}
+
+    If you weren't expecting this invitation, you can safely ignore this email.
+
+    ==============================
+    """)
+  end
 end

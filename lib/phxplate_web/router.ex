@@ -2,6 +2,7 @@ defmodule PhxplateWeb.Router do
   use PhxplateWeb, :router
 
   import PhxplateWeb.UserAuth
+  import Phoenix.LiveView.Router
 
   pipeline :browser do
     plug :accepts, ["html"]
@@ -96,22 +97,22 @@ defmodule PhxplateWeb.Router do
       on_mount: [{PhxplateWeb.UserAuth, :redirect_if_user_is_authenticated}] do
       live "/register", UserRegistrationLive, :new
       live "/login", UserLoginLive, :new
-      live "/reset_password", UserForgotPasswordLive, :new
-      live "/reset_password/:token", UserResetPasswordLive, :edit
+      live "/reset-password", UserForgotPasswordLive, :new
+      live "/reset-password/:token", UserResetPasswordLive, :edit
     end
 
     post "/login", UserSessionController, :create
   end
 
   scope "/", PhxplateWeb do
-    pipe_through [:browser]
+    pipe_through [:browser, :require_authenticated_user]
 
-    delete "/logout", UserSessionController, :delete
+    delete "/users/log_out", UserSessionController, :delete
 
-    live_session :current_user,
-      on_mount: [{PhxplateWeb.UserAuth, :mount_current_user}] do
-      live "/confirm/:token", UserConfirmationLive, :edit
-      live "/confirm", UserConfirmationInstructionsLive, :new
+    live_session :require_authenticated_user,
+      on_mount: [{PhxplateWeb.UserAuth, :ensure_authenticated}] do
+      live "/users/settings", UserSettingsLive, :edit
+      live "/users/settings/confirm_email/:token", UserSettingsLive, :confirm_email
     end
   end
 
@@ -142,14 +143,15 @@ defmodule PhxplateWeb.Router do
         {PhxplateWeb.Live.Hooks.LayoutHooks, :default}
       ] do
       live "/", DashboardLive, :index
-      live "/profile", Dashboard.User.UserProfileLive, :index
-      live "/settings", Dashboard.User.UserSettingsLive, :edit
-      live "/billing", Dashboard.User.BillingLive, :index
-      live "/settings/confirm_email/:token", Dashboard.User.UserSettingsLive, :confirm_email
+      live "/account", Dashboard.User.UserAccountLive, :index
+      live "/account/confirm_email/:token", Dashboard.User.UserAccountLive, :confirm_email
+      live "/invites", Dashboard.User.InvitesLive, :index
+      live "/invites/:token", Dashboard.User.InvitesLive, :accept
 
       pipe_through [:basic]
       live "/basic", Dashboard.Basic.BasicLive, :index
       live "/basic/bookmarks", Dashboard.Basic.BookmarksLive, :index
+      live "/company/:id", Dashboard.Company.CompanyViewLive, :index
 
       pipe_through [:admin]
       live "/admin", Dashboard.Admin.AdminLive, :index
@@ -160,6 +162,18 @@ defmodule PhxplateWeb.Router do
       live "/super_admin", Dashboard.SuperAdmin.SuperAdminLive, :index
       live "/super_admin/users", Dashboard.SuperAdmin.UsersLive, :index
       live "/super_admin/companies", Dashboard.SuperAdmin.CompaniesLive, :index
+    end
+  end
+
+  scope "/", PhxplateWeb do
+    pipe_through [:browser]
+
+    delete "/users/log_out", UserSessionController, :delete
+
+    live_session :current_user,
+      on_mount: [{PhxplateWeb.UserAuth, :mount_current_user}] do
+      live "/users/confirm/:token", UserConfirmationLive, :edit
+      live "/users/confirm", UserConfirmationInstructionsLive, :new
     end
   end
 end

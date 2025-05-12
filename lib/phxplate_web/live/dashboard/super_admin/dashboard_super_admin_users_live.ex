@@ -1,10 +1,9 @@
 defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
   use PhxplateWeb, :live_view
   alias Phxplate.{Accounts, Repo}
-  alias PhxplateWeb.PageMeta
+  alias PhxplateWeb.{PageMeta, Components.ActivityTimelineComponent}
 
   def mount(_params, _session, socket) do
-    # Load available plans for the subscription management
     plans = Phxplate.Subscriptions.list_all_plans()
 
     socket =
@@ -43,21 +42,24 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
 
   def handle_event("select_user", %{"id" => user_id}, socket) do
     user = Accounts.get_user!(user_id) |> Repo.preload([:profile, :subscription])
-    {:noreply, assign(socket, selected_user: user)}
+    activities = Phxplate.Tracking.get_user_activities(user_id, 20)
+    {:noreply, assign(socket, selected_user: user, activities: activities)}
   end
 
   def handle_event("update_role", %{"role" => role, "user_id" => user_id}, socket) do
     role = String.to_existing_atom(role)
     user = Accounts.get_user!(user_id)
 
-    case Accounts.update_user(user, %{role: role}) do
+    case Accounts.update_user(user, %{role: role}, socket.assigns.current_user) do
       {:ok, updated_user} ->
         # Reload the user with associations
         updated_user = Repo.preload(updated_user, [:profile, :subscription])
+        activities = Phxplate.Tracking.get_user_activities(user_id, 20)
 
         socket =
           socket
           |> assign(:selected_user, updated_user)
+          |> assign(:activities, activities)
           |> load_users(socket.assigns.page)
           |> put_flash(:info, "User role updated successfully")
 
@@ -78,7 +80,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
          status = String.to_existing_atom(status) do
       result =
         if user.subscription do
-          Phxplate.Subscriptions.admin_update_subscription_status(user.subscription, status)
+          Phxplate.Subscriptions.admin_update_subscription_status(user.subscription, status, socket.assigns.current_user)
         else
           # Create a new subscription with basic tier if none exists
           Phxplate.Subscriptions.admin_create_subscription(user_id, :small, status)
@@ -88,10 +90,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
         {:ok, _subscription} ->
           # Reload the user to get the updated subscription
           updated_user = Accounts.get_user!(user_id) |> Repo.preload([:profile, :subscription])
+          activities = Phxplate.Tracking.get_user_activities(user_id, 20)
 
           socket =
             socket
             |> assign(:selected_user, updated_user)
+            |> assign(:activities, activities)
             |> load_users(socket.assigns.page)
             |> put_flash(:info, "Subscription status updated successfully")
 
@@ -112,24 +116,22 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
          tier = String.to_existing_atom(tier) do
       result =
         if user.subscription do
-          Phxplate.Subscriptions.admin_update_subscription_tier(user.subscription, tier)
+          Phxplate.Subscriptions.admin_update_subscription_tier(user.subscription, tier, socket.assigns.current_user)
         else
-          # Create a new subscription
-          Phxplate.Subscriptions.admin_create_subscription(
-            user_id,
-            tier,
-            if(tier == :none, do: :canceled, else: :active)
-          )
+          # Create a new subscription with the selected tier
+          Phxplate.Subscriptions.admin_create_subscription(user_id, tier, :active)
         end
 
       case result do
         {:ok, _subscription} ->
           # Reload the user to get the updated subscription
           updated_user = Accounts.get_user!(user_id) |> Repo.preload([:profile, :subscription])
+          activities = Phxplate.Tracking.get_user_activities(user_id, 20)
 
           socket =
             socket
             |> assign(:selected_user, updated_user)
+            |> assign(:activities, activities)
             |> load_users(socket.assigns.page)
             |> put_flash(:info, "Subscription tier updated successfully")
 
@@ -189,7 +191,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">
       <.header>
-        <h1>User Management</h1>
+        User Management
         <:subtitle>Manage users across the application</:subtitle>
       </.header>
 
@@ -495,28 +497,20 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
               </.tabs_content>
 
               <.tabs_content value="timeline">
-                <div class="space-y-4 p-4">
-                  <div>
-                    <h4 class="text-sm font-medium text-gray-500">Created</h4>
-                    <p class="mt-1">
-                      {Calendar.strftime(@selected_user.inserted_at, "%B %d, %Y at %I:%M %p")}
-                    </p>
-                  </div>
-                  <div>
-                    <h4 class="text-sm font-medium text-gray-500">Last Updated</h4>
-                    <p class="mt-1">
-                      {Calendar.strftime(@selected_user.updated_at, "%B %d, %Y at %I:%M %p")}
-                    </p>
-                  </div>
-                  <%= if @selected_user.confirmed_at do %>
-                    <div>
-                      <h4 class="text-sm font-medium text-gray-500">Email Confirmed</h4>
-                      <p class="mt-1">
-                        {Calendar.strftime(@selected_user.confirmed_at, "%B %d, %Y at %I:%M %p")}
-                      </p>
-                    </div>
-                  <% end %>
-                </div>
+                <%= if @selected_user do %>
+                  <.live_component
+                    module={ActivityTimelineComponent}
+                    id={"activity-timeline-#{@selected_user.id}"}
+                    activities={@activities}
+                    user_id={@selected_user.id}
+                    show_timestamps={true}
+                    timestamps={%{
+                      confirmed_at: @selected_user.confirmed_at,
+                      inserted_at: @selected_user.inserted_at,
+                      updated_at: @selected_user.updated_at
+                    }}
+                  />
+                <% end %>
               </.tabs_content>
             </.tabs>
           <% else %>

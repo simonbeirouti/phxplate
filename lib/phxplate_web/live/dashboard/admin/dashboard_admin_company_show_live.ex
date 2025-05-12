@@ -2,33 +2,81 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
   use PhxplateWeb, :live_view
 
   alias Phxplate.Companies
+  alias PhxplateWeb.Components.ActivityTimelineComponent
+  alias PhxplateWeb.Components.ImageUploadComponent
+  alias PhxplateWeb.Authorization
 
+  @impl true
+  def on_mount(:default, %{"id" => company_id}, _session, socket) do
+    case authorize_company(company_id, socket.assigns.current_user) do
+      {:ok, _company} -> {:cont, socket}
+      {:error, _reason} ->
+        {:halt,
+         socket
+         |> put_flash(:error, "You don't have access to this company")
+         |> redirect(to: ~p"/dashboard/admin/companies")}
+    end
+  end
+
+  def on_mount(:default, _params, _session, socket), do: {:cont, socket}
+
+  @impl true
   def mount(%{"id" => company_id}, _session, socket) do
-    company = Companies.get_company!(company_id)
-    employees = Companies.get_company_employees(company)
+    case authorize_company(company_id, socket.assigns.current_user) do
+      {:ok, company} ->
+        employees = Companies.get_company_employees(company)
+        activities = Phxplate.Tracking.get_company_activities(company_id)
+        pending_invitations = Companies.list_pending_invitations(company)
 
-    {:ok,
-     assign(socket,
-       page_title: "#{company.name} Details",
-       page_description: "Company details and employee management",
-       company: company,
-       form:
-         to_form(%{
-           "name" => company.name,
-           "email" => company.email,
-           "phone" => company.phone,
-           "website" => company.website,
-           "plan" => company.plan,
-           "address" => company.address,
-           "description" => company.description
-         }),
-       employees: employees,
-       show_edit_modal: false,
-       selected_employee: nil,
-       confirming_delete: MapSet.new(),
-       invite_email: "",
-       form_changed: false
-     )}
+        {:ok,
+         assign(socket,
+           page_title: "#{company.name} Details",
+           page_description: "Company details and employee management",
+           company: company,
+           form:
+             to_form(%{
+               "name" => company.name,
+               "email" => company.email,
+               "phone" => company.phone,
+               "website" => company.website,
+               "plan" => company.plan,
+               "address" => company.address,
+               "description" => company.description,
+               "logo" => company.logo
+             }),
+           employees: employees,
+           activities: activities,
+           show_edit_modal: false,
+           selected_employee: nil,
+           confirming_delete: MapSet.new(),
+           invite_email: "",
+           form_changed: false,
+           pending_invitations: pending_invitations
+         )}
+
+      {:error, _reason} ->
+        {:ok,
+         socket
+         |> put_flash(:error, "You don't have access to this company")
+         |> redirect(to: ~p"/dashboard/admin/companies")}
+    end
+  end
+
+  defp authorize_company(company_id, user) do
+    with {:ok, id} <- parse_id(company_id),
+         %Companies.Company{} = company <- Companies.get_company!(id),
+         true <- Authorization.is_company_owner?(company, user) do
+      {:ok, company}
+    else
+      _ -> {:error, :unauthorized}
+    end
+  end
+
+  defp parse_id(id) do
+    case Integer.parse(id) do
+      {id, ""} -> {:ok, id}
+      _ -> :error
+    end
   end
 
   def handle_event("validate_company", params, socket) do
@@ -39,7 +87,8 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
       "website" => socket.assigns.company.website,
       "plan" => socket.assigns.company.plan,
       "address" => socket.assigns.company.address,
-      "description" => socket.assigns.company.description
+      "description" => socket.assigns.company.description,
+      "logo" => socket.assigns.company.logo
     }
 
     form_changed = params != form_data
@@ -51,11 +100,14 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
   end
 
   def handle_event("save_company", params, socket) do
-    case Companies.update_company(socket.assigns.company, params) do
+    case Companies.update_company(socket.assigns.company, params, socket.assigns.current_user) do
       {:ok, company} ->
+        activities = Phxplate.Tracking.get_company_activities(company.id)
+
         {:noreply,
          socket
          |> assign(:company, company)
+         |> assign(:activities, activities)
          |> assign(
            :form,
            to_form(%{
@@ -65,7 +117,8 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
              "website" => company.website,
              "plan" => company.plan,
              "address" => company.address,
-             "description" => company.description
+             "description" => company.description,
+             "logo" => company.logo
            })
          )
          |> assign(:form_changed, false)
@@ -76,6 +129,41 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
          socket
          |> assign(:form, to_form(changeset))
          |> put_flash(:error, "Error updating company.")}
+    end
+  end
+
+  def handle_info({:image_uploaded, %{type: :logo, url: url}}, socket) do
+    case Companies.update_company(
+           socket.assigns.company,
+           %{"logo" => url},
+           socket.assigns.current_user
+         ) do
+      {:ok, company} ->
+        activities = Phxplate.Tracking.get_company_activities(company.id)
+
+        {:noreply,
+         socket
+         |> assign(:company, company)
+         |> assign(:activities, activities)
+         |> assign(
+           :form,
+           to_form(%{
+             "name" => company.name,
+             "email" => company.email,
+             "phone" => company.phone,
+             "website" => company.website,
+             "plan" => company.plan,
+             "address" => company.address,
+             "description" => company.description,
+             "logo" => company.logo
+           })
+         )
+         |> put_flash(:info, "Company logo updated successfully.")}
+
+      {:error, _changeset} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to update company logo.")}
     end
   end
 
@@ -91,7 +179,8 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
          "website" => socket.assigns.company.website,
          "plan" => socket.assigns.company.plan,
          "address" => socket.assigns.company.address,
-         "description" => socket.assigns.company.description
+         "description" => socket.assigns.company.description,
+         "logo" => socket.assigns.company.logo
        })
      )
      |> assign(:form_changed, false)}
@@ -102,12 +191,45 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     {:noreply, assign(socket, show_edit_modal: true, selected_employee: employee)}
   end
 
-  def handle_event("send_invite", %{"email" => email}, socket) do
-    # TODO: Implement actual email invitation logic here
+  def handle_event("open_invite_dialog", _params, socket) do
     {:noreply,
      socket
-     |> put_flash(:info, "Invitation sent to #{email}")
-     |> assign(:invite_email, "")}
+     |> assign(:invite_email, "")
+     |> push_event("reset-form", %{id: "invite-form"})}
+  end
+
+  def handle_event("send_invite", %{"email" => email}, socket) do
+    case Companies.invite_to_company(socket.assigns.company, email, socket.assigns.current_user) do
+      {:ok, _invitation} ->
+        activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
+
+        {:noreply,
+         socket
+         |> assign(:activities, activities)
+         |> assign(:invite_email, "")
+         |> push_event("reset-form", %{id: "invite-form"})
+         |> put_flash(:info, "Invitation sent successfully to #{email}")
+         |> push_event("hide-modal", %{id: "invite-user-dialog"})}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        error_message =
+          case changeset.errors do
+            [{:email, {msg, _}}] -> msg
+            [{:company_id, {msg, _}}] -> msg
+            _ -> "Failed to send invitation. Please try again."
+          end
+
+        {:noreply,
+         socket
+         |> put_flash(:error, error_message)
+         |> assign(:invite_email, email)}
+
+      {:error, _reason} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to send invitation. Please try again.")
+         |> assign(:invite_email, email)}
+    end
   end
 
   def handle_event("delete_employee", %{"id" => employee_id}, socket) do
@@ -117,23 +239,27 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     if MapSet.member?(socket.assigns.confirming_delete, employee_id) do
       employee = Enum.find(socket.assigns.employees, &(&1.id == employee_id))
 
-      case Companies.delete_employee(employee) do
-        {:ok, _} ->
+      case Companies.delete_employee(employee, socket.assigns.current_user) do
+        {:ok, _deleted_employee} ->
           employees = Companies.get_company_employees(socket.assigns.company)
+          activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
 
           {:noreply,
            socket
+           |> assign(:employees, employees)
+           |> assign(:activities, activities)
            |> assign(
-             confirming_delete: MapSet.delete(socket.assigns.confirming_delete, employee_id)
+             :confirming_delete,
+             MapSet.delete(socket.assigns.confirming_delete, employee_id)
            )
-           |> put_flash(:info, "Employee deleted successfully.")
-           |> assign(employees: employees)}
+           |> put_flash(:info, "Employee deleted successfully.")}
 
-        {:error, _} ->
+        {:error, _changeset} ->
           {:noreply,
            socket
            |> assign(
-             confirming_delete: MapSet.delete(socket.assigns.confirming_delete, employee_id)
+             :confirming_delete,
+             MapSet.delete(socket.assigns.confirming_delete, employee_id)
            )
            |> put_flash(:error, "Could not delete employee.")}
       end
@@ -145,11 +271,33 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     end
   end
 
+  def handle_event("cancel_invitation", %{"id" => invitation_id}, socket) do
+    invitation_id = String.to_integer(invitation_id)
+    invitation = Enum.find(socket.assigns.pending_invitations, &(&1.id == invitation_id))
+
+    case Companies.delete_invitation(invitation) do
+      {:ok, _deleted_invitation} ->
+        pending_invitations = Companies.list_pending_invitations(socket.assigns.company)
+        activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
+
+        {:noreply,
+         socket
+         |> assign(:pending_invitations, pending_invitations)
+         |> assign(:activities, activities)
+         |> put_flash(:info, "Invitation canceled successfully.")}
+
+      {:error, _reason} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Could not cancel invitation.")}
+    end
+  end
+
   def render(assigns) do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">
       <.header>
-        <h2 class="text-2xl font-semibold text-gray-900">{@company.name}</h2>
+        {@company.name}
         <:subtitle>
           {@company.description}
         </:subtitle>
@@ -164,7 +312,14 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
 
         <.tabs_content value="profile" class="h-[calc(100vh-250px)]">
           <div class="space-y-4 p-4">
-            <img src={@company.logo} alt="Company Logo" class="w-24 h-24" />
+            <div class="flex justify-center">
+              <.live_component
+                module={ImageUploadComponent}
+                id="company-logo"
+                type={:logo}
+                image_url={@form[:logo].value}
+              />
+            </div>
             <.form
               for={@form}
               phx-change="validate_company"
@@ -217,6 +372,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
               <.table>
                 <.table_header>
                   <.table_row>
+                    <.table_head>Photo</.table_head>
                     <.table_head>Name</.table_head>
                     <.table_head>Email</.table_head>
                     <.table_head>Phone</.table_head>
@@ -228,6 +384,15 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                 <.table_body>
                   <%= for employee <- @employees do %>
                     <.table_row>
+                      <.table_cell>
+                        <div class="flex items-center gap-2">
+                          <img
+                            src={employee.profile.avatar_url || "/images/default-avatar.svg"}
+                            alt="Employee avatar"
+                            class="w-12 h-12 rounded-full bg-gray-200"
+                          />
+                        </div>
+                      </.table_cell>
                       <.table_cell class="font-medium">
                         {employee.first_name} {employee.last_name}
                       </.table_cell>
@@ -250,6 +415,28 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                       </.table_cell>
                     </.table_row>
                   <% end %>
+                  <%= for invitation <- @pending_invitations do %>
+                    <.table_row class="bg-black/10">
+                      <.table_cell class="font-medium">
+                        <div class="flex items-center gap-2">
+                          <span class="text-sm text-gray-700">Pending Invite</span>
+                        </div>
+                      </.table_cell>
+                      <.table_cell>{invitation.email}</.table_cell>
+                      <.table_cell>N/A</.table_cell>
+                      <.table_cell>N/A</.table_cell>
+                      <.table_cell>N/A</.table_cell>
+                      <.table_cell class="text-right">
+                        <.button
+                          variant="destructive"
+                          phx-click="cancel_invitation"
+                          phx-value-id={invitation.id}
+                        >
+                          Cancel Invitation
+                        </.button>
+                      </.table_cell>
+                    </.table_row>
+                  <% end %>
                 </.table_body>
               </.table>
               <div class="w-1/4">
@@ -259,6 +446,28 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
 
             <div class="lg:hidden space-y-4" class="h-[calc(100vh-250px)]">
               <.invite_user_dialog invite_email={@invite_email} />
+              <%= for invitation <- @pending_invitations do %>
+                <div class="bg-gray-100/80 rounded-lg p-4 relative">
+                  <div class="flex justify-between items-center">
+                    <div>
+                      <span class="text-sm font-medium text-gray-700">Pending Invitation:</span>
+                      <span class="text-sm text-gray-600">{invitation.email}</span>
+                    </div>
+                    <div
+                      class="group relative"
+                      phx-click="cancel_invitation"
+                      phx-value-id={invitation.id}
+                    >
+                      <.button
+                        variant="destructive"
+                        class="opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        Cancel Invitation
+                      </.button>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
               <%= for employee <- @employees do %>
                 <div class="bg-white shadow rounded-lg p-4">
                   <div class="flex justify-between items-start mb-4">
@@ -317,20 +526,19 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
         </.tabs_content>
 
         <.tabs_content value="timeline">
-          <div class="space-y-4 p-4">
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">Created</h4>
-              <p class="mt-1">
-                {Calendar.strftime(@company.inserted_at, "%B %d, %Y at %I:%M %p")}
-              </p>
-            </div>
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">Last Updated</h4>
-              <p class="mt-1">
-                {Calendar.strftime(@company.updated_at, "%B %d, %Y at %I:%M %p")}
-              </p>
-            </div>
-          </div>
+          <.live_component
+            module={ActivityTimelineComponent}
+            id={"activity-timeline-#{@company.id}"}
+            activities={@activities}
+            company_id={@company.id}
+            show_timestamps={true}
+            timestamps={
+              %{
+                inserted_at: @company.inserted_at,
+                updated_at: @company.updated_at
+              }
+            }
+          />
         </.tabs_content>
       </.tabs>
     </div>
@@ -341,13 +549,20 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     assigns = assign_new(assigns, :invite_email, fn -> "" end)
 
     ~H"""
-    <div class="mt-4">
-      <.button class="w-full" variant="outline" phx-click={JS.show(to: "#invite-user-dialog")}>
+    <div class="mt-4" id="invite-user-container" phx-hook="Modal">
+      <.button
+        class="w-full"
+        variant="outline"
+        phx-click={
+          JS.push("open_invite_dialog")
+          |> JS.show(to: "#invite-user-dialog")
+        }
+      >
         <Lucideicons.plus class="w-4 h-4 mr-2" /> Invite User
       </.button>
-      <.dialog id="invite-user-dialog" show={false}>
+      <.dialog id="invite-user-dialog" show={false} on_cancel={JS.hide(to: "#invite-user-dialog")}>
         <div class="relative grid gap-4 border-none p-2">
-          <form phx-submit="send_invite" class="space-y-4">
+          <form id="invite-form" phx-submit="send_invite" class="space-y-4" phx-hook="ResetForm">
             <div class="flex flex-col">
               <.label for="email">
                 Email

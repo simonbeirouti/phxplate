@@ -16,7 +16,27 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
   defp assign_layout_data(socket) do
     current_user = socket.assigns.current_user
     current_user = Phxplate.Repo.preload(current_user, [:profile])
-    companies = Phxplate.Companies.list_companies_by_owner(current_user.id)
+
+    # Get companies owned by user
+    owned_companies = Phxplate.Companies.list_companies_by_owner(current_user.id)
+
+    # Get companies where user is an employee
+    employee_companies = Phxplate.Companies.list_companies_by_employee(current_user.email)
+
+    # Combine and format all companies
+    owned_company_ids = MapSet.new(owned_companies, & &1.id)
+
+    all_companies = (owned_companies ++ employee_companies)
+    |> Enum.uniq_by(&(&1.id))
+    |> Enum.map(fn company ->
+      %{
+        id: company.id,
+        name: company.name,
+        plan: company.plan,
+        logo: company.logo || &Lucideicons.building/1,
+        is_owner: MapSet.member?(owned_company_ids, company.id)
+      }
+    end)
 
     all_nav_items = [
       %{
@@ -124,7 +144,7 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
         }
       ],
       navMain: nav_main,
-      projects: companies
+      projects: all_companies
     }
 
     assign(socket, layout_data: layout_data)

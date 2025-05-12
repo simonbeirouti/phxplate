@@ -20,7 +20,7 @@ defmodule Phxplate.Companies.Company do
   end
 
   @doc false
-  def changeset(company, attrs) do
+  def changeset(company, attrs, _actor \\ nil) do
     company
     |> cast(attrs, [:name, :description, :address, :phone, :email, :plan, :logo, :website, :owner_id])
     |> validate_required([:name, :owner_id])

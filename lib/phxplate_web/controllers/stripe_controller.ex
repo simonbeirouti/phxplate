@@ -1,7 +1,7 @@
 defmodule PhxplateWeb.StripeController do
   use PhxplateWeb, :controller
   require Logger
-  
+
   alias Phxplate.Repo
   alias Phxplate.Accounts
   alias Phxplate.Subscriptions
@@ -122,7 +122,7 @@ defmodule PhxplateWeb.StripeController do
     with {:ok, stripe_subscription} <- Stripe.Subscription.retrieve(subscription_id, []),
          {:ok, price} <- get_price_from_subscription(stripe_subscription),
          {:ok, plan} <- get_plan_by_stripe_price_id(price.id) do
-      
+
       # Check if user already has a subscription
       case Subscriptions.get_user_subscription(user_id) do
         %Subscription{stripe_subscription_id: old_subscription_id} = existing_subscription when not is_nil(old_subscription_id) ->
@@ -133,7 +133,7 @@ defmodule PhxplateWeb.StripeController do
             Logger.info("Canceling old subscription #{old_subscription_id} for user #{user_id}")
             Stripe.Subscription.update(old_subscription_id, %{cancel_at_period_end: true})
           end
-          
+
           # Update the subscription record with the new subscription ID
           {:ok, _updated} = Subscriptions.update_subscription(existing_subscription, %{
             stripe_subscription_id: subscription_id,
@@ -143,10 +143,10 @@ defmodule PhxplateWeb.StripeController do
             plan_id: plan.id,
             paid_tier: plan.metadata["tier"]
           })
-          
+
           Logger.info("Updated subscription for user #{user_id} to plan #{plan.id}")
           :ok
-          
+
         _ ->
           # New subscription - create a new subscription record
           {:ok, _subscription} = create_subscription_for_user(user_id, customer_id, stripe_subscription, plan)
@@ -208,11 +208,11 @@ defmodule PhxplateWeb.StripeController do
   # Helper function to handle subscription updates
   defp handle_subscription_update(%Stripe.Subscription{id: subscription_id, customer: customer_id} = stripe_subscription) do
     status = subscription_status_from_stripe(stripe_subscription.status)
-    
+
     with {:ok, price} <- get_price_from_subscription(stripe_subscription),
          {:ok, plan} <- get_plan_by_stripe_price_id(price.id),
          {:ok, subscription} <- Subscriptions.get_subscription_by_stripe_id(subscription_id) do
-      
+
       Subscriptions.update_subscription(subscription, %{
         subscription_status: status,
         subscription_period_end: DateTime.from_unix!(stripe_subscription.current_period_end),
@@ -240,7 +240,7 @@ defmodule PhxplateWeb.StripeController do
   # Helper to create or update a subscription
   defp create_or_update_subscription(user_id, customer_id, stripe_subscription, plan) do
     status = subscription_status_from_stripe(stripe_subscription.status)
-    
+
     case Subscriptions.get_user_subscription(user_id) do
       nil ->
         # Create new subscription
@@ -261,7 +261,7 @@ defmodule PhxplateWeb.StripeController do
   # Helper to create a new subscription for a user
   defp create_subscription_for_user(user_id, customer_id, stripe_subscription, plan) do
     status = subscription_status_from_stripe(stripe_subscription.status)
-    
+
     Subscriptions.create_subscription(%{
       user_id: user_id,
       stripe_customer_id: customer_id,
@@ -333,20 +333,20 @@ defmodule PhxplateWeb.StripeController do
       {:ok, session} ->
         # Process the successful checkout session
         process_successful_checkout(session)
-        Phoenix.Controller.redirect(conn, to: "/dashboard/billing?success=true")
+        Phoenix.Controller.redirect(conn, to: "/dashboard/account?status=success")
       {:error, error} ->
         Logger.error("Failed to retrieve checkout session: #{inspect(error)}")
-        Phoenix.Controller.redirect(conn, to: "/dashboard/billing?error=true")
+        Phoenix.Controller.redirect(conn, to: "/dashboard/account?status=error")
     end
   end
 
   # Process a successful checkout session
   defp process_successful_checkout(session) do
     Logger.info("Processing successful checkout: #{inspect(session.id)}")
-    
+
     # Get the user ID from the client_reference_id
     user_id = String.to_integer(session.client_reference_id)
-    
+
     # If this is a subscription checkout, retrieve the subscription
     if session.subscription do
       case Stripe.Subscription.retrieve(session.subscription) do
@@ -354,17 +354,17 @@ defmodule PhxplateWeb.StripeController do
           # Get the plan from the subscription
           [subscription_item | _] = subscription.items.data
           price_id = subscription_item.price.id
-          
+
           # Find the plan by stripe_price_id
           plan = Repo.get_by(Plan, stripe_price_id: price_id)
-          
+
           if plan do
             # Create or update the subscription
             create_or_update_subscription(user_id, session.customer, subscription, plan)
           else
             Logger.error("Plan not found for price_id: #{price_id}")
           end
-        
+
         {:error, error} ->
           Logger.error("Failed to retrieve subscription: #{inspect(error)}")
       end
@@ -373,23 +373,23 @@ defmodule PhxplateWeb.StripeController do
 
   def cancel(conn, _params) do
     # Redirect to billing page after canceled checkout
-    Phoenix.Controller.redirect(conn, to: "/dashboard/billing?canceled=true")
+    Phoenix.Controller.redirect(conn, to: "/dashboard/account?status=canceled")
   end
 
   # Controller action for webhook
   def webhook(conn, _params) do
     {:ok, body, _conn} = Plug.Conn.read_body(conn)
     signature = Plug.Conn.get_req_header(conn, "stripe-signature") |> List.first()
-    
+
     secret = Application.get_env(:phxplate, :stripe)[:webhook_secret]
     Logger.info("Processing Stripe webhook with signature: #{signature}")
-    
+
     case Stripe.Webhook.construct_event(body, signature, secret) do
       {:ok, event} ->
         Logger.info("Successfully verified Stripe webhook: #{event.type}")
         handle_event(event)
         Plug.Conn.send_resp(conn, 200, "")
-        
+
       {:error, reason} ->
         Logger.error("Failed to verify webhook: #{inspect(reason)}")
         Plug.Conn.send_resp(conn, 400, "")

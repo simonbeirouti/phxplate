@@ -30,7 +30,6 @@ defmodule Phxplate.Repo.Migrations.CreateCompaniesAndEmployees do
     end
 
     create index(:employees, [:company_id])
-    create unique_index(:employees, [:email])
     create index(:companies, [:owner_id])
   end
 end
