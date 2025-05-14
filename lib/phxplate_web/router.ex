@@ -110,6 +110,7 @@ defmodule PhxplateWeb.Router do
     delete "/logout", UserSessionController, :delete
 
     live_session :current_user,
+      layout: {PhxplateWeb.Layouts, :auth},
       on_mount: [{PhxplateWeb.UserAuth, :mount_current_user}] do
       live "/confirm/:token", UserConfirmationLive, :edit
       live "/confirm", UserConfirmationInstructionsLive, :new

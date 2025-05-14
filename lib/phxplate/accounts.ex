@@ -338,9 +338,14 @@ defmodule Phxplate.Accounts do
   end
 
   defp confirm_user_multi(user) do
+    changeset = User.confirm_changeset(user)
+
     Ecto.Multi.new()
-    |> Ecto.Multi.update(:user, User.confirm_changeset(user))
+    |> Ecto.Multi.update(:user, changeset)
     |> Ecto.Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, ["confirm"]))
+    |> Ecto.Multi.run(:activity, fn _repo, %{user: confirmed_user} ->
+      {:ok, Phxplate.Tracking.track_user_activity("account_confirmed", confirmed_user, confirmed_user)}
+    end)
   end
 
   ## Reset password
