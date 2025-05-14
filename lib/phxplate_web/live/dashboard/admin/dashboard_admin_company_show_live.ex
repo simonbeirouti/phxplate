@@ -235,6 +235,39 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
      |> assign(:activities, activities)}
   end
 
+  # Handle global profile creation events
+  def handle_info({:created, %{type: :profile, profile: new_profile, global_scope: true}}, socket) do
+    updated_employees = Enum.map(socket.assigns.employees, fn employee ->
+      # If employee is linked by user_id and this new_profile is for that user
+      if employee.profile_id == nil && employee.user_id == new_profile.user_id do
+        %{employee | profile: new_profile, profile_id: new_profile.id}
+      else
+        employee
+      end
+    end)
+    {:noreply, assign(socket, :employees, updated_employees)}
+  end
+
+  # Handle global profile update events that CompanyShowLive might receive
+  def handle_info({:updated, %{type: :profile, profile: updated_profile, global_scope: true}}, socket) do
+    updated_employees = Enum.map(socket.assigns.employees, fn employee ->
+      cond do
+        # Profile exists and IDs match
+        employee.profile && employee.profile.id == updated_profile.id ->
+          %{employee | profile: updated_profile}
+        # Profile was nil, but profile_id matches (should ideally not happen if preloaded correctly but good fallback)
+        !employee.profile && employee.profile_id == updated_profile.id ->
+           %{employee | profile: updated_profile}
+        # Employee is linked by user_id and this updated_profile is for that user
+        employee.user_id == updated_profile.user_id ->
+           %{employee | profile: updated_profile, profile_id: updated_profile.id}
+        true ->
+          employee
+      end
+    end)
+    {:noreply, assign(socket, :employees, updated_employees)}
+  end
+
   defp authorize_company(company_id, user) do
     with {:ok, id} <- parse_id(company_id),
          %Companies.Company{} = company <- Companies.get_company!(id),

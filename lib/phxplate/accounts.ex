@@ -484,7 +484,7 @@ defmodule Phxplate.Accounts do
         # Broadcast profile creation
         DataSync.broadcast("profiles", user.id, {:created, %{type: :profile, profile: profile}})
         # Also broadcast to "all" topic for global updates
-        DataSync.broadcast("profiles", "all", {:created, %{type: :profile, profile: profile}})
+        DataSync.broadcast("profiles", "all", {:created, %{type: :profile, profile: profile, global_scope: true}})
         result
       error -> error
     end
@@ -511,7 +511,7 @@ defmodule Phxplate.Accounts do
         # Broadcast profile update
         DataSync.broadcast("profiles", profile.user_id, {:updated, %{type: :profile, profile: updated_profile}})
         # Also broadcast to "all" topic for global updates
-        DataSync.broadcast("profiles", "all", {:updated, %{type: :profile, profile: updated_profile}})
+        DataSync.broadcast("profiles", "all", {:updated, %{type: :profile, profile: updated_profile, global_scope: true}})
         result
       error -> error
     end
@@ -587,7 +587,7 @@ defmodule Phxplate.Accounts do
         event_type = if profile.id, do: :updated, else: :created
         DataSync.broadcast("profiles", user.id, {event_type, %{type: :profile, profile: updated_profile}})
         # Also broadcast to "all" topic for global updates
-        DataSync.broadcast("profiles", "all", {event_type, %{type: :profile, profile: updated_profile}})
+        DataSync.broadcast("profiles", "all", {event_type, %{type: :profile, profile: updated_profile, global_scope: true}})
         result
       error -> error
     end

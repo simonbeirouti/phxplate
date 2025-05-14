@@ -200,6 +200,55 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
     end
   end
 
+  @impl true
+  def handle_info({:created, %{type: :profile, profile: new_profile, global_scope: true}}, socket) do
+    current_users = socket.assigns.users
+    current_selected_user = socket.assigns.selected_user
+
+    updated_users = Enum.map(current_users, fn user_in_list ->
+      if user_in_list.id == new_profile.user_id do
+        %{user_in_list | profile: new_profile}
+      else
+        user_in_list
+      end
+    end)
+
+    updated_selected_user =
+      if current_selected_user && current_selected_user.id == new_profile.user_id do
+        # Ensure we are creating a new map for selected_user to help LiveView detect the change.
+        # Preloading should be handled when the user is initially selected or list is loaded.
+        Map.put(current_selected_user, :profile, new_profile)
+      else
+        current_selected_user
+      end
+
+    {:noreply, assign(socket, users: updated_users, selected_user: updated_selected_user)}
+  end
+
+  @impl true
+  def handle_info({:updated, %{type: :profile, profile: updated_profile, global_scope: true}}, socket) do
+    current_users = socket.assigns.users
+    current_selected_user = socket.assigns.selected_user
+
+    updated_users = Enum.map(current_users, fn user_in_list ->
+      if user_in_list.id == updated_profile.user_id do
+        %{user_in_list | profile: updated_profile}
+      else
+        user_in_list
+      end
+    end)
+
+    updated_selected_user =
+      if current_selected_user && current_selected_user.id == updated_profile.user_id do
+        # Ensure we are creating a new map for selected_user.
+        Map.put(current_selected_user, :profile, updated_profile)
+      else
+        current_selected_user
+      end
+
+    {:noreply, assign(socket, users: updated_users, selected_user: updated_selected_user)}
+  end
+
   def handle_event("paginate", %{"page" => page}, socket) do
     page = String.to_integer(page)
     {:noreply, load_users(socket, page)}

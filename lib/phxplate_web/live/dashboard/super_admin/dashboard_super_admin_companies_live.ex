@@ -84,14 +84,36 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
     end
   end
 
-  def handle_info({:created, %{type: :employee, employee: employee}}, socket) do
-    if socket.assigns.selected_company && employee.company_id == socket.assigns.selected_company.id do
-      # Update the selected company's employees list by adding the new employee
-      socket = update(socket, :selected_company, fn company ->
-        %{company | employees: [employee | company.employees]}
+  def handle_info({:created, %{type: :employee, employee: new_employee}}, socket) do
+    selected_company = socket.assigns.selected_company
+
+    if selected_company && new_employee.company_id == selected_company.id do
+      # Check if the employee already exists in the selected company's list
+      is_present = Enum.any?(selected_company.employees, fn existing_employee ->
+        existing_employee.id == new_employee.id
       end)
-      {:noreply, socket}
+
+      if is_present do
+        # Employee already in the list for the selected company, do nothing.
+        {:noreply, socket}
+      else
+        # Add the new employee to the selected company's employee list
+        updated_selected_company =
+          %{selected_company | employees: [new_employee | selected_company.employees]}
+
+        # Also update the main companies list if the selected company is in it
+        updated_companies_list = Enum.map(socket.assigns.companies, fn company_in_list ->
+          if company_in_list.id == updated_selected_company.id do
+            updated_selected_company
+          else
+            company_in_list
+          end
+        end)
+
+        {:noreply, assign(socket, selected_company: updated_selected_company, companies: updated_companies_list)}
+      end
     else
+      # Event is not for the currently selected company, or no company selected.
       {:noreply, socket}
     end
   end

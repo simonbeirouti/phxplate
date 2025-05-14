@@ -106,6 +106,7 @@ defmodule Phxplate.Companies do
       {:ok, employee} = result ->
         # Broadcast employee creation
         DataSync.broadcast("employees", employee.company_id, {:created, %{type: :employee, employee: employee}})
+        DataSync.broadcast("employees", "all", {:created, %{type: :employee, employee: employee, global_scope: true}})
         result
       error -> error
     end
@@ -146,7 +147,7 @@ defmodule Phxplate.Companies do
         )
         # Also broadcast to the all topic
         DataSync.broadcast("employees", "all",
-          {:deleted, %{type: :employee, employee: deleted_employee}}
+          {:deleted, %{type: :employee, employee: deleted_employee, global_scope: true}}
         )
         result
       error -> error
@@ -320,7 +321,7 @@ defmodule Phxplate.Companies do
               {:created, %{type: :employee, employee: employee}}
             )
             DataSync.broadcast("employees", "all",
-              {:created, %{type: :employee, employee: employee}}
+              {:created, %{type: :employee, employee: employee, global_scope: true}}
             )
 
             employee

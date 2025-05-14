@@ -32,27 +32,19 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
      )}
   end
 
-  # Handle employee creation
-  def handle_info({:created, %{type: :employee, employee: _employee}}, socket) do
+  # Handle employee creation - only global scope
+  def handle_info({:created, %{type: :employee, employee: _employee, global_scope: true}}, socket) do
     {:noreply,
      update(socket, :stats, fn stats ->
-       %{stats | total_employees: stats.total_employees + 1}
+       %{stats | total_employees: Companies.count_employees()}
      end)}
   end
 
-  # Handle employee deletion with full employee data
-  def handle_info({:deleted, %{type: :employee, employee: _employee}}, socket) do
+  # Handle employee deletion with full employee data - only global scope
+  def handle_info({:deleted, %{type: :employee, employee: _employee, global_scope: true}}, socket) do
     {:noreply,
      update(socket, :stats, fn stats ->
-       %{stats | total_employees: stats.total_employees - 1}
-     end)}
-  end
-
-  # Handle employee deletion with just ID
-  def handle_info({:deleted, %{type: :employee, id: _employee_id}}, socket) do
-    {:noreply,
-     update(socket, :stats, fn stats ->
-       %{stats | total_employees: stats.total_employees - 1}
+       %{stats | total_employees: Companies.count_employees()}
      end)}
   end
 
