@@ -181,7 +181,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
                         <div class="py-4">
                           <div class="flex items-center justify-between">
                             <div>
-                              <p class="font-medium">{employee.first_name} {employee.last_name}</p>
+                              <p class="font-medium">{employee.profile.first_name} {employee.profile.last_name}</p>
                               <p class="text-sm text-gray-500">{employee.email}</p>
                               <p class="text-sm text-gray-500">Position: {employee.position}</p>
                               <p class="text-sm text-gray-500">Department: {employee.department}</p>

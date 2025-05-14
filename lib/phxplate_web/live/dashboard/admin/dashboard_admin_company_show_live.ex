@@ -397,10 +397,10 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                         </div>
                       </.table_cell>
                       <.table_cell class="font-medium">
-                        {employee.first_name} {employee.last_name}
+                        {employee.profile.first_name} {employee.profile.last_name}
                       </.table_cell>
                       <.table_cell>{employee.email}</.table_cell>
-                      <.table_cell>{employee.phone || "N/A"}</.table_cell>
+                      <.table_cell>{employee.profile.phone || "N/A"}</.table_cell>
                       <.table_cell>{employee.position || "N/A"}</.table_cell>
                       <.table_cell>{employee.department || "N/A"}</.table_cell>
                       <.table_cell class="text-right">
@@ -475,7 +475,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                 <div class="bg-white shadow rounded-lg p-4">
                   <div class="flex justify-between items-start mb-4">
                     <div>
-                      <h3 class="text-lg font-medium">{employee.first_name} {employee.last_name}</h3>
+                      <h3 class="text-lg font-medium">{employee.profile.first_name} {employee.profile.last_name}</h3>
                       <p class="text-sm text-gray-500">{employee.position || "No position"}</p>
                     </div>
 
@@ -515,7 +515,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                     </div>
                     <div>
                       <dt class="text-gray-500">Phone</dt>
-                      <dd>{employee.phone || "N/A"}</dd>
+                      <dd>{employee.profile.phone || "N/A"}</dd>
                     </div>
                     <div>
                       <dt class="text-gray-500">Department</dt>

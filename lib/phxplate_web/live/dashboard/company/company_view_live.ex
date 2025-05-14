@@ -104,13 +104,13 @@ defmodule PhxplateWeb.Dashboard.Company.CompanyViewLive do
                 <div class="flex-shrink-0">
                   <img
                     src={if employee.profile, do: employee.profile.avatar_url || "/images/default-avatar.svg", else: "/images/default-avatar.svg"}
-                    alt={employee.first_name}
+                    alt={employee.profile.first_name}
                     class="w-10 h-10 rounded-full bg-gray-100"
                   />
                 </div>
                 <div>
                   <div class="text-sm font-medium text-gray-900">
-                    <%= employee.first_name %> <%= employee.last_name %>
+                    <%= employee.profile.first_name %> <%= employee.profile.last_name %>
                   </div>
                   <div class="text-sm text-gray-500">
                     <%= employee.email %>
