@@ -5,6 +5,8 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
   alias PhxplateWeb.Components.ActivityTimelineComponent
   alias PhxplateWeb.Components.ImageUploadComponent
   alias PhxplateWeb.Authorization
+  alias Phxplate.PubSub.DataSync
+  alias Phxplate.Repo
 
   @impl true
   def on_mount(:default, %{"id" => company_id}, _session, socket) do
@@ -22,37 +24,47 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
 
   @impl true
   def mount(%{"id" => company_id}, _session, socket) do
+    if connected?(socket) do
+      DataSync.subscribe("companies", company_id)
+      DataSync.subscribe("employees", company_id)
+      DataSync.subscribe("invitations", company_id)
+    end
+
     case authorize_company(company_id, socket.assigns.current_user) do
       {:ok, company} ->
         employees = Companies.get_company_employees(company)
         activities = Phxplate.Tracking.get_company_activities(company_id)
         pending_invitations = Companies.list_pending_invitations(company)
 
-        {:ok,
-         assign(socket,
-           page_title: "#{company.name} Details",
-           page_description: "Company details and employee management",
-           company: company,
-           form:
-             to_form(%{
-               "name" => company.name,
-               "email" => company.email,
-               "phone" => company.phone,
-               "website" => company.website,
-               "plan" => company.plan,
-               "address" => company.address,
-               "description" => company.description,
-               "logo" => company.logo
-             }),
-           employees: employees,
-           activities: activities,
-           show_edit_modal: false,
-           selected_employee: nil,
-           confirming_delete: MapSet.new(),
-           invite_email: "",
-           form_changed: false,
-           pending_invitations: pending_invitations
-         )}
+        socket =
+          socket
+          |> assign(
+            page_title: "#{company.name} Details",
+            page_description: "Company details and employee management",
+            company: company,
+            form:
+              to_form(%{
+                "name" => company.name,
+                "email" => company.email,
+                "phone" => company.phone,
+                "website" => company.website,
+                "plan" => company.plan,
+                "address" => company.address,
+                "description" => company.description,
+                "logo" => company.logo
+              }),
+            employees: employees,
+            activities: activities,
+            show_edit_modal: false,
+            selected_employee: nil,
+            confirming_delete: MapSet.new(),
+            invite_email: "",
+            form_changed: false,
+            pending_invitations: pending_invitations,
+            confirming_delete_company: false
+          )
+
+        {:ok, socket}
 
       {:error, _reason} ->
         {:ok,
@@ -60,6 +72,70 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
          |> put_flash(:error, "You don't have access to this company")
          |> redirect(to: ~p"/dashboard/admin/companies")}
     end
+  end
+
+  @impl true
+  def handle_info({:created, %{type: :employee, employee: employee}}, socket) do
+    employee = Repo.preload(employee, [:profile])
+    {:noreply, update(socket, :employees, fn employees -> [employee | employees] end)}
+  end
+
+  def handle_info({:updated, %{type: :employee, employee: employee}}, socket) do
+    employee = Repo.preload(employee, [:profile])
+    {:noreply,
+     update(socket, :employees, fn employees ->
+       Enum.map(employees, fn e -> if e.id == employee.id, do: employee, else: e end)
+     end)}
+  end
+
+  def handle_info({:deleted, %{type: :employee, id: employee_id}}, socket) do
+    {:noreply,
+     update(socket, :employees, fn employees ->
+       Enum.reject(employees, &(&1.id == employee_id))
+     end)}
+  end
+
+  def handle_info({:created, %{type: :invitation, invitation: invitation}}, socket) do
+    invitation = Repo.preload(invitation, [:company, :inviter])
+    {:noreply,
+     update(socket, :pending_invitations, fn invitations -> [invitation | invitations] end)}
+  end
+
+  def handle_info({:updated, %{type: :invitation, invitation: invitation}}, socket) do
+    invitation = Repo.preload(invitation, [:company, :inviter])
+    {:noreply,
+     update(socket, :pending_invitations, fn invitations ->
+       Enum.map(invitations, fn inv -> if inv.id == invitation.id, do: invitation, else: inv end)
+     end)}
+  end
+
+  def handle_info({:deleted, %{type: :invitation, id: invitation_id}}, socket) do
+    {:noreply,
+     update(socket, :pending_invitations, fn invitations ->
+       Enum.reject(invitations, &(&1.id == invitation_id))
+     end)}
+  end
+
+  def handle_info({:updated, %{type: :company, company: company}}, socket) do
+    activities = Phxplate.Tracking.get_company_activities(company.id)
+
+    {:noreply,
+     socket
+     |> assign(:company, company)
+     |> assign(:activities, activities)
+     |> assign(
+       :form,
+       to_form(%{
+         "name" => company.name,
+         "email" => company.email,
+         "phone" => company.phone,
+         "website" => company.website,
+         "plan" => company.plan,
+         "address" => company.address,
+         "description" => company.description,
+         "logo" => company.logo
+       })
+     )}
   end
 
   defp authorize_company(company_id, user) do
@@ -359,11 +435,29 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                   <.input field={@form[:description]} type="textarea" />
                 </div>
               </div>
-              <div class="flex justify-end gap-4">
-                <.button :if={@form_changed} type="button" variant="outline" phx-click="reset_company">
-                  Reset
+              <div class="flex justify-between gap-4">
+                <.button
+                  :if={!@confirming_delete_company}
+                  type="button"
+                  variant="destructive"
+                  phx-click="confirm_delete_company"
+                >
+                  Delete Company
                 </.button>
-                <.button :if={@form_changed} type="submit">Save Changes</.button>
+                <.button
+                  :if={@confirming_delete_company}
+                  type="button"
+                  variant="destructive"
+                  phx-click="delete_company"
+                >
+                  Confirm Delete
+                </.button>
+                <div class="flex gap-4">
+                  <.button :if={@form_changed} type="button" variant="outline" phx-click="reset_company">
+                    Reset
+                  </.button>
+                  <.button :if={@form_changed} type="submit">Save Changes</.button>
+                </div>
               </div>
             </.form>
           </div>
@@ -595,5 +689,25 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
       </.dialog>
     </div>
     """
+  end
+
+  def handle_event("confirm_delete_company", _params, socket) do
+    {:noreply, assign(socket, :confirming_delete_company, true)}
+  end
+
+  def handle_event("delete_company", _params, socket) do
+    case Companies.delete_company(socket.assigns.company) do
+      {:ok, _deleted_company} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Company deleted successfully.")
+         |> redirect(to: ~p"/dashboard/admin/companies")}
+
+      {:error, _changeset} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to delete company.")
+         |> assign(:confirming_delete_company, false)}
+    end
   end
 end

@@ -2,18 +2,68 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
   use PhxplateWeb, :live_view
   alias Phxplate.{Companies, Repo}
   alias PhxplateWeb.{PageMeta, Components.ActivityTimelineComponent}
+  alias Phxplate.PubSub.DataSync
 
   def mount(_params, _session, socket) do
+    if connected?(socket) do
+      DataSync.subscribe("companies", "all")
+    end
+
     socket =
       socket
       |> assign(:selected_company, nil)
       |> assign(:activities, [])
+      |> assign(:confirming_delete_company, false)
       |> PageMeta.assign_metadata(
         title: "Companies Management",
         description: "Manage companies across the application"
       )
 
     {:ok, load_companies(socket, 1)}
+  end
+
+  @impl true
+  def handle_info({:created, %{type: :company, company: company}}, socket) do
+    # Instead of just appending, reload the companies for the current page
+    {:noreply, load_companies(socket, socket.assigns.page)}
+  end
+
+  def handle_info({:updated, %{type: :company, company: company}}, socket) do
+    company = Repo.preload(company, [:employees])
+
+    socket =
+      socket
+      |> update(:companies, fn companies ->
+        Enum.map(companies, fn c -> if c.id == company.id, do: company, else: c end)
+      end)
+      |> maybe_update_selected_company(company)
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:deleted, %{type: :company, id: company_id}}, socket) do
+    # Clear selected company if it was deleted
+    socket =
+      if socket.assigns.selected_company && socket.assigns.selected_company.id == company_id do
+        socket
+        |> assign(:selected_company, nil)
+        |> assign(:activities, [])
+        |> assign(:confirming_delete_company, false)
+        |> put_flash(:info, "Selected company was deleted.")
+      else
+        socket
+      end
+
+    # Reload the companies list to ensure proper pagination
+    {:noreply, load_companies(socket, socket.assigns.page)}
+  end
+
+  defp maybe_update_selected_company(socket, company) do
+    if socket.assigns.selected_company && socket.assigns.selected_company.id == company.id do
+      assign(socket, :selected_company, company)
+    else
+      socket
+    end
   end
 
   def handle_event("select_company", %{"id" => company_id}, socket) do
@@ -35,6 +85,27 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
       end
 
     {:noreply, load_companies(socket, page)}
+  end
+
+  def handle_event("confirm_delete_company", _params, socket) do
+    {:noreply, assign(socket, :confirming_delete_company, true)}
+  end
+
+  def handle_event("delete_company", _params, socket) do
+    case Companies.delete_company(socket.assigns.selected_company) do
+      {:ok, _deleted_company} ->
+        {:noreply,
+         socket
+         |> assign(:selected_company, nil)
+         |> assign(:confirming_delete_company, false)
+         |> put_flash(:info, "Company deleted successfully.")}
+
+      {:error, _changeset} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to delete company.")
+         |> assign(:confirming_delete_company, false)}
+    end
   end
 
   defp load_companies(socket, page) do
@@ -169,6 +240,24 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
                         No website provided
                       <% end %>
                     </p>
+                  </div>
+                  <div class="pt-4 border-t">
+                    <.button
+                      :if={!@confirming_delete_company}
+                      type="button"
+                      variant="destructive"
+                      phx-click="confirm_delete_company"
+                    >
+                      Delete Company
+                    </.button>
+                    <.button
+                      :if={@confirming_delete_company}
+                      type="button"
+                      variant="destructive"
+                      phx-click="delete_company"
+                    >
+                      Confirm Delete
+                    </.button>
                   </div>
                 </div>
               </.tabs_content>

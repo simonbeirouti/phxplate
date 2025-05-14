@@ -1,10 +1,72 @@
 defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
   import Phoenix.Component
+  import Phoenix.LiveView, only: [connected?: 1]
   alias Phxplate.Accounts.User
+  alias Phxplate.PubSub.DataSync
+  alias Phxplate.{Companies, Repo, Bookmarks}
 
   def on_mount(:default, _params, _session, socket) do
+    if connected?(socket) do
+      current_user = socket.assigns.current_user
+      # Subscribe to all company updates
+      DataSync.subscribe("companies", "all")
+      # Subscribe to user-specific employee updates
+      DataSync.subscribe("user_invitations", current_user.email)
+      # Subscribe to employee updates
+      DataSync.subscribe("employees", "all")
+      # Subscribe to user-specific bookmark updates
+      DataSync.subscribe("bookmarks", current_user.id)
+    end
+
     socket = assign_layout_data(socket)
     {:cont, socket}
+  end
+
+  def handle_info({:created, %{type: :employee, employee: employee}}, socket) do
+    current_user = socket.assigns.current_user
+    if employee.email == current_user.email do
+      {:noreply, assign_layout_data(socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:created, %{type: :company, company: company}}, socket) do
+    current_user = socket.assigns.current_user
+
+    if company.owner_id == current_user.id do
+      {:noreply, assign_layout_data(socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:updated, %{type: :company, company: company}}, socket) do
+    current_user = socket.assigns.current_user
+
+    if company.owner_id == current_user.id ||
+       Enum.any?(company.employees, &(&1.email == current_user.email)) do
+      {:noreply, assign_layout_data(socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:deleted, %{type: :company, id: _company_id}}, socket) do
+    {:noreply, assign_layout_data(socket)}
+  end
+
+  def handle_info({:created, %{type: :bookmark, bookmark: bookmark}}, socket) do
+    current_user = socket.assigns.current_user
+    if bookmark.user_id == current_user.id do
+      {:noreply, assign_layout_data(socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:deleted, %{type: :bookmark, id: _bookmark_id}}, socket) do
+    {:noreply, assign_layout_data(socket)}
   end
 
   def handle_params(_params, url, socket) do
@@ -18,25 +80,34 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
     current_user = Phxplate.Repo.preload(current_user, [:profile])
 
     # Get companies owned by user
-    owned_companies = Phxplate.Companies.list_companies_by_owner(current_user.id)
+    owned_companies = Companies.list_companies_by_owner(current_user.id)
 
     # Get companies where user is an employee
-    employee_companies = Phxplate.Companies.list_companies_by_employee(current_user.email)
+    employee_companies = Companies.list_companies_by_employee(current_user.email)
+
+    # Get bookmarked companies
+    bookmarked_companies = Bookmarks.list_user_bookmarks(current_user.id)
+    |> Enum.map(& &1.company)
 
     # Combine and format all companies
     owned_company_ids = MapSet.new(owned_companies, & &1.id)
 
-    all_companies = (owned_companies ++ employee_companies)
-    |> Enum.uniq_by(&(&1.id))
-    |> Enum.map(fn company ->
+    format_company = fn company ->
       %{
         id: company.id,
         name: company.name,
         plan: company.plan,
-        logo: company.logo || &Lucideicons.building/1,
+        logo: company.logo || "",
         is_owner: MapSet.member?(owned_company_ids, company.id)
       }
-    end)
+    end
+
+    all_companies = (owned_companies ++ employee_companies)
+    |> Enum.uniq_by(&(&1.id))
+    |> Enum.map(format_company)
+
+    bookmarked = bookmarked_companies
+    |> Enum.map(format_company)
 
     all_nav_items = [
       %{
@@ -144,7 +215,8 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
         }
       ],
       navMain: nav_main,
-      projects: all_companies
+      projects: all_companies,
+      bookmarked: bookmarked
     }
 
     assign(socket, layout_data: layout_data)

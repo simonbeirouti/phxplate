@@ -6,6 +6,7 @@ defmodule Phxplate.Accounts do
   import Ecto.Query, warn: false
   import Ecto.Changeset, only: [get_change: 2]
   alias Phxplate.Repo
+  alias Phxplate.PubSub.DataSync
 
   alias Phxplate.Accounts.{User, UserToken, UserNotifier, Profile}
 
@@ -478,6 +479,15 @@ defmodule Phxplate.Accounts do
     %Profile{user_id: user.id}
     |> Profile.changeset(attrs)
     |> Repo.insert()
+    |> case do
+      {:ok, profile} = result ->
+        # Broadcast profile creation
+        DataSync.broadcast("profiles", user.id, {:created, %{type: :profile, profile: profile}})
+        # Also broadcast to "all" topic for global updates
+        DataSync.broadcast("profiles", "all", {:created, %{type: :profile, profile: profile}})
+        result
+      error -> error
+    end
   end
 
   @doc """
@@ -496,6 +506,15 @@ defmodule Phxplate.Accounts do
     profile
     |> Profile.changeset(attrs)
     |> Repo.update()
+    |> case do
+      {:ok, updated_profile} = result ->
+        # Broadcast profile update
+        DataSync.broadcast("profiles", profile.user_id, {:updated, %{type: :profile, profile: updated_profile}})
+        # Also broadcast to "all" topic for global updates
+        DataSync.broadcast("profiles", "all", {:updated, %{type: :profile, profile: updated_profile}})
+        result
+      error -> error
+    end
   end
 
   @doc """
@@ -534,20 +553,6 @@ defmodule Phxplate.Accounts do
   end
 
   @doc """
-  Returns an `%Ecto.Changeset{}` for tracking user profile changes.
-
-  ## Examples
-
-      iex> change_user_profile(user)
-      %Ecto.Changeset{data: %Profile{}}
-
-  """
-  def change_user_profile(%User{} = user) do
-    profile = user.profile || %Profile{user_id: user.id}
-    Profile.changeset(profile, %{})
-  end
-
-  @doc """
   Updates a user's profile.
 
   ## Examples
@@ -565,5 +570,15 @@ defmodule Phxplate.Accounts do
     profile
     |> Profile.changeset(attrs)
     |> Repo.insert_or_update()
+    |> case do
+      {:ok, updated_profile} = result ->
+        # Broadcast profile update or creation
+        event_type = if profile.id, do: :updated, else: :created
+        DataSync.broadcast("profiles", user.id, {event_type, %{type: :profile, profile: updated_profile}})
+        # Also broadcast to "all" topic for global updates
+        DataSync.broadcast("profiles", "all", {event_type, %{type: :profile, profile: updated_profile}})
+        result
+      error -> error
+    end
   end
 end

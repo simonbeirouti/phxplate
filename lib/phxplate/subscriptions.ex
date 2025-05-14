@@ -7,8 +7,12 @@ defmodule Phxplate.Subscriptions do
   alias Phxplate.Repo
   alias Phxplate.Subscriptions.{Subscription, Plan}
   alias Phxplate.Accounts.User
+  alias Phxplate.PubSub.DataSync
 
   require Logger
+
+  @valid_statuses [:active, :canceled, :past_due, :incomplete, :trialing]
+  @valid_tiers [:small, :medium, :large]
 
   @doc """
   Gets a subscription by ID.
@@ -32,6 +36,18 @@ defmodule Phxplate.Subscriptions do
     %Subscription{}
     |> Subscription.changeset(attrs)
     |> Repo.insert()
+    |> case do
+      {:ok, subscription} = result ->
+        # Broadcast creation
+        DataSync.broadcast("subscriptions", subscription.user_id,
+          {:created, %{type: :subscription, subscription: subscription}}
+        )
+        DataSync.broadcast("subscriptions", "all",
+          {:created, %{type: :subscription, subscription: subscription}}
+        )
+        result
+      error -> error
+    end
   end
 
   @doc """
@@ -41,6 +57,18 @@ defmodule Phxplate.Subscriptions do
     subscription
     |> Subscription.changeset(attrs)
     |> Repo.update()
+    |> case do
+      {:ok, updated_subscription} = result ->
+        # Broadcast update
+        DataSync.broadcast("subscriptions", updated_subscription.user_id,
+          {:updated, %{type: :subscription, subscription: updated_subscription}}
+        )
+        DataSync.broadcast("subscriptions", "all",
+          {:updated, %{type: :subscription, subscription: updated_subscription}}
+        )
+        result
+      error -> error
+    end
   end
 
   @doc """
@@ -48,6 +76,18 @@ defmodule Phxplate.Subscriptions do
   """
   def delete_subscription(%Subscription{} = subscription) do
     Repo.delete(subscription)
+    |> case do
+      {:ok, deleted_subscription} = result ->
+        # Broadcast deletion
+        DataSync.broadcast("subscriptions", deleted_subscription.user_id,
+          {:deleted, %{type: :subscription, id: deleted_subscription.id}}
+        )
+        DataSync.broadcast("subscriptions", "all",
+          {:deleted, %{type: :subscription, id: deleted_subscription.id}}
+        )
+        result
+      error -> error
+    end
   end
 
   @doc """
@@ -183,10 +223,10 @@ defmodule Phxplate.Subscriptions do
     case create_checkout_session(user, plan) do
       {:ok, _session} = result ->
         # Track the plan change attempt
-        Phxplate.Tracking.track_user_activity(
+        track_subscription_change(
           "subscription_plan_change_initiated",
-          %{id: user.id},
           user,
+          nil,
           %{
             "new_plan" => plan.name,
             "price" => plan.unit_amount,
@@ -213,10 +253,10 @@ defmodule Phxplate.Subscriptions do
             case update_subscription(subscription, %{subscription_status: :canceled}) do
               {:ok, updated_subscription} ->
                 # Track the cancellation
-                Phxplate.Tracking.track_user_activity(
+                track_subscription_change(
                   "subscription_cancelled",
-                  %{id: user.id},
                   user,
+                  nil,
                   %{
                     "plan" => subscription.plan.name,
                     "status" => "canceled",
@@ -280,23 +320,21 @@ defmodule Phxplate.Subscriptions do
   Should only be used by super admins for administrative purposes.
   """
   def admin_update_subscription_status(subscription, status, actor \\ nil)
-  def admin_update_subscription_status(%Subscription{} = subscription, status, actor) when status in [:active, :canceled, :past_due, :incomplete, :trialing] do
+  def admin_update_subscription_status(%Subscription{} = subscription, status, actor) when status in @valid_statuses do
     case update_subscription(subscription, %{subscription_status: status}) do
       {:ok, updated_subscription} ->
         # Track the status change
         user = %{id: subscription.user_id}
-        tracking_actor = actor || user  # If no actor provided, use the user as actor
-
         action = case status do
           :active -> "subscription_reactivated"
           :canceled -> "subscription_cancelled"
           _ -> "subscription_status_updated"
         end
 
-        Phxplate.Tracking.track_user_activity(
+        track_subscription_change(
           action,
           user,
-          tracking_actor,
+          actor,
           %{
             "status" => status,
             "plan" => subscription.plan.name,
@@ -316,37 +354,21 @@ defmodule Phxplate.Subscriptions do
   Should only be used by super admins for administrative purposes.
   """
   def admin_update_subscription_tier(subscription, tier, actor \\ nil)
-  def admin_update_subscription_tier(%Subscription{} = subscription, tier, actor) when tier in [:small, :medium, :large] do
-    # Find a plan that matches the tier (using monthly plan as default)
-    plans = list_all_plans()
-    tier_string = Atom.to_string(tier)
-
-    plan = plans
-      |> Enum.find(fn {t, _} -> t == tier_string end)
-      |> case do
-        {_, %{monthly: plan}} when not is_nil(plan) -> plan
-        _ -> nil
+  def admin_update_subscription_tier(%Subscription{} = subscription, tier, actor) when tier in @valid_tiers do
+    with {:ok, plan} <- find_plan_by_tier(tier),
+         {:ok, updated_subscription} <- update_subscription(subscription, %{
+           paid_tier: tier,
+           plan_id: plan.id
+         }) do
+      if actor do
+        track_subscription_change(
+          "subscription_tier_update",
+          %{id: subscription.user_id},
+          actor,
+          %{"tier" => tier}
+        )
       end
-
-    if plan do
-      case update_subscription(subscription, %{
-        paid_tier: tier,
-        plan_id: plan.id
-      }) do
-        {:ok, updated_subscription} ->
-          if actor do
-            Phxplate.Tracking.track_user_activity(
-              "subscription_tier_update",
-              %{id: subscription.user_id},
-              actor,
-              %{"tier" => tier}
-            )
-          end
-          {:ok, updated_subscription}
-        error -> error
-      end
-    else
-      {:error, :plan_not_found}
+      {:ok, updated_subscription}
     end
   end
   def admin_update_subscription_tier(_subscription, _tier, _actor), do: {:error, :invalid_tier}
@@ -356,19 +378,8 @@ defmodule Phxplate.Subscriptions do
   This bypasses Stripe and only creates a local database record.
   Should only be used by super admins for administrative purposes.
   """
-  def admin_create_subscription(user_id, tier, status) when tier in [:small, :medium, :large] and status in [:active, :canceled, :past_due, :incomplete, :trialing] do
-    # Find a plan that matches the tier (using monthly plan as default)
-    plans = list_all_plans()
-    tier_string = Atom.to_string(tier)
-
-    plan = plans
-      |> Enum.find(fn {t, _} -> t == tier_string end)
-      |> case do
-        {_, %{monthly: plan}} when not is_nil(plan) -> plan
-        _ -> nil
-      end
-
-    if plan do
+  def admin_create_subscription(user_id, tier, status) when tier in @valid_tiers and status in @valid_statuses do
+    with {:ok, plan} <- find_plan_by_tier(tier) do
       attrs = %{
         user_id: user_id,
         paid_tier: tier,
@@ -378,10 +389,26 @@ defmodule Phxplate.Subscriptions do
         stripe_subscription_id: "admin_created_#{user_id}"
       }
       create_subscription(attrs)
-    else
-      {:error, :plan_not_found}
     end
   end
   def admin_create_subscription(_user_id, _tier, _status), do: {:error, :invalid_parameters}
+
+  # Helper function to track subscription changes
+  defp track_subscription_change(action, user, actor \\ nil, additional_data \\ %{}) do
+    tracking_actor = actor || user
+    Phxplate.Tracking.track_user_activity(action, user, tracking_actor, additional_data)
+  end
+
+  # Helper function to find plan by tier
+  defp find_plan_by_tier(tier) when tier in @valid_tiers do
+    tier_string = Atom.to_string(tier)
+
+    list_all_plans()
+    |> Enum.find(fn {t, _} -> t == tier_string end)
+    |> case do
+      {_, %{monthly: plan}} when not is_nil(plan) -> {:ok, plan}
+      _ -> {:error, :plan_not_found}
+    end
+  end
 
 end

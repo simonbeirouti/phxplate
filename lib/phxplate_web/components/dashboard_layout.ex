@@ -64,7 +64,8 @@ defmodule PhxplateWeb.Components.DashboardLayout do
       </.sidebar_header>
       <.sidebar_content>
         <.nav_main items={@data.navMain} />
-        <.nav_projects :if={length(@data.projects) >= 1} projects={@data.projects} />
+        <.nav_projects :if={length(@data.projects) >= 1} label="Companies" projects={@data.projects} />
+        <.nav_projects :if={length(@data.bookmarked) >= 1} label="Bookmarked" projects={@data.bookmarked} />
       </.sidebar_content>
       <.sidebar_rail />
     </.sidebar>
@@ -174,7 +175,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     ~H"""
     <.sidebar_group>
       <.sidebar_group_label>
-        Companies
+        <%= @label %>
       </.sidebar_group_label>
       <.sidebar_menu>
         <.sidebar_menu_item :for={project <- @projects}>
@@ -312,7 +313,37 @@ defmodule PhxplateWeb.Components.DashboardLayout do
       <div class="px-3 py-2 text-sm font-medium text-gray-500">Projects</div>
       <%= for item <- @projects do %>
         <.link
-          href={~p"/dashboard/admin/company/#{item.id}"}
+          href={
+            if item[:is_owner],
+            do: ~p"/dashboard/admin/company/#{item.id}",
+            else: ~p"/dashboard/company/#{item.id}"
+          }
+          class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+        >
+          <.avatar class="h-8 w-8 rounded-lg">
+            <.avatar_image src={item.logo} alt={item.name} />
+            <.avatar_fallback class="rounded-lg">
+              {item.name}
+            </.avatar_fallback>
+          </.avatar>
+          <span class="ml-2">{item.name}</span>
+        </.link>
+      <% end %>
+    </div>
+    """
+  end
+
+  def mobile_nav_bookmarked(assigns) do
+    ~H"""
+    <div :if={length(@projects) >= 1} class="space-y-1">
+      <div class="px-3 py-2 text-sm font-medium text-gray-500">Bookmarked</div>
+      <%= for item <- @projects do %>
+        <.link
+          href={
+            if item[:is_owner],
+            do: ~p"/dashboard/admin/company/#{item.id}",
+            else: ~p"/dashboard/company/#{item.id}"
+          }
           class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
         >
           <.avatar class="h-8 w-8 rounded-lg">
