@@ -319,6 +319,9 @@ defmodule Phxplate.Companies do
             DataSync.broadcast("employees", invitation.company_id,
               {:created, %{type: :employee, employee: employee}}
             )
+            DataSync.broadcast("employees", "all",
+              {:created, %{type: :employee, employee: employee}}
+            )
 
             employee
           end

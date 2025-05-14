@@ -13,9 +13,13 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
       # Subscribe to both user-specific and global company updates
       DataSync.subscribe("companies", current_user.id)
       DataSync.subscribe("companies", "all")
+      # Subscribe to employee updates for all companies; will filter relevance in handle_info
+      DataSync.subscribe("employees", "all")
     end
 
     companies = Companies.list_companies_by_owner(current_user.id)
+    employee_count = calculate_employee_count(companies)
+
     # For super admin, we pass nil subscription which will give unlimited access
     subscription = if current_user.role == :super_admin do
       %{plan: %{features: %{"projects" => "Unlimited"}}}
@@ -27,6 +31,7 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
      assign(socket,
        page_title: "Admin Dashboard",
        companies: companies,
+       employee_count: employee_count,
        subscription: subscription
      )}
   end
@@ -41,7 +46,9 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
   def handle_info({:created, %{type: :company, company: company}}, socket) do
     # Only add the company if it belongs to the current user and isn't already in the list
     if company.owner_id == socket.assigns.current_user.id and not Enum.any?(socket.assigns.companies, &(&1.id == company.id)) do
-      {:noreply, update(socket, :companies, fn companies -> [company | companies] end)}
+      updated_companies = [company | socket.assigns.companies]
+      employee_count = calculate_employee_count(updated_companies)
+      {:noreply, assign(socket, companies: updated_companies, employee_count: employee_count)}
     else
       {:noreply, socket}
     end
@@ -50,20 +57,65 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
   def handle_info({:updated, %{type: :company, company: company}}, socket) do
     # Only update if it's one of our companies
     if company.owner_id == socket.assigns.current_user.id do
-      {:noreply,
-       update(socket, :companies, fn companies ->
-         Enum.map(companies, fn c -> if c.id == company.id, do: company, else: c end)
-       end)}
+      updated_companies =
+        Enum.map(socket.assigns.companies, fn c -> if c.id == company.id, do: company, else: c end)
+      employee_count = calculate_employee_count(updated_companies)
+      {:noreply, assign(socket, companies: updated_companies, employee_count: employee_count)}
     else
       {:noreply, socket}
     end
   end
 
   def handle_info({:deleted, %{type: :company, id: company_id}}, socket) do
-    {:noreply,
-     update(socket, :companies, fn companies ->
-       Enum.reject(companies, &(&1.id == company_id))
-     end)}
+    updated_companies = Enum.reject(socket.assigns.companies, &(&1.id == company_id))
+    employee_count = calculate_employee_count(updated_companies)
+    {:noreply, assign(socket, companies: updated_companies, employee_count: employee_count)}
+  end
+
+  # Handle employee creation
+  def handle_info({:created, %{type: :employee, employee: employee_data}}, socket) do
+    current_user_id = socket.assigns.current_user.id
+    # Check if the employee's company is owned by the current user
+    company = Companies.get_company(employee_data.company_id)
+
+    if company && company.owner_id == current_user_id do
+      # Re-fetch companies for the current user to get updated employee lists
+      companies = Companies.list_companies_by_owner(current_user_id)
+      employee_count = calculate_employee_count(companies)
+      {:noreply, assign(socket, companies: companies, employee_count: employee_count)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  # Handle employee update
+  def handle_info({:updated, %{type: :employee, employee: employee_data}}, socket) do
+    current_user_id = socket.assigns.current_user.id
+    company = Companies.get_company(employee_data.company_id)
+
+    if company && company.owner_id == current_user_id do
+      companies = Companies.list_companies_by_owner(current_user_id)
+      employee_count = calculate_employee_count(companies)
+      {:noreply, assign(socket, companies: companies, employee_count: employee_count)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  # Handle employee deletion
+  def handle_info({:deleted, %{type: :employee, employee: employee_data}}, socket) do
+    current_user_id = socket.assigns.current_user.id
+    # We need the company_id from the deleted employee data.
+    # The broadcast for delete_employee in companies.ex sends the full employee struct.
+    company = Companies.get_company(employee_data.company_id)
+
+    if company && company.owner_id == current_user_id do
+      companies = Companies.list_companies_by_owner(current_user_id)
+      employee_count = calculate_employee_count(companies)
+      {:noreply, assign(socket, companies: companies, employee_count: employee_count)}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("open_create_company_dialog", params, socket) do
@@ -104,9 +156,7 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
             <div class="ml-4">
               <h3 class="text-lg font-semibold text-gray-900">Total Employees</h3>
               <p class="text-2xl font-bold text-green-600">
-                <%= Enum.reduce(@companies, 0, fn company, acc ->
-                  acc + length(Companies.get_company_employees(company))
-                end) %>
+                <%= @employee_count %>
               </p>
             </div>
           </div>
@@ -120,5 +170,11 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
       />
     </div>
     """
+  end
+
+  defp calculate_employee_count(companies) do
+    Enum.reduce(companies, 0, fn company, acc ->
+      acc + length(Companies.get_company_employees(company))
+    end)
   end
 end

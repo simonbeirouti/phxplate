@@ -77,9 +77,26 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
   end
 
   @impl true
-  def handle_info({:created, %{type: :employee, employee: employee}}, socket) do
-    employee = Repo.preload(employee, [:profile])
-    {:noreply, update(socket, :employees, fn employees -> [employee | employees] end)}
+  def handle_info({:created, %{type: :employee, employee: new_employee}}, socket) do
+    # The 'new_employee' from PubSub (e.g., from accept_invitation)
+    # should already have its profile preloaded.
+    # Check if an employee with this ID already exists in our current list.
+    is_present = Enum.any?(socket.assigns.employees, fn existing_employee ->
+      existing_employee.id == new_employee.id
+    end)
+
+    if is_present do
+      # Employee is already in the list. Do nothing to prevent duplication.
+      # Optionally, one could update the existing entry with new_employee data here
+      # if there's a chance it might be fresher, but for a :created event,
+      # simply avoiding duplication is the primary goal.
+      {:noreply, socket}
+    else
+      # Employee is not in the list, so prepend it.
+      {:noreply, update(socket, :employees, fn existing_employees ->
+        [new_employee | existing_employees]
+      end)}
+    end
   end
 
   def handle_info({:updated, %{type: :employee, employee: employee}}, socket) do

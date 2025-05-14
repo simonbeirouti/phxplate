@@ -65,7 +65,11 @@ defmodule PhxplateWeb.Components.DashboardLayout do
       <.sidebar_content>
         <.nav_main items={@data.navMain} />
         <.nav_projects :if={length(@data.projects) >= 1} label="Companies" projects={@data.projects} />
-        <.nav_projects :if={length(@data.bookmarked) >= 1} label="Bookmarked" projects={@data.bookmarked} />
+        <.nav_projects
+          :if={length(@data.bookmarked) >= 1}
+          label="Bookmarked"
+          projects={@data.bookmarked}
+        />
       </.sidebar_content>
       <.sidebar_rail />
     </.sidebar>
@@ -175,28 +179,28 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     ~H"""
     <.sidebar_group>
       <.sidebar_group_label>
-        <%= @label %>
+        {@label}
       </.sidebar_group_label>
       <.sidebar_menu>
         <.sidebar_menu_item :for={project <- @projects}>
-          <.sidebar_menu_button class="flex items-center gap-2">
-            <.avatar class="h-8 w-8 rounded-lg -ml-2">
-              <.avatar_image src={project.logo} alt={project.name} />
-              <.avatar_fallback class="rounded-lg">
-                {String.slice(project.name, 0, 2)}
-              </.avatar_fallback>
-            </.avatar>
-            <a
-              href={
-                if project[:is_owner],
+          <a
+            href={
+              if project[:is_owner],
                 do: ~p"/dashboard/admin/company/#{project.id}",
                 else: ~p"/dashboard/company/#{project.id}"
-              }
-              class="truncate"
-            >
+            }
+            class="truncate"
+          >
+            <.sidebar_menu_button class="flex items-center gap-2">
+              <.avatar class="h-8 w-8 rounded-lg -ml-2">
+                <.avatar_image src={project.logo} alt={project.name} />
+                <.avatar_fallback class="rounded-lg">
+                  {String.slice(project.name, 0, 2)}
+                </.avatar_fallback>
+              </.avatar>
               {project.name}
-            </a>
-          </.sidebar_menu_button>
+            </.sidebar_menu_button>
+          </a>
         </.sidebar_menu_item>
       </.sidebar_menu>
     </.sidebar_group>
@@ -315,8 +319,8 @@ defmodule PhxplateWeb.Components.DashboardLayout do
         <.link
           href={
             if item[:is_owner],
-            do: ~p"/dashboard/admin/company/#{item.id}",
-            else: ~p"/dashboard/company/#{item.id}"
+              do: ~p"/dashboard/admin/company/#{item.id}",
+              else: ~p"/dashboard/company/#{item.id}"
           }
           class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
         >
@@ -341,8 +345,8 @@ defmodule PhxplateWeb.Components.DashboardLayout do
         <.link
           href={
             if item[:is_owner],
-            do: ~p"/dashboard/admin/company/#{item.id}",
-            else: ~p"/dashboard/company/#{item.id}"
+              do: ~p"/dashboard/admin/company/#{item.id}",
+              else: ~p"/dashboard/company/#{item.id}"
           }
           class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
         >
