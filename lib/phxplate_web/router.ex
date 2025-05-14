@@ -141,7 +141,6 @@ defmodule PhxplateWeb.Router do
         {PhxplateWeb.UserAuth, :ensure_authenticated},
         {PhxplateWeb.UserAuth, :ensure_proper_role},
         {PhxplateWeb.Live.Hooks.LayoutHooks, :default},
-        {PhxplateWeb.Live.Hooks.CompanyShowHooks, :default}
       ] do
       live "/", DashboardLive, :index
       live "/account", Dashboard.User.UserAccountLive, :index

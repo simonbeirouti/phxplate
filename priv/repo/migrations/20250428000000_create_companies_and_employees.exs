@@ -17,10 +17,7 @@ defmodule Phxplate.Repo.Migrations.CreateCompaniesAndEmployees do
     end
 
     create table(:employees) do
-      add :first_name, :string, null: false
-      add :last_name, :string, null: false
       add :email, :string, null: false
-      add :phone, :string
       add :position, :string
       add :department, :string
       add :salary, :decimal

@@ -1,0 +1,248 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# PubSub Data Sync Guidelines
+
+## Core Module Structure
+
+### DataSync Module
+```elixir
+defmodule Phxplate.PubSub.DataSync do
+  @moduledoc """
+  Centralized module for managing live data synchronization across the application.
+  Uses Phoenix.PubSub for real-time updates.
+
+  ## Topics
+  - users:ID or users:all
+  - subscriptions:ID or subscriptions:all
+  - plans:ID or plans:all
+  - profiles:ID or profiles:all
+  - invitations:ID or invitations:all
+  - employees:ID or employees:all
+
+  ## Events
+  - {:created, %{type: :type, data: data}}
+  - {:updated, %{type: :type, data: data}}
+  - {:deleted, %{type: :type, id: id}}
+  - {:status_changed, %{type: :type, data: data}}
+  - {:error, reason}
+
+  ## Usage Examples
+
+      # Subscribe to updates
+      DataSync.subscribe("users", user_id)
+      DataSync.subscribe("invitations", company_id)
+      DataSync.subscribe("employees", company_id)
+
+      # Broadcast updates
+      DataSync.broadcast("users", user_id, {:updated, %{type: :user, user: updated_user}})
+      DataSync.broadcast("invitations", company_id, {:created, %{type: :invitation, invitation: new_invitation}})
+  """
+
+  alias Phoenix.PubSub
+  require Logger
+
+  @pubsub_server Phxplate.PubSub
+
+  def subscribe(topic, id) when is_binary(topic) do
+    topic_name = topic_name(topic, id)
+    Logger.debug("Subscribing to topic: #{topic_name}")
+    PubSub.subscribe(@pubsub_server, topic_name)
+  end
+
+  def broadcast(topic, id, message) when is_binary(topic) do
+    topic_name = topic_name(topic, id)
+    Logger.debug("Broadcasting to topic: #{topic_name}, message: #{inspect(message)}")
+    PubSub.broadcast(@pubsub_server, topic_name, message)
+  end
+
+  def broadcast_from(socket_id, topic, id, message) when is_binary(topic) do
+    topic_name = topic_name(topic, id)
+    Logger.debug("Broadcasting from #{socket_id} to topic: #{topic_name}")
+    PubSub.broadcast_from(@pubsub_server, socket_id, topic_name, message)
+  end
+
+  defp topic_name(topic, id), do: "#{topic}:#{id}"
+end
+```
+
+## Implementation Guidelines
+
+### LiveView Integration Pattern
+
+1. Subscribe in mount:
+```elixir
+def mount(%{"id" => company_id}, _session, socket) do
+  if connected?(socket) do
+    # Subscribe to relevant topics
+    DataSync.subscribe("employees", company_id)
+    DataSync.subscribe("invitations", company_id)
+    DataSync.subscribe("companies", company_id)
+  end
+  
+  {:ok, assign(socket, initial_assigns)}
+end
+```
+
+2. Handle PubSub messages:
+```elixir
+# Handle invitation updates
+def handle_info({:created, %{type: :invitation} = data}, socket) do
+  {:noreply,
+   socket
+   |> update(:pending_invitations, fn invitations -> [data.invitation | invitations] end)
+   |> update(:activities, &refresh_activities/1)}
+end
+
+def handle_info({:deleted, %{type: :invitation, id: invitation_id}}, socket) do
+  {:noreply,
+   socket
+   |> update(:pending_invitations, fn invitations ->
+     Enum.reject(invitations, &(&1.id == invitation_id))
+   end)
+   |> update(:activities, &refresh_activities/1)}
+end
+
+# Handle employee updates
+def handle_info({:created, %{type: :employee} = data}, socket) do
+  {:noreply,
+   socket
+   |> update(:employees, fn employees -> [data.employee | employees] end)
+   |> update(:activities, &refresh_activities/1)}
+end
+```
+
+3. Broadcast changes in event handlers:
+```elixir
+def handle_event("send_invite", %{"email" => email}, socket) do
+  case Companies.invite_to_company(socket.assigns.company, email, current_user) do
+    {:ok, invitation} ->
+      # Broadcast the new invitation
+      DataSync.broadcast("invitations", company_id,
+        {:created, %{type: :invitation, invitation: invitation}}
+      )
+      {:noreply, socket |> update_socket_state()}
+
+    {:error, reason} ->
+      {:noreply, socket |> handle_error(reason)}
+  end
+end
+```
+
+4. Clean up subscriptions:
+```elixir
+def terminate(_reason, socket) do
+  if company = socket.assigns[:company] do
+    DataSync.unsubscribe("employees", company.id)
+    DataSync.unsubscribe("invitations", company.id)
+    DataSync.unsubscribe("companies", company.id)
+  end
+  :ok
+end
+```
+
+### Common Patterns
+
+#### Real-time List Management
+```elixir
+# Adding items
+def handle_info({:created, %{type: :type} = data}, socket) do
+  {:noreply,
+   socket
+   |> update(:items, fn items -> [data.item | items] end)
+   |> maybe_update_related_data()}
+end
+
+# Updating items
+def handle_info({:updated, %{type: :type} = data}, socket) do
+  {:noreply,
+   socket
+   |> update(:items, fn items ->
+     Enum.map(items, fn item ->
+       if item.id == data.item.id, do: data.item, else: item
+     end)
+   end)
+   |> maybe_update_related_data()}
+end
+
+# Removing items
+def handle_info({:deleted, %{type: :type, id: id}}, socket) do
+  {:noreply,
+   socket
+   |> update(:items, fn items -> Enum.reject(items, &(&1.id == id)) end)
+   |> maybe_update_related_data()}
+end
+```
+
+#### Event Broadcasting
+```elixir
+# Create event
+DataSync.broadcast(topic, id, {:created, %{type: :type, item: item}})
+
+# Update event
+DataSync.broadcast(topic, id, {:updated, %{type: :type, item: updated_item}})
+
+# Delete event
+DataSync.broadcast(topic, id, {:deleted, %{type: :type, id: item_id}})
+```
+
+### Best Practices
+
+1. Message Structure
+   - Always include a :type field in the message payload
+   - Use consistent message formats across the application
+   - Include only necessary data in broadcasts
+
+2. Topic Organization
+   - Use hierarchical topics (e.g., "companies:123:employees")
+   - Subscribe to the most specific topic needed
+   - Consider using "all" suffix for global updates
+
+3. Performance Considerations
+   - Minimize broadcast payload size
+   - Use targeted broadcasts when possible
+   - Consider using broadcast_from to prevent echo
+
+4. Error Handling
+   - Handle missing or invalid data gracefully
+   - Log broadcast failures
+   - Implement reconnection strategies
+
+5. Testing
+   - Test broadcast triggers
+   - Test subscription handlers
+   - Mock PubSub in tests
+   - Test error scenarios
+
+### Security Guidelines
+
+1. Access Control
+   - Validate subscription permissions in mount
+   - Only broadcast non-sensitive data
+   - Filter broadcast data based on user roles
+
+2. Data Sanitization
+   - Sanitize data before broadcasting
+   - Validate incoming messages
+   - Handle malformed messages gracefully
+
+### Debugging Tips
+
+1. Logging
+   - Enable debug logging for PubSub events
+   - Log subscription lifecycle events
+   - Track broadcast patterns
+
+2. Common Issues
+   - Missing subscriptions in mount
+   - Incorrect topic names
+   - Malformed message payloads
+   - Memory leaks from unused subscriptions
+
+3. Solutions
+   - Verify connected?(socket) check
+   - Double-check topic string construction
+   - Implement proper cleanup in terminate
+   - Monitor subscription count
