@@ -1,7 +1,8 @@
 defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
   use PhxplateWeb, :live_view
-  alias Phxplate.{Accounts, Repo}
+  alias Phxplate.{Accounts, Repo, Companies}
   alias PhxplateWeb.{PageMeta, Components.ActivityTimelineComponent}
+  alias Phxplate.PubSub.DataSync
 
   def mount(_params, _session, socket) do
     plans = Phxplate.Subscriptions.list_all_plans()
@@ -156,8 +157,35 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
 
   def handle_event("confirm_delete_user", %{"user_id" => user_id}, socket) do
     with %{role: :super_admin} <- socket.assigns.current_user,
-         user = Accounts.get_user!(user_id),
-         {:ok, _deleted} <- Accounts.delete_user(user) do
+         user = Accounts.get_user!(user_id) |> Repo.preload(:profile),
+         {:ok, deleted} <- Accounts.delete_user(user) do
+      # Find any associated employee before broadcasting events
+      employee = Companies.get_employee_by_user_id(user_id)
+
+      # Broadcast user deletion to all relevant topics
+      DataSync.broadcast("users", "all", {:deleted, %{type: :user, id: user_id}})
+
+      # If user has a profile, broadcast profile deletion
+      if profile = user.profile do
+        DataSync.broadcast("profiles", profile.id, {:deleted, %{type: :profile, id: profile.id}})
+      end
+
+      # If we found an employee, broadcast employee deletion
+      if employee do
+        # Broadcast employee deletion events
+        DataSync.broadcast("employees", employee.company_id, {:deleted, %{type: :employee, id: employee.id}})
+
+        # Also broadcast to the specific company channel
+        DataSync.broadcast("companies", employee.company_id, {:employee_deleted, %{
+          type: :employee,
+          id: employee.id,
+          user_id: user_id
+        }})
+      end
+
+      # Broadcast logout event to force the user to log out if they're still logged in
+      DataSync.broadcast("users", user_id, {:force_logout, %{type: :user, id: user_id}})
+
       socket =
         socket
         |> assign(:selected_user, nil)

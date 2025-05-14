@@ -2,8 +2,18 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
   use PhxplateWeb, :live_view
   alias Phxplate.{Accounts, Companies, Subscriptions}
   alias PhxplateWeb.PageMeta
+  alias Phxplate.PubSub.DataSync
 
   def mount(_params, _session, socket) do
+    if connected?(socket) do
+      # Subscribe to all relevant topics for real-time updates
+      DataSync.subscribe("companies", "all")
+      DataSync.subscribe("employees", "all")
+      DataSync.subscribe("users", "all")
+      DataSync.subscribe("subscriptions", "all")
+      DataSync.subscribe("profiles", "all")
+    end
+
     stats = %{
       total_users: Accounts.count_users(),
       total_companies: Companies.count_companies(),
@@ -21,6 +31,102 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
        description: "Super Admin Dashboard"
      )}
   end
+
+  # Handle employee creation
+  def handle_info({:created, %{type: :employee, employee: _employee}}, socket) do
+    {:noreply,
+     update(socket, :stats, fn stats ->
+       %{stats | total_employees: stats.total_employees + 1}
+     end)}
+  end
+
+  # Handle employee deletion with full employee data
+  def handle_info({:deleted, %{type: :employee, employee: _employee}}, socket) do
+    {:noreply,
+     update(socket, :stats, fn stats ->
+       %{stats | total_employees: stats.total_employees - 1}
+     end)}
+  end
+
+  # Handle employee deletion with just ID
+  def handle_info({:deleted, %{type: :employee, id: _employee_id}}, socket) do
+    {:noreply,
+     update(socket, :stats, fn stats ->
+       %{stats | total_employees: stats.total_employees - 1}
+     end)}
+  end
+
+  # Handle company creation
+  def handle_info({:created, %{type: :company, company: _company}}, socket) do
+    {:noreply,
+     update(socket, :stats, fn stats ->
+       %{stats | total_companies: stats.total_companies + 1}
+     end)}
+  end
+
+  # Handle company deletion
+  def handle_info({:deleted, %{type: :company, id: _company_id}}, socket) do
+    {:noreply,
+     update(socket, :stats, fn stats ->
+       %{stats | total_companies: stats.total_companies - 1}
+     end)}
+  end
+
+  # Handle user creation
+  def handle_info({:created, %{type: :user, user: _user}}, socket) do
+    {:noreply,
+     update(socket, :stats, fn stats ->
+       %{stats | total_users: stats.total_users + 1}
+     end)}
+  end
+
+  # Handle user deletion
+  def handle_info({:deleted, %{type: :user, id: _user_id}}, socket) do
+    {:noreply,
+     update(socket, :stats, fn stats ->
+       %{stats | total_users: stats.total_users - 1}
+     end)}
+  end
+
+  # Handle subscription changes
+  def handle_info({event, %{type: :subscription} = data}, socket) do
+    case event do
+      :created ->
+        {:noreply,
+         update(socket, :stats, fn stats ->
+           %{stats |
+             total_subscriptions: stats.total_subscriptions + 1,
+             total_revenue: stats.total_revenue + (data.subscription.amount || 0)
+           }
+         end)}
+
+      :deleted ->
+        {:noreply,
+         update(socket, :stats, fn stats ->
+           %{stats |
+             total_subscriptions: stats.total_subscriptions - 1,
+             total_revenue: stats.total_revenue - (data.subscription.amount || 0)
+           }
+         end)}
+
+      :updated ->
+        # For updates, we only need to recalculate revenue if the amount changed
+        if data.changes && Map.has_key?(data.changes, :amount) do
+          old_amount = data.subscription.amount - data.changes.amount
+          {:noreply,
+           update(socket, :stats, fn stats ->
+             %{stats |
+               total_revenue: stats.total_revenue - old_amount + data.subscription.amount
+             }
+           end)}
+        else
+          {:noreply, socket}
+        end
+    end
+  end
+
+  # Catch-all for any other events
+  def handle_info(_message, socket), do: {:noreply, socket}
 
   def render(assigns) do
     ~H"""

@@ -19,6 +19,13 @@ defmodule Phxplate.Companies do
     |> Repo.all()
   end
 
+  def get_company(id) do
+    Company
+    |> where(id: ^id)
+    |> preload([employees: [:profile]])
+    |> Repo.one()
+  end
+
   def get_company!(id) do
     Company
     |> where(id: ^id)
@@ -120,6 +127,9 @@ defmodule Phxplate.Companies do
   end
 
   def delete_employee(%Employee{} = employee, actor \\ nil) do
+    # Preload the employee with its profile before deletion
+    employee = Repo.preload(employee, [:profile])
+
     case Repo.delete(employee) do
       {:ok, deleted_employee} = result ->
         if actor do
@@ -130,9 +140,13 @@ defmodule Phxplate.Companies do
             %{"employee_email" => deleted_employee.email}
           )
         end
-        # Broadcast employee deletion
+        # Broadcast employee deletion with full employee data
         DataSync.broadcast("employees", deleted_employee.company_id,
-          {:deleted, %{type: :employee, id: deleted_employee.id}}
+          {:deleted, %{type: :employee, employee: deleted_employee}}
+        )
+        # Also broadcast to the all topic
+        DataSync.broadcast("employees", "all",
+          {:deleted, %{type: :employee, employee: deleted_employee}}
         )
         result
       error -> error
@@ -375,6 +389,14 @@ defmodule Phxplate.Companies do
   def get_employee_by_company_and_email(company_id, email) do
     Employee
     |> where([e], e.company_id == ^company_id and e.email == ^email)
+    |> Repo.one()
+  end
+
+  def get_employee_by_user_id(user_id) do
+    Employee
+    |> join(:inner, [e], p in assoc(e, :profile))
+    |> where([e, p], p.user_id == ^user_id)
+    |> preload([e, p], [:profile])
     |> Repo.one()
   end
 end

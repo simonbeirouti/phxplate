@@ -28,6 +28,8 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
       DataSync.subscribe("companies", company_id)
       DataSync.subscribe("employees", company_id)
       DataSync.subscribe("invitations", company_id)
+      DataSync.subscribe("users", "all")
+      DataSync.subscribe("profiles", "all")
     end
 
     case authorize_company(company_id, socket.assigns.current_user) do
@@ -89,10 +91,11 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
   end
 
   def handle_info({:deleted, %{type: :employee, id: employee_id}}, socket) do
-    {:noreply,
-     update(socket, :employees, fn employees ->
-       Enum.reject(employees, &(&1.id == employee_id))
-     end)}
+    updated_employees = Enum.reject(socket.assigns.employees, fn employee ->
+      employee.id == employee_id
+    end)
+
+    {:noreply, assign(socket, :employees, updated_employees)}
   end
 
   def handle_info({:created, %{type: :invitation, invitation: invitation}}, socket) do
@@ -136,6 +139,83 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
          "logo" => company.logo
        })
      )}
+  end
+
+  def handle_info({:deleted, %{type: :company, id: company_id}}, socket) do
+    if socket.assigns.company.id == company_id do
+      {:noreply,
+       socket
+       |> put_flash(:error, "Company was deleted.")
+       |> redirect(to: ~p"/dashboard/admin/companies")}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:deleted, %{type: :user, id: user_id}}, socket) do
+    # Find employees associated with the deleted user
+    employees_to_delete = Enum.filter(socket.assigns.employees, fn employee ->
+      employee.profile && employee.profile.user_id == user_id
+    end)
+
+    # Delete each employee
+    Enum.each(employees_to_delete, fn employee ->
+      Companies.delete_employee(employee, socket.assigns.current_user)
+    end)
+
+    # Remove the employees from the view and refresh activities
+    updated_employees = Enum.reject(socket.assigns.employees, fn employee ->
+      employee.profile && employee.profile.user_id == user_id
+    end)
+
+    activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
+
+    {:noreply,
+     socket
+     |> assign(:employees, updated_employees)
+     |> assign(:activities, activities)}
+  end
+
+  def handle_info({:deleted, %{type: :profile, id: profile_id}}, socket) do
+    # Remove employees with deleted profiles
+    updated_employees = Enum.reject(socket.assigns.employees, fn employee ->
+      employee.profile && employee.profile.id == profile_id
+    end)
+
+    activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
+
+    {:noreply,
+     socket
+     |> assign(:employees, updated_employees)
+     |> assign(:activities, activities)}
+  end
+
+  def handle_info({:deleted, %{type: :employee, employee: employee}}, socket) do
+    # Remove the specific employee from the view
+    updated_employees = Enum.reject(socket.assigns.employees, fn e ->
+      e.id == employee.id
+    end)
+
+    activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
+
+    {:noreply,
+     socket
+     |> assign(:employees, updated_employees)
+     |> assign(:activities, activities)}
+  end
+
+  def handle_info({:employee_deleted, %{type: :employee, id: employee_id}}, socket) do
+    # Remove the specific employee from the view
+    updated_employees = Enum.reject(socket.assigns.employees, fn employee ->
+      employee.id == employee_id
+    end)
+
+    activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
+
+    {:noreply,
+     socket
+     |> assign(:employees, updated_employees)
+     |> assign(:activities, activities)}
   end
 
   defp authorize_company(company_id, user) do
@@ -484,17 +564,21 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                       <.table_cell>
                         <div class="flex items-center gap-2">
                           <img
-                            src={employee.profile.avatar_url || "/images/default-avatar.svg"}
+                            src={if employee.profile, do: employee.profile.avatar_url || "/images/default-avatar.svg", else: "/images/default-avatar.svg"}
                             alt="Employee avatar"
                             class="w-12 h-12 rounded-full bg-gray-200"
                           />
                         </div>
                       </.table_cell>
                       <.table_cell class="font-medium">
-                        {employee.profile.first_name} {employee.profile.last_name}
+                        {if employee.profile do
+                          "#{employee.profile.first_name} #{employee.profile.last_name}"
+                        else
+                          "Profile Deleted"
+                        end}
                       </.table_cell>
                       <.table_cell>{employee.email}</.table_cell>
-                      <.table_cell>{employee.profile.phone || "N/A"}</.table_cell>
+                      <.table_cell>{if employee.profile, do: employee.profile.phone || "N/A", else: "N/A"}</.table_cell>
                       <.table_cell>{employee.position || "N/A"}</.table_cell>
                       <.table_cell>{employee.department || "N/A"}</.table_cell>
                       <.table_cell class="text-right">
@@ -569,7 +653,13 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                 <div class="bg-white shadow rounded-lg p-4">
                   <div class="flex justify-between items-start mb-4">
                     <div>
-                      <h3 class="text-lg font-medium">{employee.profile.first_name} {employee.profile.last_name}</h3>
+                      <h3 class="text-lg font-medium">
+                        {if employee.profile do
+                          "#{employee.profile.first_name} #{employee.profile.last_name}"
+                        else
+                          "Profile Deleted"
+                        end}
+                      </h3>
                       <p class="text-sm text-gray-500">{employee.position || "No position"}</p>
                     </div>
 
@@ -609,7 +699,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                     </div>
                     <div>
                       <dt class="text-gray-500">Phone</dt>
-                      <dd>{employee.profile.phone || "N/A"}</dd>
+                      <dd>{if employee.profile, do: employee.profile.phone || "N/A", else: "N/A"}</dd>
                     </div>
                     <div>
                       <dt class="text-gray-500">Department</dt>

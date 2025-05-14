@@ -548,7 +548,18 @@ defmodule Phxplate.Accounts do
   @doc """
   Delete the user from the application
   """
-  def delete_user(user) do
+  def delete_user(%User{} = user) do
+    # First find and delete any associated employee records
+    if user.profile do
+      case Phxplate.Companies.get_employee_by_user_id(user.id) do
+        nil -> :ok
+        employee ->
+          # Delete the employee first
+          Phxplate.Companies.delete_employee(employee)
+      end
+    end
+
+    # Then delete the user
     Repo.delete(user)
   end
 

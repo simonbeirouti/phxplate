@@ -7,6 +7,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
   def mount(_params, _session, socket) do
     if connected?(socket) do
       DataSync.subscribe("companies", "all")
+      DataSync.subscribe("employees", "all")
+      DataSync.subscribe("profiles", "all")
     end
 
     socket =
@@ -58,6 +60,61 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
     {:noreply, load_companies(socket, socket.assigns.page)}
   end
 
+  def handle_info({:deleted, %{type: :employee, employee: employee}}, socket) do
+    if socket.assigns.selected_company && employee.company_id == socket.assigns.selected_company.id do
+      # Update the selected company's employees list by removing the deleted employee
+      socket = update(socket, :selected_company, fn company ->
+        %{company | employees: Enum.reject(company.employees, &(&1.id == employee.id))}
+      end)
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:deleted, %{type: :employee, id: employee_id}}, socket) do
+    if socket.assigns.selected_company do
+      # Update the selected company's employees list by removing the deleted employee
+      socket = update(socket, :selected_company, fn company ->
+        %{company | employees: Enum.reject(company.employees, &(&1.id == employee_id))}
+      end)
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:created, %{type: :employee, employee: employee}}, socket) do
+    if socket.assigns.selected_company && employee.company_id == socket.assigns.selected_company.id do
+      # Update the selected company's employees list by adding the new employee
+      socket = update(socket, :selected_company, fn company ->
+        %{company | employees: [employee | company.employees]}
+      end)
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:deleted, %{type: :profile, profile: profile}}, socket) do
+    if socket.assigns.selected_company do
+      # Update the employee's profile in the selected company's employees list
+      socket = update(socket, :selected_company, fn company ->
+        updated_employees = Enum.map(company.employees, fn employee ->
+          if employee.profile && employee.profile.id == profile.id do
+            %{employee | profile: nil}
+          else
+            employee
+          end
+        end)
+        %{company | employees: updated_employees}
+      end)
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
+  end
+
   defp maybe_update_selected_company(socket, company) do
     if socket.assigns.selected_company && socket.assigns.selected_company.id == company.id do
       assign(socket, :selected_company, company)
@@ -67,9 +124,28 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
   end
 
   def handle_event("select_company", %{"id" => company_id}, socket) do
-    company = Companies.get_company!(company_id) |> Repo.preload([:employees])
-    activities = Phxplate.Tracking.get_company_activities(company_id, 20)
-    {:noreply, assign(socket, selected_company: company, activities: activities)}
+    case Integer.parse(company_id) do
+      {id, ""} ->
+        try do
+          company = Companies.get_company!(id) |> Repo.preload([:employees])
+          activities = Phxplate.Tracking.get_company_activities(id, 20)
+          {:noreply, assign(socket, selected_company: company, activities: activities)}
+        rescue
+          Ecto.NoResultsError ->
+            {:noreply,
+             socket
+             |> put_flash(:error, "Company not found or was deleted.")
+             |> assign(:selected_company, nil)
+             |> assign(:activities, [])}
+        end
+
+      _ ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Invalid company ID format.")
+         |> assign(:selected_company, nil)
+         |> assign(:activities, [])}
+    end
   end
 
   def handle_event("paginate", %{"page" => page}, socket) do
