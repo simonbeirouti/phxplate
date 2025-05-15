@@ -498,10 +498,7 @@ created_data = Enum.reduce(Enum.with_index(created_data.admins), created_data, f
     })
 
     employee = Repo.insert!(%Employee{
-      first_name: profile.first_name,
-      last_name: profile.last_name,
       email: user.email,  # Use the user's email
-      phone: profile.phone,  # Use the profile's phone
       position: Faker.Company.bs(),
       department: Faker.Company.bs(),
       salary: Decimal.new(to_string(Faker.Commerce.price())),
@@ -511,10 +508,7 @@ created_data = Enum.reduce(Enum.with_index(created_data.admins), created_data, f
 
     employee_data = %{
       id: employee.id,
-      first_name: employee.first_name,
-      last_name: employee.last_name,
       email: employee.email,
-      phone: employee.phone,
       position: employee.position,
       department: employee.department,
       salary: employee.salary,

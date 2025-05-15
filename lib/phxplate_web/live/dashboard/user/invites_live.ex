@@ -2,8 +2,11 @@ defmodule PhxplateWeb.Dashboard.User.InvitesLive do
   use PhxplateWeb, :live_view
 
   alias Phxplate.Companies
+  alias Phxplate.PubSub.DataSync
+  alias Phxplate.Repo
 
   # Mount for the accept action when token is present
+  @impl true
   def mount(%{"token" => token} = _params, _session, socket) do
     case Companies.get_invitation_by_token(token) do
       nil ->
@@ -31,6 +34,10 @@ defmodule PhxplateWeb.Dashboard.User.InvitesLive do
 
   # Mount for the index action (listing invites)
   def mount(_params, _session, socket) do
+    if connected?(socket) do
+      DataSync.subscribe("user_invitations", socket.assigns.current_user.email)
+    end
+
     pending_invites = Companies.list_user_pending_invitations(socket.assigns.current_user.email)
 
     {:ok,
@@ -39,18 +46,53 @@ defmodule PhxplateWeb.Dashboard.User.InvitesLive do
      |> assign(:pending_invites, pending_invites)}
   end
 
+  @impl true
+  def handle_info({:created, %{type: :invitation, invitation: invitation}}, socket) do
+    invitation = Repo.preload(invitation, [:company, :inviter])
+    # Only add the invitation if it doesn't already exist in the list
+    {:noreply,
+     update(socket, :pending_invites, fn invites ->
+       if Enum.any?(invites, &(&1.id == invitation.id)) do
+         invites
+       else
+         [invitation | invites]
+       end
+     end)}
+  end
+
+  def handle_info({:updated, %{type: :invitation, invitation: invitation}}, socket) do
+    invitation = Repo.preload(invitation, [:company, :inviter])
+    {:noreply,
+     update(socket, :pending_invites, fn invites ->
+       Enum.map(invites, fn inv -> if inv.id == invitation.id, do: invitation, else: inv end)
+     end)}
+  end
+
+  def handle_info({:deleted, %{type: :invitation, id: invitation_id}}, socket) do
+    {:noreply,
+     update(socket, :pending_invites, fn invites ->
+       Enum.reject(invites, &(&1.id == invitation_id))
+     end)}
+  end
+
+  # Ignore other events
+  def handle_info(_event, socket), do: {:noreply, socket}
+
+  @impl true
   def handle_params(_params, url, socket) do
     uri = URI.parse(url)
     socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
     {:noreply, socket}
   end
 
+  @impl true
   def handle_event("accept_invitation", %{"id" => invitation_id}, socket) do
     invitation_id = String.to_integer(invitation_id)
     invitation = Enum.find(socket.assigns.pending_invites, &(&1.id == invitation_id))
 
     case Companies.accept_invitation(invitation, socket.assigns.current_user) do
       {:ok, _employee} ->
+        # Refresh the list of pending invites from the database
         pending_invites =
           Companies.list_user_pending_invitations(socket.assigns.current_user.email)
 
@@ -66,6 +108,7 @@ defmodule PhxplateWeb.Dashboard.User.InvitesLive do
     end
   end
 
+  @impl true
   def render(assigns) do
     ~H"""
     <div>

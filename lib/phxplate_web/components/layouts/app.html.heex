@@ -1,6 +1,14 @@
 <.sidebar_provider>
   <.sidebar_main data={@layout_data}></.sidebar_main>
   <.sidebar_inset>
+    <%= if @layout_data.user do %>
+      <.live_component
+        module={PhxplateWeb.UserSessionHandlerLive}
+        id="user-session-handler"
+        current_user={@layout_data.user}
+      />
+    <% end %>
+
     <header class="flex h-16 shrink-0 items-center gap-2 border-b px-4">
       <button
         type="button"
@@ -39,6 +47,7 @@
       <div class="space-y-1 px-2 pb-3 pt-2">
         <.mobile_nav_main items={@layout_data.navMain} />
         <.mobile_nav_projects projects={@layout_data.projects} />
+        <.mobile_nav_bookmarked projects={@layout_data.bookmarked} />
         <.mobile_nav_user user={@layout_data.user} />
       </div>
     </div>

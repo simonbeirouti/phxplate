@@ -4,9 +4,14 @@ defmodule PhxplateWeb.Public.CompanyShowLive do
 
   alias Phxplate.Companies
   alias Phxplate.Bookmarks
+  alias Phxplate.PubSub.DataSync
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
+    if connected?(socket) do
+      DataSync.subscribe("companies", id)
+    end
+
     company = Companies.get_company!(id)
 
     bookmarked =
@@ -20,9 +25,21 @@ defmodule PhxplateWeb.Public.CompanyShowLive do
   end
 
   @impl true
+  def handle_info({:updated, %{type: :company, company: company}}, socket) do
+    {:noreply, assign(socket, :company, company)}
+  end
+
+  def handle_info({:deleted, %{type: :company}}, socket) do
+    {:noreply,
+     socket
+     |> put_flash(:info, "This company has been deleted.")
+     |> redirect(to: ~p"/companies")}
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
-    <div class="max-w-7xl mx-auto">
+    <div class="max-w-7xl mx-auto px-4">
       <div class="my-6">
         <.link navigate={~p"/companies"}>
           <.button variant="outline">

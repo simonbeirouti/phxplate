@@ -6,6 +6,7 @@ defmodule Phxplate.Bookmarks do
   import Ecto.Query, warn: false
   alias Phxplate.Repo
   alias Phxplate.Bookmarks.Bookmark
+  alias Phxplate.PubSub.DataSync
 
   @doc """
   Returns the list of bookmarks for a user.
@@ -33,6 +34,19 @@ defmodule Phxplate.Bookmarks do
     %Bookmark{}
     |> Bookmark.changeset(attrs)
     |> Repo.insert()
+    |> case do
+      {:ok, bookmark} = result ->
+        # Broadcast to user-specific topic
+        DataSync.broadcast("bookmarks", bookmark.user_id,
+          {:created, %{type: :bookmark, bookmark: bookmark}}
+        )
+        # Broadcast to company-specific topic
+        DataSync.broadcast("company_bookmarks", bookmark.company_id,
+          {:created, %{type: :bookmark, bookmark: bookmark}}
+        )
+        result
+      error -> error
+    end
   end
 
   @doc """
@@ -40,6 +54,19 @@ defmodule Phxplate.Bookmarks do
   """
   def delete_bookmark(%Bookmark{} = bookmark) do
     Repo.delete(bookmark)
+    |> case do
+      {:ok, deleted_bookmark} = result ->
+        # Broadcast to user-specific topic
+        DataSync.broadcast("bookmarks", deleted_bookmark.user_id,
+          {:deleted, %{type: :bookmark, id: deleted_bookmark.id}}
+        )
+        # Broadcast to company-specific topic
+        DataSync.broadcast("company_bookmarks", deleted_bookmark.company_id,
+          {:deleted, %{type: :bookmark, id: deleted_bookmark.id}}
+        )
+        result
+      error -> error
+    end
   end
 
   @doc """

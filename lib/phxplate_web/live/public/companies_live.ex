@@ -3,11 +3,35 @@ defmodule PhxplateWeb.Public.CompaniesLive do
   use SaladUI
 
   alias Phxplate.Companies
+  alias Phxplate.PubSub.DataSync
 
   @impl true
   def mount(_params, _session, socket) do
+    if connected?(socket) do
+      DataSync.subscribe("companies", "all")
+    end
+
     companies = Companies.list_companies()
     {:ok, assign(socket, companies: companies)}
+  end
+
+  @impl true
+  def handle_info({:created, %{type: :company, company: company}}, socket) do
+    {:noreply, update(socket, :companies, fn companies -> [company | companies] end)}
+  end
+
+  def handle_info({:updated, %{type: :company, company: company}}, socket) do
+    {:noreply,
+     update(socket, :companies, fn companies ->
+       Enum.map(companies, fn c -> if c.id == company.id, do: company, else: c end)
+     end)}
+  end
+
+  def handle_info({:deleted, %{type: :company, id: company_id}}, socket) do
+    {:noreply,
+     update(socket, :companies, fn companies ->
+       Enum.reject(companies, &(&1.id == company_id))
+     end)}
   end
 
   @impl true

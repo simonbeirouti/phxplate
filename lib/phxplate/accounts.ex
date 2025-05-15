@@ -6,6 +6,7 @@ defmodule Phxplate.Accounts do
   import Ecto.Query, warn: false
   import Ecto.Changeset, only: [get_change: 2]
   alias Phxplate.Repo
+  alias Phxplate.PubSub.DataSync
 
   alias Phxplate.Accounts.{User, UserToken, UserNotifier, Profile}
 
@@ -338,9 +339,14 @@ defmodule Phxplate.Accounts do
   end
 
   defp confirm_user_multi(user) do
+    changeset = User.confirm_changeset(user)
+
     Ecto.Multi.new()
-    |> Ecto.Multi.update(:user, User.confirm_changeset(user))
+    |> Ecto.Multi.update(:user, changeset)
     |> Ecto.Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, ["confirm"]))
+    |> Ecto.Multi.run(:activity, fn _repo, %{user: confirmed_user} ->
+      {:ok, Phxplate.Tracking.track_user_activity("account_confirmed", confirmed_user, confirmed_user)}
+    end)
   end
 
   ## Reset password
@@ -473,6 +479,15 @@ defmodule Phxplate.Accounts do
     %Profile{user_id: user.id}
     |> Profile.changeset(attrs)
     |> Repo.insert()
+    |> case do
+      {:ok, profile} = result ->
+        # Broadcast profile creation
+        DataSync.broadcast("profiles", user.id, {:created, %{type: :profile, profile: profile}})
+        # Also broadcast to "all" topic for global updates
+        DataSync.broadcast("profiles", "all", {:created, %{type: :profile, profile: profile, global_scope: true}})
+        result
+      error -> error
+    end
   end
 
   @doc """
@@ -491,6 +506,15 @@ defmodule Phxplate.Accounts do
     profile
     |> Profile.changeset(attrs)
     |> Repo.update()
+    |> case do
+      {:ok, updated_profile} = result ->
+        # Broadcast profile update
+        DataSync.broadcast("profiles", profile.user_id, {:updated, %{type: :profile, profile: updated_profile}})
+        # Also broadcast to "all" topic for global updates
+        DataSync.broadcast("profiles", "all", {:updated, %{type: :profile, profile: updated_profile, global_scope: true}})
+        result
+      error -> error
+    end
   end
 
   @doc """
@@ -524,22 +548,48 @@ defmodule Phxplate.Accounts do
   @doc """
   Delete the user from the application
   """
-  def delete_user(user) do
-    Repo.delete(user)
-  end
+  def delete_user(%User{} = user) do
+    # First find and delete any associated employee records
+    if user.profile do
+      case Phxplate.Companies.get_employee_by_user_id(user.id) do
+        nil -> :ok
+        employee ->
+          # Delete the employee first
+          Phxplate.Companies.delete_employee(employee)
+      end
+    end
 
-  @doc """
-  Returns an `%Ecto.Changeset{}` for tracking user profile changes.
+    # Preload companies to ensure proper cascade deletion
+    user = Repo.preload(user, [:companies, :profile])
 
-  ## Examples
+    # Store company IDs before deletion for broadcasting
+    company_ids = Enum.map(user.companies, & &1.id)
 
-      iex> change_user_profile(user)
-      %Ecto.Changeset{data: %Profile{}}
+    # Then delete the user with proper changeset to handle company deletion
+    case user |> User.delete_changeset() |> Repo.delete() do
+      {:ok, deleted_user} = result ->
+        # Broadcast user deletion
+        DataSync.broadcast("users", "all", {:deleted, %{type: :user, id: deleted_user.id}})
 
-  """
-  def change_user_profile(%User{} = user) do
-    profile = user.profile || %Profile{user_id: user.id}
-    Profile.changeset(profile, %{})
+        # Broadcast profile deletion if exists
+        if deleted_user.profile do
+          DataSync.broadcast("profiles", deleted_user.profile.id, {:deleted, %{type: :profile, id: deleted_user.profile.id}})
+        end
+
+        # Broadcast company deletions
+        Enum.each(company_ids, fn company_id ->
+          DataSync.broadcast("companies", "all", {:deleted, %{type: :company, id: company_id}})
+          DataSync.broadcast("companies", company_id, {:deleted, %{type: :company, id: company_id}})
+        end)
+
+        # Force logout for the deleted user
+        DataSync.broadcast("users", deleted_user.id, {:force_logout, %{type: :user, id: deleted_user.id}})
+
+        result
+
+      error ->
+        error
+    end
   end
 
   @doc """
@@ -560,5 +610,15 @@ defmodule Phxplate.Accounts do
     profile
     |> Profile.changeset(attrs)
     |> Repo.insert_or_update()
+    |> case do
+      {:ok, updated_profile} = result ->
+        # Broadcast profile update or creation
+        event_type = if profile.id, do: :updated, else: :created
+        DataSync.broadcast("profiles", user.id, {event_type, %{type: :profile, profile: updated_profile}})
+        # Also broadcast to "all" topic for global updates
+        DataSync.broadcast("profiles", "all", {event_type, %{type: :profile, profile: updated_profile, global_scope: true}})
+        result
+      error -> error
+    end
   end
 end

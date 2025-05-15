@@ -2,10 +2,14 @@ defmodule PhxplateWeb.Dashboard.Basic.BookmarksLive do
   use PhxplateWeb, :live_view
   use SaladUI
 
-  alias Phxplate.Bookmarks
+  alias Phxplate.{Bookmarks, PubSub.DataSync}
 
   @impl true
   def mount(_params, _session, socket) do
+    if connected?(socket) do
+      DataSync.subscribe("bookmarks", socket.assigns.current_user.id)
+    end
+
     bookmarks = Bookmarks.list_user_bookmarks(socket.assigns.current_user.id)
 
     {:ok,
@@ -14,6 +18,34 @@ defmodule PhxplateWeb.Dashboard.Basic.BookmarksLive do
        page_description: "Companies you've bookmarked for quick access",
        bookmarks: bookmarks
      )}
+  end
+
+  @impl true
+  def handle_info({:created, %{type: :bookmark, bookmark: bookmark}}, socket) do
+    # Only add the bookmark if it doesn't already exist in the list
+    case Enum.find(socket.assigns.bookmarks, &(&1.id == bookmark.id)) do
+      nil ->
+        # Reload the bookmark with company association
+        bookmark =
+          Bookmarks.get_bookmark(bookmark.user_id, bookmark.company_id)
+          |> Phxplate.Repo.preload(:company)
+
+        # Update the list, ensuring no duplicates
+        {:noreply,
+         update(socket, :bookmarks, fn bookmarks ->
+           Enum.uniq_by([bookmark | bookmarks], & &1.id)
+         end)}
+
+      _existing ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_info({:deleted, %{type: :bookmark, id: bookmark_id}}, socket) do
+    {:noreply,
+     update(socket, :bookmarks, fn bookmarks ->
+       Enum.reject(bookmarks, &(&1.id == bookmark_id))
+     end)}
   end
 
   @impl true
