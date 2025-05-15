@@ -4,6 +4,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
   alias PhxplateWeb.{PageMeta, Components.ActivityTimelineComponent}
   alias Phxplate.PubSub.DataSync
 
+  @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
       DataSync.subscribe("companies", "all")
@@ -25,7 +26,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
   end
 
   @impl true
-  def handle_info({:created, %{type: :company, company: company}}, socket) do
+  def handle_info({:created, %{type: :company, company: _company}}, socket) do
     # Instead of just appending, reload the companies for the current page
     {:noreply, load_companies(socket, socket.assigns.page)}
   end
@@ -145,6 +146,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
     end
   end
 
+  @impl true
   def handle_event("select_company", %{"id" => company_id}, socket) do
     case Integer.parse(company_id) do
       {id, ""} ->
@@ -175,16 +177,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
     {:noreply, load_companies(socket, page)}
   end
 
-  def handle_params(params, _uri, socket) do
-    page =
-      case params["page"] do
-        nil -> 1
-        page_param -> String.to_integer(page_param)
-      end
-
-    {:noreply, load_companies(socket, page)}
-  end
-
   def handle_event("confirm_delete_company", _params, socket) do
     {:noreply, assign(socket, :confirming_delete_company, true)}
   end
@@ -206,6 +198,17 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
     end
   end
 
+  @impl true
+  def handle_params(params, _uri, socket) do
+    page =
+      case params["page"] do
+        nil -> 1
+        page_param -> String.to_integer(page_param)
+      end
+
+    {:noreply, load_companies(socket, page)}
+  end
+
   defp load_companies(socket, page) do
     per_page = 10
 
@@ -225,6 +228,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
     |> assign(:per_page, per_page)
   end
 
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">

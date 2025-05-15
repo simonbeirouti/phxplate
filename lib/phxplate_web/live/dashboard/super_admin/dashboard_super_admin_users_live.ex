@@ -4,6 +4,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
   alias PhxplateWeb.{PageMeta, Components.ActivityTimelineComponent}
   alias Phxplate.PubSub.DataSync
 
+  @impl true
   def mount(_params, _session, socket) do
     plans = Phxplate.Subscriptions.list_all_plans()
 
@@ -41,6 +42,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
     )
   end
 
+  @impl true
   def handle_event("select_user", %{"id" => user_id}, socket) do
     user = Accounts.get_user!(user_id) |> Repo.preload([:profile, :subscription])
     activities = Phxplate.Tracking.get_user_activities(user_id, 20)
@@ -166,7 +168,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
   def handle_event("confirm_delete_user", %{"user_id" => user_id}, socket) do
     with %{role: :super_admin} <- socket.assigns.current_user,
          user = Accounts.get_user!(user_id) |> Repo.preload(:profile),
-         {:ok, deleted} <- Accounts.delete_user(user) do
+         {:ok, _deleted} <- Accounts.delete_user(user) do
       # Find any associated employee before broadcasting events
       employee = Companies.get_employee_by_user_id(user_id)
 
@@ -208,6 +210,22 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
     end
   end
 
+  def handle_event("paginate", %{"page" => page}, socket) do
+    page = String.to_integer(page)
+    {:noreply, load_users(socket, page)}
+  end
+
+  @impl true
+  def handle_params(params, _uri, socket) do
+    page =
+      case params["page"] do
+        nil -> 1
+        page_param -> String.to_integer(page_param)
+      end
+
+    {:noreply, load_users(socket, page)}
+  end
+
   @impl true
   def handle_info({:created, %{type: :profile, profile: new_profile, global_scope: true}}, socket) do
     current_users = socket.assigns.users
@@ -233,7 +251,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
     {:noreply, assign(socket, users: updated_users, selected_user: updated_selected_user)}
   end
 
-  @impl true
   def handle_info({:updated, %{type: :profile, profile: updated_profile, global_scope: true}}, socket) do
     current_users = socket.assigns.users
     current_selected_user = socket.assigns.selected_user
@@ -257,21 +274,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
     {:noreply, assign(socket, users: updated_users, selected_user: updated_selected_user)}
   end
 
-  def handle_event("paginate", %{"page" => page}, socket) do
-    page = String.to_integer(page)
-    {:noreply, load_users(socket, page)}
-  end
-
-  def handle_params(params, _uri, socket) do
-    page =
-      case params["page"] do
-        nil -> 1
-        page_param -> String.to_integer(page_param)
-      end
-
-    {:noreply, load_users(socket, page)}
-  end
-
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">

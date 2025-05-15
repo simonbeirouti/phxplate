@@ -5,6 +5,7 @@ defmodule PhxplateWeb.Dashboard.Basic.BasicLive do
   alias PhxplateWeb.PageMeta
   alias Phxplate.{Bookmarks, PubSub.DataSync}
 
+  @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
       DataSync.subscribe("bookmarks", socket.assigns.current_user.id)
@@ -21,6 +22,7 @@ defmodule PhxplateWeb.Dashboard.Basic.BasicLive do
      |> assign(:bookmark_count, bookmark_count)}
   end
 
+  @impl true
   def handle_params(_params, url, socket) do
     uri = URI.parse(url)
     socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
@@ -42,6 +44,7 @@ defmodule PhxplateWeb.Dashboard.Basic.BasicLive do
   # Ignore other events
   def handle_info(_event, socket), do: {:noreply, socket}
 
+  @impl true
   def render(assigns) do
     ~H"""
     <main>

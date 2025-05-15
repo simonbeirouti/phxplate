@@ -8,7 +8,6 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
   alias Phxplate.PubSub.DataSync
   alias Phxplate.Repo
 
-  @impl true
   def on_mount(:default, %{"id" => company_id}, _session, socket) do
     case authorize_company(company_id, socket.assigns.current_user) do
       {:ok, _company} -> {:cont, socket}
@@ -268,6 +267,41 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     {:noreply, assign(socket, :employees, updated_employees)}
   end
 
+  def handle_info({:image_uploaded, %{type: :logo, url: url}}, socket) do
+    case Companies.update_company(
+           socket.assigns.company,
+           %{"logo" => url},
+           socket.assigns.current_user
+         ) do
+      {:ok, company} ->
+        activities = Phxplate.Tracking.get_company_activities(company.id)
+
+        {:noreply,
+         socket
+         |> assign(:company, company)
+         |> assign(:activities, activities)
+         |> assign(
+           :form,
+           to_form(%{
+             "name" => company.name,
+             "email" => company.email,
+             "phone" => company.phone,
+             "website" => company.website,
+             "plan" => company.plan,
+             "address" => company.address,
+             "description" => company.description,
+             "logo" => company.logo
+           })
+         )
+         |> put_flash(:info, "Company logo updated successfully.")}
+
+      {:error, _changeset} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to update company logo.")}
+    end
+  end
+
   defp authorize_company(company_id, user) do
     with {:ok, id} <- parse_id(company_id),
          %Companies.Company{} = company <- Companies.get_company!(id),
@@ -465,39 +499,23 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     end
   end
 
-  @impl true
-  def handle_info({:image_uploaded, %{type: :logo, url: url}}, socket) do
-    case Companies.update_company(
-           socket.assigns.company,
-           %{"logo" => url},
-           socket.assigns.current_user
-         ) do
-      {:ok, company} ->
-        activities = Phxplate.Tracking.get_company_activities(company.id)
+  def handle_event("confirm_delete_company", _params, socket) do
+    {:noreply, assign(socket, :confirming_delete_company, true)}
+  end
 
+  def handle_event("delete_company", _params, socket) do
+    case Companies.delete_company(socket.assigns.company) do
+      {:ok, _deleted_company} ->
         {:noreply,
          socket
-         |> assign(:company, company)
-         |> assign(:activities, activities)
-         |> assign(
-           :form,
-           to_form(%{
-             "name" => company.name,
-             "email" => company.email,
-             "phone" => company.phone,
-             "website" => company.website,
-             "plan" => company.plan,
-             "address" => company.address,
-             "description" => company.description,
-             "logo" => company.logo
-           })
-         )
-         |> put_flash(:info, "Company logo updated successfully.")}
+         |> put_flash(:info, "Company deleted successfully.")
+         |> redirect(to: ~p"/dashboard/admin/companies")}
 
       {:error, _changeset} ->
         {:noreply,
          socket
-         |> put_flash(:error, "Failed to update company logo.")}
+         |> put_flash(:error, "Failed to delete company.")
+         |> assign(:confirming_delete_company, false)}
     end
   end
 
@@ -829,25 +847,5 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
       </.dialog>
     </div>
     """
-  end
-
-  def handle_event("confirm_delete_company", _params, socket) do
-    {:noreply, assign(socket, :confirming_delete_company, true)}
-  end
-
-  def handle_event("delete_company", _params, socket) do
-    case Companies.delete_company(socket.assigns.company) do
-      {:ok, _deleted_company} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Company deleted successfully.")
-         |> redirect(to: ~p"/dashboard/admin/companies")}
-
-      {:error, _changeset} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "Failed to delete company.")
-         |> assign(:confirming_delete_company, false)}
-    end
   end
 end

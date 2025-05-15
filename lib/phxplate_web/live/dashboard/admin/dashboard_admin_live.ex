@@ -6,6 +6,7 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
   import PhxplateWeb.CoreComponents
   import PhxplateWeb.Dashboard.Admin.CompanyHelpers
 
+  @impl true
   def mount(_params, _session, socket) do
     current_user = socket.assigns.current_user
 
@@ -36,6 +37,7 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
      )}
   end
 
+  @impl true
   def handle_params(_params, url, socket) do
     uri = URI.parse(url)
     socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
@@ -118,7 +120,8 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
     end
   end
 
-  def handle_event("open_create_company_dialog", params, socket) do
+  @impl true
+  def handle_event("open_create_company_dialog", _params, socket) do
     handle_open_create_company_dialog(socket)
   end
 
@@ -126,6 +129,7 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
     handle_create_company(socket, params)
   end
 
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">

@@ -6,6 +6,7 @@ defmodule PhxplateWeb.Dashboard.User.InvitesLive do
   alias Phxplate.Repo
 
   # Mount for the accept action when token is present
+  @impl true
   def mount(%{"token" => token} = _params, _session, socket) do
     case Companies.get_invitation_by_token(token) do
       nil ->
@@ -77,12 +78,14 @@ defmodule PhxplateWeb.Dashboard.User.InvitesLive do
   # Ignore other events
   def handle_info(_event, socket), do: {:noreply, socket}
 
+  @impl true
   def handle_params(_params, url, socket) do
     uri = URI.parse(url)
     socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
     {:noreply, socket}
   end
 
+  @impl true
   def handle_event("accept_invitation", %{"id" => invitation_id}, socket) do
     invitation_id = String.to_integer(invitation_id)
     invitation = Enum.find(socket.assigns.pending_invites, &(&1.id == invitation_id))
@@ -105,6 +108,7 @@ defmodule PhxplateWeb.Dashboard.User.InvitesLive do
     end
   end
 
+  @impl true
   def render(assigns) do
     ~H"""
     <div>

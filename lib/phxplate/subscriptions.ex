@@ -433,8 +433,9 @@ defmodule Phxplate.Subscriptions do
   def admin_create_subscription(_user_id, _tier, _status), do: {:error, :invalid_parameters}
 
   # Helper function to track subscription changes
-  defp track_subscription_change(action, user, actor \\ nil, additional_data \\ %{}) do
+  defp track_subscription_change(action, user, actor, additional_data) do
     tracking_actor = actor || user
+    additional_data = additional_data || %{}
     Phxplate.Tracking.track_user_activity(action, user, tracking_actor, additional_data)
   end
 

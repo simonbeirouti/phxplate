@@ -6,6 +6,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyLive do
   import PhxplateWeb.Components.CompaniesGrid
   import PhxplateWeb.Dashboard.Admin.CompanyHelpers
 
+  @impl true
   def mount(_params, _session, socket) do
     current_user = socket.assigns.current_user
 
@@ -59,7 +60,8 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyLive do
      end)}
   end
 
-  def handle_event("open_create_company_dialog", params, socket) do
+  @impl true
+  def handle_event("open_create_company_dialog", _params, socket) do
     handle_open_create_company_dialog(socket)
   end
 
@@ -67,6 +69,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyLive do
     handle_create_company(socket, params)
   end
 
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">

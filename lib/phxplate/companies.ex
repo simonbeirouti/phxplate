@@ -278,7 +278,6 @@ defmodule Phxplate.Companies do
   Accepts a company invitation.
   """
   def accept_invitation(%Invitation{} = invitation, user) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
     user = Phxplate.Repo.preload(user, :profile)
 
     # First check if employee exists

@@ -3,7 +3,7 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
   import Phoenix.LiveView, only: [connected?: 1]
   alias Phxplate.Accounts.User
   alias Phxplate.PubSub.DataSync
-  alias Phxplate.{Companies, Repo, Bookmarks}
+  alias Phxplate.{Companies, Bookmarks}
 
   def on_mount(:default, _params, _session, socket) do
     if connected?(socket) do

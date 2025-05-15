@@ -141,6 +141,7 @@ defmodule PhxplateWeb.Dashboard.Company.CompanyViewLive do
     end
   end
 
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="space-y-6">

@@ -62,7 +62,7 @@ defmodule PhxplateWeb.Components.UI.Drawer do
           type="button"
           class="absolute top-4 right-4 z-50 flex h-10 w-10 items-center justify-center text-muted-foreground hover:text-foreground"
         >
-          <AlgoraWeb.CoreComponents.icon name="tabler-x" class="h-5 w-5" />
+          <Lucideicons.x class="h-5 w-5" />
         </button>
         <div class="relative flex h-full flex-col p-6">
           {render_slot(@inner_block)}
