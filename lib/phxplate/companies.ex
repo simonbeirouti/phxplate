@@ -1,30 +1,29 @@
 defmodule Phxplate.Companies do
   import Ecto.Query, warn: false
-  alias Ecto.Multi
   alias Phxplate.Repo
   alias Phxplate.Companies.Company
   alias Phxplate.Companies.Employee
   alias Phxplate.Companies.Invitation
+  alias Phxplate.PubSub.DataSync
 
-  def list_companies(opts \\ []) do
-    page = Keyword.get(opts, :page, 1)
-    per_page = Keyword.get(opts, :per_page, 10)
-
+  def list_companies(_opts \\ []) do
     Company
-    |> offset((^page - 1) * ^per_page)
-    |> limit(^per_page)
+    |> preload([:owner, employees: [:profile]])
     |> Repo.all()
   end
 
-  def list_companies_by_owner(user_id, opts \\ []) do
-    page = Keyword.get(opts, :page, 1)
-    per_page = Keyword.get(opts, :per_page, 10)
-
+  def list_companies_by_owner(user_id, _opts \\ []) do
     Company
     |> where(owner_id: ^user_id)
-    |> offset((^page - 1) * ^per_page)
-    |> limit(^per_page)
+    |> preload([:owner, employees: [:profile]])
     |> Repo.all()
+  end
+
+  def get_company(id) do
+    Company
+    |> where(id: ^id)
+    |> preload([employees: [:profile]])
+    |> Repo.one()
   end
 
   def get_company!(id) do
@@ -40,7 +39,13 @@ defmodule Phxplate.Companies do
     |> Repo.insert()
     |> case do
       {:ok, company} ->
+        # Preload all necessary associations
+        company = Repo.preload(company, [:owner, employees: [:profile]])
+        # Track activity
         Phxplate.Tracking.track_company_activity("company_create", company, company.owner)
+        # Broadcast creation
+        DataSync.broadcast("companies", company.id, {:created, %{type: :company, company: company}})
+        DataSync.broadcast("companies", "all", {:created, %{type: :company, company: company}})
         {:ok, company}
       error -> error
     end
@@ -51,8 +56,8 @@ defmodule Phxplate.Companies do
     |> Company.changeset(attrs)
     |> Repo.update()
     |> case do
-      {:ok, updated_company} ->
-        # Only track fields that have changed
+      {:ok, updated_company} = result ->
+        # Track changed fields
         changed_fields = Enum.reduce(["name", "description", "address", "phone", "email", "plan", "logo", "website"], %{}, fn field, acc ->
           old_value = Map.get(company, String.to_atom(field))
           new_value = Map.get(attrs, field)
@@ -67,13 +72,24 @@ defmodule Phxplate.Companies do
           Phxplate.Tracking.track_company_activity("company_update", updated_company, actor || updated_company.owner, changed_fields)
         end
 
-        {:ok, updated_company}
+        # Broadcast update
+        DataSync.broadcast("companies", company.id, {:updated, %{type: :company, company: updated_company}})
+        DataSync.broadcast("companies", "all", {:updated, %{type: :company, company: updated_company}})
+        result
       error -> error
     end
   end
 
   def delete_company(%Company{} = company) do
     Repo.delete(company)
+    |> case do
+      {:ok, deleted_company} = result ->
+        # Broadcast deletion
+        DataSync.broadcast("companies", deleted_company.id, {:deleted, %{type: :company, id: deleted_company.id}})
+        DataSync.broadcast("companies", "all", {:deleted, %{type: :company, id: deleted_company.id}})
+        result
+      error -> error
+    end
   end
 
   def list_employees do
@@ -86,17 +102,37 @@ defmodule Phxplate.Companies do
     %Employee{}
     |> Employee.changeset(attrs)
     |> Repo.insert()
+    |> case do
+      {:ok, employee} = result ->
+        # Broadcast employee creation
+        DataSync.broadcast("employees", employee.company_id, {:created, %{type: :employee, employee: employee}})
+        DataSync.broadcast("employees", "all", {:created, %{type: :employee, employee: employee, global_scope: true}})
+        result
+      error -> error
+    end
   end
 
   def update_employee(%Employee{} = employee, attrs) do
     employee
     |> Employee.changeset(attrs)
     |> Repo.update()
+    |> case do
+      {:ok, updated_employee} = result ->
+        # Broadcast employee update
+        DataSync.broadcast("employees", updated_employee.company_id,
+          {:updated, %{type: :employee, employee: updated_employee}}
+        )
+        result
+      error -> error
+    end
   end
 
   def delete_employee(%Employee{} = employee, actor \\ nil) do
+    # Preload the employee with its profile before deletion
+    employee = Repo.preload(employee, [:profile])
+
     case Repo.delete(employee) do
-      {:ok, deleted_employee} ->
+      {:ok, deleted_employee} = result ->
         if actor do
           Phxplate.Tracking.track_company_activity(
             "employee_delete",
@@ -105,7 +141,15 @@ defmodule Phxplate.Companies do
             %{"employee_email" => deleted_employee.email}
           )
         end
-        {:ok, deleted_employee}
+        # Broadcast employee deletion with full employee data
+        DataSync.broadcast("employees", deleted_employee.company_id,
+          {:deleted, %{type: :employee, employee: deleted_employee}}
+        )
+        # Also broadcast to the all topic
+        DataSync.broadcast("employees", "all",
+          {:deleted, %{type: :employee, employee: deleted_employee, global_scope: true}}
+        )
+        result
       error -> error
     end
   end
@@ -146,8 +190,23 @@ defmodule Phxplate.Companies do
       inviter_id: inviter.id
     }
 
-    # Create the invitation record
+    # First check for and delete any existing invitations
+    existing_invitation = Repo.get_by(Invitation, email: email, company_id: company.id)
+
+    if existing_invitation do
+      # Delete existing invitation and broadcast deletion
+      Repo.delete(existing_invitation)
+      DataSync.broadcast("invitations", company.id,
+        {:deleted, %{type: :invitation, id: existing_invitation.id}}
+      )
+      DataSync.broadcast("user_invitations", email,
+        {:deleted, %{type: :invitation, id: existing_invitation.id}}
+      )
+    end
+
+    # Create the new invitation record
     with {:ok, invitation} <- create_invitation(invitation_attrs),
+         invitation = Repo.preload(invitation, [:company, :inviter]),
          invitation_url = PhxplateWeb.Endpoint.url() <> "/dashboard/invites/#{token}",
          {:ok, _email} <- Phxplate.Accounts.UserNotifier.deliver_company_invitation(email, company, invitation_url) do
       # Track the invitation activity
@@ -157,6 +216,9 @@ defmodule Phxplate.Companies do
         inviter,
         %{"invited_email" => email}
       )
+      # Broadcast invitation creation
+      DataSync.broadcast("invitations", company.id, {:created, %{type: :invitation, invitation: invitation}})
+      DataSync.broadcast("user_invitations", email, {:created, %{type: :invitation, invitation: invitation}})
       {:ok, invitation}
     else
       {:error, changeset} -> {:error, changeset}
@@ -198,13 +260,24 @@ defmodule Phxplate.Companies do
   """
   def delete_invitation(%Invitation{} = invitation) do
     Repo.delete(invitation)
+    |> case do
+      {:ok, deleted_invitation} = result ->
+        # Broadcast invitation deletion
+        DataSync.broadcast("invitations", deleted_invitation.company_id,
+          {:deleted, %{type: :invitation, id: deleted_invitation.id}}
+        )
+        DataSync.broadcast("user_invitations", deleted_invitation.email,
+          {:deleted, %{type: :invitation, id: deleted_invitation.id}}
+        )
+        result
+      error -> error
+    end
   end
 
   @doc """
   Accepts a company invitation.
   """
   def accept_invitation(%Invitation{} = invitation, user) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
     user = Phxplate.Repo.preload(user, :profile)
 
     # First check if employee exists
@@ -220,31 +293,58 @@ defmodule Phxplate.Companies do
         })
 
         Repo.transaction(fn ->
-          with {:ok, employee} <- Repo.insert(employee_changeset),
-               {:ok, _invitation} <- Repo.update(Invitation.changeset(invitation, %{accepted_at: now})) do
+          with {:ok, employee} <- Repo.insert(employee_changeset) do
+            # Delete the accepted invitation
+            Repo.delete(invitation)
+
             # Clean up other invitations
-            from(i in Invitation,
+            {_deleted_count, _} = from(i in Invitation,
               where: i.email == ^user.email and
                      i.company_id == ^invitation.company_id and
-                     i.id != ^invitation.id and
-                     is_nil(i.accepted_at)
+                     i.id != ^invitation.id
             ) |> Repo.delete_all()
+
+            # Preload associations before broadcasting
+            employee = Repo.preload(employee, [:profile])
+
+            # Broadcast invitation deletion
+            DataSync.broadcast("invitations", invitation.company_id,
+              {:deleted, %{type: :invitation, id: invitation.id}}
+            )
+            DataSync.broadcast("user_invitations", user.email,
+              {:deleted, %{type: :invitation, id: invitation.id}}
+            )
+
+            # Broadcast new employee
+            DataSync.broadcast("employees", invitation.company_id,
+              {:created, %{type: :employee, employee: employee}}
+            )
+            DataSync.broadcast("employees", "all",
+              {:created, %{type: :employee, employee: employee, global_scope: true}}
+            )
 
             employee
           end
         end)
 
       employee ->
-        # Just update invitation and cleanup for existing employee
-        Repo.update(Invitation.changeset(invitation, %{accepted_at: now}))
+        # Delete the accepted invitation
+        Repo.delete(invitation)
 
         # Clean up other invitations
-        from(i in Invitation,
+        {_deleted_count, _} = from(i in Invitation,
           where: i.email == ^user.email and
                  i.company_id == ^invitation.company_id and
-                 i.id != ^invitation.id and
-                 is_nil(i.accepted_at)
+                 i.id != ^invitation.id
         ) |> Repo.delete_all()
+
+        # Broadcast invitation deletion
+        DataSync.broadcast("invitations", invitation.company_id,
+          {:deleted, %{type: :invitation, id: invitation.id}}
+        )
+        DataSync.broadcast("user_invitations", user.email,
+          {:deleted, %{type: :invitation, id: invitation.id}}
+        )
 
         {:ok, employee}
     end
@@ -292,6 +392,14 @@ defmodule Phxplate.Companies do
   def get_employee_by_company_and_email(company_id, email) do
     Employee
     |> where([e], e.company_id == ^company_id and e.email == ^email)
+    |> Repo.one()
+  end
+
+  def get_employee_by_user_id(user_id) do
+    Employee
+    |> join(:inner, [e], p in assoc(e, :profile))
+    |> where([e, p], p.user_id == ^user_id)
+    |> preload([e, p], [:profile])
     |> Repo.one()
   end
 end

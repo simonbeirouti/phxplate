@@ -112,6 +112,41 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
     end
   end
 
+  def handle_event("show_cancel_confirmation", _, socket) do
+    {:noreply, assign(socket, :show_cancel_confirm, true)}
+  end
+
+  def handle_event("cancel_confirmation", _, socket) do
+    {:noreply, assign(socket, :show_cancel_confirm, false)}
+  end
+
+  def handle_event("confirm_cancel_subscription", _, socket) do
+    case Phxplate.Subscriptions.cancel_subscription(socket.assigns.user) do
+      {:ok, _subscription} ->
+        send(self(), {:flash_msg, :info, "Your subscription has been cancelled and will end at the end of the billing period."})
+        {:noreply, assign(socket, :show_cancel_confirm, false)}
+
+      {:error, _reason} ->
+        send(self(), {:flash_msg, :error, "There was an error cancelling your subscription. Please try again."})
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("reactivate_subscription", _, socket) do
+    case Phxplate.Subscriptions.admin_update_subscription_status(socket.assigns.subscription, :active) do
+      {:ok, updated_subscription} ->
+        {:noreply,
+         socket
+         |> assign(:subscription, updated_subscription)
+         |> put_flash(:info, "Your subscription has been reactivated and will continue to bill normally.")}
+
+      {:error, _reason} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "There was an error reactivating your subscription. Please try again.")}
+    end
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -285,42 +320,5 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
       <% end %>
     </div>
     """
-  end
-
-  @impl true
-  def handle_event("show_cancel_confirmation", _, socket) do
-    {:noreply, assign(socket, :show_cancel_confirm, true)}
-  end
-
-  def handle_event("cancel_confirmation", _, socket) do
-    {:noreply, assign(socket, :show_cancel_confirm, false)}
-  end
-
-  def handle_event("confirm_cancel_subscription", _, socket) do
-    case Phxplate.Subscriptions.cancel_subscription(socket.assigns.user) do
-      {:ok, _subscription} ->
-        send(self(), {:flash_msg, :info, "Your subscription has been cancelled and will end at the end of the billing period."})
-        {:noreply, assign(socket, :show_cancel_confirm, false)}
-
-      {:error, _reason} ->
-        send(self(), {:flash_msg, :error, "There was an error cancelling your subscription. Please try again."})
-        {:noreply, socket}
-    end
-  end
-
-  @impl true
-  def handle_event("reactivate_subscription", _, socket) do
-    case Phxplate.Subscriptions.admin_update_subscription_status(socket.assigns.subscription, :active) do
-      {:ok, updated_subscription} ->
-        {:noreply,
-         socket
-         |> assign(:subscription, updated_subscription)
-         |> put_flash(:info, "Your subscription has been reactivated and will continue to bill normally.")}
-
-      {:error, _reason} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "There was an error reactivating your subscription. Please try again.")}
-    end
   end
 end

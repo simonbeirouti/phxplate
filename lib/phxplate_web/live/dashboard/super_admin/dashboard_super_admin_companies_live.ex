@@ -2,12 +2,21 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
   use PhxplateWeb, :live_view
   alias Phxplate.{Companies, Repo}
   alias PhxplateWeb.{PageMeta, Components.ActivityTimelineComponent}
+  alias Phxplate.PubSub.DataSync
 
+  @impl true
   def mount(_params, _session, socket) do
+    if connected?(socket) do
+      DataSync.subscribe("companies", "all")
+      DataSync.subscribe("employees", "all")
+      DataSync.subscribe("profiles", "all")
+    end
+
     socket =
       socket
       |> assign(:selected_company, nil)
       |> assign(:activities, [])
+      |> assign(:confirming_delete_company, false)
       |> PageMeta.assign_metadata(
         title: "Companies Management",
         description: "Manage companies across the application"
@@ -16,10 +25,151 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
     {:ok, load_companies(socket, 1)}
   end
 
+  @impl true
+  def handle_info({:created, %{type: :company, company: _company}}, socket) do
+    # Instead of just appending, reload the companies for the current page
+    {:noreply, load_companies(socket, socket.assigns.page)}
+  end
+
+  def handle_info({:updated, %{type: :company, company: company}}, socket) do
+    company = Repo.preload(company, [:employees])
+
+    socket =
+      socket
+      |> update(:companies, fn companies ->
+        Enum.map(companies, fn c -> if c.id == company.id, do: company, else: c end)
+      end)
+      |> maybe_update_selected_company(company)
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:deleted, %{type: :company, id: company_id}}, socket) do
+    # Clear selected company if it was deleted
+    socket =
+      if socket.assigns.selected_company && socket.assigns.selected_company.id == company_id do
+        socket
+        |> assign(:selected_company, nil)
+        |> assign(:activities, [])
+        |> assign(:confirming_delete_company, false)
+        |> put_flash(:info, "Selected company was deleted.")
+      else
+        socket
+      end
+
+    # Reload the companies list to ensure proper pagination
+    {:noreply, load_companies(socket, socket.assigns.page)}
+  end
+
+  def handle_info({:deleted, %{type: :employee, employee: employee}}, socket) do
+    if socket.assigns.selected_company && employee.company_id == socket.assigns.selected_company.id do
+      # Update the selected company's employees list by removing the deleted employee
+      socket = update(socket, :selected_company, fn company ->
+        %{company | employees: Enum.reject(company.employees, &(&1.id == employee.id))}
+      end)
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:deleted, %{type: :employee, id: employee_id}}, socket) do
+    if socket.assigns.selected_company do
+      # Update the selected company's employees list by removing the deleted employee
+      socket = update(socket, :selected_company, fn company ->
+        %{company | employees: Enum.reject(company.employees, &(&1.id == employee_id))}
+      end)
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:created, %{type: :employee, employee: new_employee}}, socket) do
+    selected_company = socket.assigns.selected_company
+
+    if selected_company && new_employee.company_id == selected_company.id do
+      # Check if the employee already exists in the selected company's list
+      is_present = Enum.any?(selected_company.employees, fn existing_employee ->
+        existing_employee.id == new_employee.id
+      end)
+
+      if is_present do
+        # Employee already in the list for the selected company, do nothing.
+        {:noreply, socket}
+      else
+        # Add the new employee to the selected company's employee list
+        updated_selected_company =
+          %{selected_company | employees: [new_employee | selected_company.employees]}
+
+        # Also update the main companies list if the selected company is in it
+        updated_companies_list = Enum.map(socket.assigns.companies, fn company_in_list ->
+          if company_in_list.id == updated_selected_company.id do
+            updated_selected_company
+          else
+            company_in_list
+          end
+        end)
+
+        {:noreply, assign(socket, selected_company: updated_selected_company, companies: updated_companies_list)}
+      end
+    else
+      # Event is not for the currently selected company, or no company selected.
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:deleted, %{type: :profile, profile: profile}}, socket) do
+    if socket.assigns.selected_company do
+      # Update the employee's profile in the selected company's employees list
+      socket = update(socket, :selected_company, fn company ->
+        updated_employees = Enum.map(company.employees, fn employee ->
+          if employee.profile && employee.profile.id == profile.id do
+            %{employee | profile: nil}
+          else
+            employee
+          end
+        end)
+        %{company | employees: updated_employees}
+      end)
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  defp maybe_update_selected_company(socket, company) do
+    if socket.assigns.selected_company && socket.assigns.selected_company.id == company.id do
+      assign(socket, :selected_company, company)
+    else
+      socket
+    end
+  end
+
+  @impl true
   def handle_event("select_company", %{"id" => company_id}, socket) do
-    company = Companies.get_company!(company_id) |> Repo.preload([:employees])
-    activities = Phxplate.Tracking.get_company_activities(company_id, 20)
-    {:noreply, assign(socket, selected_company: company, activities: activities)}
+    case Integer.parse(company_id) do
+      {id, ""} ->
+        try do
+          company = Companies.get_company!(id) |> Repo.preload([:employees])
+          activities = Phxplate.Tracking.get_company_activities(id, 20)
+          {:noreply, assign(socket, selected_company: company, activities: activities)}
+        rescue
+          Ecto.NoResultsError ->
+            {:noreply,
+             socket
+             |> put_flash(:error, "Company not found or was deleted.")
+             |> assign(:selected_company, nil)
+             |> assign(:activities, [])}
+        end
+
+      _ ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Invalid company ID format.")
+         |> assign(:selected_company, nil)
+         |> assign(:activities, [])}
+    end
   end
 
   def handle_event("paginate", %{"page" => page}, socket) do
@@ -27,6 +177,28 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
     {:noreply, load_companies(socket, page)}
   end
 
+  def handle_event("confirm_delete_company", _params, socket) do
+    {:noreply, assign(socket, :confirming_delete_company, true)}
+  end
+
+  def handle_event("delete_company", _params, socket) do
+    case Companies.delete_company(socket.assigns.selected_company) do
+      {:ok, _deleted_company} ->
+        {:noreply,
+         socket
+         |> assign(:selected_company, nil)
+         |> assign(:confirming_delete_company, false)
+         |> put_flash(:info, "Company deleted successfully.")}
+
+      {:error, _changeset} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to delete company.")
+         |> assign(:confirming_delete_company, false)}
+    end
+  end
+
+  @impl true
   def handle_params(params, _uri, socket) do
     page =
       case params["page"] do
@@ -56,6 +228,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
     |> assign(:per_page, per_page)
   end
 
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">
@@ -170,6 +343,24 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
                       <% end %>
                     </p>
                   </div>
+                  <div class="pt-4 border-t">
+                    <.button
+                      :if={!@confirming_delete_company}
+                      type="button"
+                      variant="destructive"
+                      phx-click="confirm_delete_company"
+                    >
+                      Delete Company
+                    </.button>
+                    <.button
+                      :if={@confirming_delete_company}
+                      type="button"
+                      variant="destructive"
+                      phx-click="delete_company"
+                    >
+                      Confirm Delete
+                    </.button>
+                  </div>
                 </div>
               </.tabs_content>
 
@@ -181,7 +372,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
                         <div class="py-4">
                           <div class="flex items-center justify-between">
                             <div>
-                              <p class="font-medium">{employee.first_name} {employee.last_name}</p>
+                              <p class="font-medium">{employee.profile.first_name} {employee.profile.last_name}</p>
                               <p class="text-sm text-gray-500">{employee.email}</p>
                               <p class="text-sm text-gray-500">Position: {employee.position}</p>
                               <p class="text-sm text-gray-500">Department: {employee.department}</p>

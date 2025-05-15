@@ -5,8 +5,9 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
   alias PhxplateWeb.Components.ActivityTimelineComponent
   alias PhxplateWeb.Components.ImageUploadComponent
   alias PhxplateWeb.Authorization
+  alias Phxplate.PubSub.DataSync
+  alias Phxplate.Repo
 
-  @impl true
   def on_mount(:default, %{"id" => company_id}, _session, socket) do
     case authorize_company(company_id, socket.assigns.current_user) do
       {:ok, _company} -> {:cont, socket}
@@ -22,43 +23,282 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
 
   @impl true
   def mount(%{"id" => company_id}, _session, socket) do
+    if connected?(socket) do
+      DataSync.subscribe("companies", company_id)
+      DataSync.subscribe("employees", company_id)
+      DataSync.subscribe("invitations", company_id)
+      DataSync.subscribe("users", "all")
+      DataSync.subscribe("profiles", "all")
+    end
+
     case authorize_company(company_id, socket.assigns.current_user) do
       {:ok, company} ->
         employees = Companies.get_company_employees(company)
         activities = Phxplate.Tracking.get_company_activities(company_id)
         pending_invitations = Companies.list_pending_invitations(company)
 
-        {:ok,
-         assign(socket,
-           page_title: "#{company.name} Details",
-           page_description: "Company details and employee management",
-           company: company,
-           form:
-             to_form(%{
-               "name" => company.name,
-               "email" => company.email,
-               "phone" => company.phone,
-               "website" => company.website,
-               "plan" => company.plan,
-               "address" => company.address,
-               "description" => company.description,
-               "logo" => company.logo
-             }),
-           employees: employees,
-           activities: activities,
-           show_edit_modal: false,
-           selected_employee: nil,
-           confirming_delete: MapSet.new(),
-           invite_email: "",
-           form_changed: false,
-           pending_invitations: pending_invitations
-         )}
+        socket =
+          socket
+          |> assign(
+            page_title: "#{company.name} Details",
+            page_description: "Company details and employee management",
+            company: company,
+            form:
+              to_form(%{
+                "name" => company.name,
+                "email" => company.email,
+                "phone" => company.phone,
+                "website" => company.website,
+                "plan" => company.plan,
+                "address" => company.address,
+                "description" => company.description,
+                "logo" => company.logo
+              }),
+            employees: employees,
+            activities: activities,
+            show_edit_modal: false,
+            selected_employee: nil,
+            confirming_delete: MapSet.new(),
+            invite_email: "",
+            form_changed: false,
+            pending_invitations: pending_invitations,
+            confirming_delete_company: false
+          )
+
+        {:ok, socket}
 
       {:error, _reason} ->
         {:ok,
          socket
          |> put_flash(:error, "You don't have access to this company")
          |> redirect(to: ~p"/dashboard/admin/companies")}
+    end
+  end
+
+  @impl true
+  def handle_info({:created, %{type: :employee, employee: new_employee}}, socket) do
+    # The 'new_employee' from PubSub (e.g., from accept_invitation)
+    # should already have its profile preloaded.
+    # Check if an employee with this ID already exists in our current list.
+    is_present = Enum.any?(socket.assigns.employees, fn existing_employee ->
+      existing_employee.id == new_employee.id
+    end)
+
+    if is_present do
+      # Employee is already in the list. Do nothing to prevent duplication.
+      # Optionally, one could update the existing entry with new_employee data here
+      # if there's a chance it might be fresher, but for a :created event,
+      # simply avoiding duplication is the primary goal.
+      {:noreply, socket}
+    else
+      # Employee is not in the list, so prepend it.
+      {:noreply, update(socket, :employees, fn existing_employees ->
+        [new_employee | existing_employees]
+      end)}
+    end
+  end
+
+  def handle_info({:updated, %{type: :employee, employee: employee}}, socket) do
+    employee = Repo.preload(employee, [:profile])
+    {:noreply,
+     update(socket, :employees, fn employees ->
+       Enum.map(employees, fn e -> if e.id == employee.id, do: employee, else: e end)
+     end)}
+  end
+
+  def handle_info({:deleted, %{type: :employee, id: employee_id}}, socket) do
+    updated_employees = Enum.reject(socket.assigns.employees, fn employee ->
+      employee.id == employee_id
+    end)
+
+    {:noreply, assign(socket, :employees, updated_employees)}
+  end
+
+  def handle_info({:created, %{type: :invitation, invitation: invitation}}, socket) do
+    invitation = Repo.preload(invitation, [:company, :inviter])
+    {:noreply,
+     update(socket, :pending_invitations, fn invitations -> [invitation | invitations] end)}
+  end
+
+  def handle_info({:updated, %{type: :invitation, invitation: invitation}}, socket) do
+    invitation = Repo.preload(invitation, [:company, :inviter])
+    {:noreply,
+     update(socket, :pending_invitations, fn invitations ->
+       Enum.map(invitations, fn inv -> if inv.id == invitation.id, do: invitation, else: inv end)
+     end)}
+  end
+
+  def handle_info({:deleted, %{type: :invitation, id: invitation_id}}, socket) do
+    {:noreply,
+     update(socket, :pending_invitations, fn invitations ->
+       Enum.reject(invitations, &(&1.id == invitation_id))
+     end)}
+  end
+
+  def handle_info({:updated, %{type: :company, company: company}}, socket) do
+    activities = Phxplate.Tracking.get_company_activities(company.id)
+
+    {:noreply,
+     socket
+     |> assign(:company, company)
+     |> assign(:activities, activities)
+     |> assign(
+       :form,
+       to_form(%{
+         "name" => company.name,
+         "email" => company.email,
+         "phone" => company.phone,
+         "website" => company.website,
+         "plan" => company.plan,
+         "address" => company.address,
+         "description" => company.description,
+         "logo" => company.logo
+       })
+     )}
+  end
+
+  def handle_info({:deleted, %{type: :company, id: company_id}}, socket) do
+    if socket.assigns.company.id == company_id do
+      {:noreply,
+       socket
+       |> put_flash(:error, "Company was deleted.")
+       |> redirect(to: ~p"/dashboard/admin/companies")}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:deleted, %{type: :user, id: user_id}}, socket) do
+    # Find employees associated with the deleted user
+    employees_to_delete = Enum.filter(socket.assigns.employees, fn employee ->
+      employee.profile && employee.profile.user_id == user_id
+    end)
+
+    # Delete each employee
+    Enum.each(employees_to_delete, fn employee ->
+      Companies.delete_employee(employee, socket.assigns.current_user)
+    end)
+
+    # Remove the employees from the view and refresh activities
+    updated_employees = Enum.reject(socket.assigns.employees, fn employee ->
+      employee.profile && employee.profile.user_id == user_id
+    end)
+
+    activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
+
+    {:noreply,
+     socket
+     |> assign(:employees, updated_employees)
+     |> assign(:activities, activities)}
+  end
+
+  def handle_info({:deleted, %{type: :profile, id: profile_id}}, socket) do
+    # Remove employees with deleted profiles
+    updated_employees = Enum.reject(socket.assigns.employees, fn employee ->
+      employee.profile && employee.profile.id == profile_id
+    end)
+
+    activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
+
+    {:noreply,
+     socket
+     |> assign(:employees, updated_employees)
+     |> assign(:activities, activities)}
+  end
+
+  def handle_info({:deleted, %{type: :employee, employee: employee}}, socket) do
+    # Remove the specific employee from the view
+    updated_employees = Enum.reject(socket.assigns.employees, fn e ->
+      e.id == employee.id
+    end)
+
+    activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
+
+    {:noreply,
+     socket
+     |> assign(:employees, updated_employees)
+     |> assign(:activities, activities)}
+  end
+
+  def handle_info({:employee_deleted, %{type: :employee, id: employee_id}}, socket) do
+    # Remove the specific employee from the view
+    updated_employees = Enum.reject(socket.assigns.employees, fn employee ->
+      employee.id == employee_id
+    end)
+
+    activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
+
+    {:noreply,
+     socket
+     |> assign(:employees, updated_employees)
+     |> assign(:activities, activities)}
+  end
+
+  # Handle global profile creation events
+  def handle_info({:created, %{type: :profile, profile: new_profile, global_scope: true}}, socket) do
+    updated_employees = Enum.map(socket.assigns.employees, fn employee ->
+      # If employee is linked by user_id and this new_profile is for that user
+      if employee.profile_id == nil && employee.user_id == new_profile.user_id do
+        %{employee | profile: new_profile, profile_id: new_profile.id}
+      else
+        employee
+      end
+    end)
+    {:noreply, assign(socket, :employees, updated_employees)}
+  end
+
+  # Handle global profile update events that CompanyShowLive might receive
+  def handle_info({:updated, %{type: :profile, profile: updated_profile, global_scope: true}}, socket) do
+    updated_employees = Enum.map(socket.assigns.employees, fn employee ->
+      cond do
+        # Profile exists and IDs match
+        employee.profile && employee.profile.id == updated_profile.id ->
+          %{employee | profile: updated_profile}
+        # Profile was nil, but profile_id matches (should ideally not happen if preloaded correctly but good fallback)
+        !employee.profile && employee.profile_id == updated_profile.id ->
+           %{employee | profile: updated_profile}
+        # Employee is linked by user_id and this updated_profile is for that user
+        employee.user_id == updated_profile.user_id ->
+           %{employee | profile: updated_profile, profile_id: updated_profile.id}
+        true ->
+          employee
+      end
+    end)
+    {:noreply, assign(socket, :employees, updated_employees)}
+  end
+
+  def handle_info({:image_uploaded, %{type: :logo, url: url}}, socket) do
+    case Companies.update_company(
+           socket.assigns.company,
+           %{"logo" => url},
+           socket.assigns.current_user
+         ) do
+      {:ok, company} ->
+        activities = Phxplate.Tracking.get_company_activities(company.id)
+
+        {:noreply,
+         socket
+         |> assign(:company, company)
+         |> assign(:activities, activities)
+         |> assign(
+           :form,
+           to_form(%{
+             "name" => company.name,
+             "email" => company.email,
+             "phone" => company.phone,
+             "website" => company.website,
+             "plan" => company.plan,
+             "address" => company.address,
+             "description" => company.description,
+             "logo" => company.logo
+           })
+         )
+         |> put_flash(:info, "Company logo updated successfully.")}
+
+      {:error, _changeset} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to update company logo.")}
     end
   end
 
@@ -79,6 +319,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     end
   end
 
+  @impl true
   def handle_event("validate_company", params, socket) do
     form_data = %{
       "name" => socket.assigns.company.name,
@@ -129,41 +370,6 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
          socket
          |> assign(:form, to_form(changeset))
          |> put_flash(:error, "Error updating company.")}
-    end
-  end
-
-  def handle_info({:image_uploaded, %{type: :logo, url: url}}, socket) do
-    case Companies.update_company(
-           socket.assigns.company,
-           %{"logo" => url},
-           socket.assigns.current_user
-         ) do
-      {:ok, company} ->
-        activities = Phxplate.Tracking.get_company_activities(company.id)
-
-        {:noreply,
-         socket
-         |> assign(:company, company)
-         |> assign(:activities, activities)
-         |> assign(
-           :form,
-           to_form(%{
-             "name" => company.name,
-             "email" => company.email,
-             "phone" => company.phone,
-             "website" => company.website,
-             "plan" => company.plan,
-             "address" => company.address,
-             "description" => company.description,
-             "logo" => company.logo
-           })
-         )
-         |> put_flash(:info, "Company logo updated successfully.")}
-
-      {:error, _changeset} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "Failed to update company logo.")}
     end
   end
 
@@ -293,6 +499,27 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     end
   end
 
+  def handle_event("confirm_delete_company", _params, socket) do
+    {:noreply, assign(socket, :confirming_delete_company, true)}
+  end
+
+  def handle_event("delete_company", _params, socket) do
+    case Companies.delete_company(socket.assigns.company) do
+      {:ok, _deleted_company} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Company deleted successfully.")
+         |> redirect(to: ~p"/dashboard/admin/companies")}
+
+      {:error, _changeset} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to delete company.")
+         |> assign(:confirming_delete_company, false)}
+    end
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">
@@ -356,11 +583,29 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                   <.input field={@form[:description]} type="textarea" />
                 </div>
               </div>
-              <div class="flex justify-end gap-4">
-                <.button :if={@form_changed} type="button" variant="outline" phx-click="reset_company">
-                  Reset
+              <div class="flex justify-between gap-4">
+                <.button
+                  :if={!@confirming_delete_company}
+                  type="button"
+                  variant="destructive"
+                  phx-click="confirm_delete_company"
+                >
+                  Delete Company
                 </.button>
-                <.button :if={@form_changed} type="submit">Save Changes</.button>
+                <.button
+                  :if={@confirming_delete_company}
+                  type="button"
+                  variant="destructive"
+                  phx-click="delete_company"
+                >
+                  Confirm Delete
+                </.button>
+                <div class="flex gap-4">
+                  <.button :if={@form_changed} type="button" variant="outline" phx-click="reset_company">
+                    Reset
+                  </.button>
+                  <.button :if={@form_changed} type="submit">Save Changes</.button>
+                </div>
               </div>
             </.form>
           </div>
@@ -387,17 +632,21 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                       <.table_cell>
                         <div class="flex items-center gap-2">
                           <img
-                            src={employee.profile.avatar_url || "/images/default-avatar.svg"}
+                            src={if employee.profile, do: employee.profile.avatar_url || "/images/default-avatar.svg", else: "/images/default-avatar.svg"}
                             alt="Employee avatar"
                             class="w-12 h-12 rounded-full bg-gray-200"
                           />
                         </div>
                       </.table_cell>
                       <.table_cell class="font-medium">
-                        {employee.first_name} {employee.last_name}
+                        {if employee.profile do
+                          "#{employee.profile.first_name} #{employee.profile.last_name}"
+                        else
+                          "Profile Deleted"
+                        end}
                       </.table_cell>
                       <.table_cell>{employee.email}</.table_cell>
-                      <.table_cell>{employee.phone || "N/A"}</.table_cell>
+                      <.table_cell>{if employee.profile, do: employee.profile.phone || "N/A", else: "N/A"}</.table_cell>
                       <.table_cell>{employee.position || "N/A"}</.table_cell>
                       <.table_cell>{employee.department || "N/A"}</.table_cell>
                       <.table_cell class="text-right">
@@ -472,7 +721,13 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                 <div class="bg-white shadow rounded-lg p-4">
                   <div class="flex justify-between items-start mb-4">
                     <div>
-                      <h3 class="text-lg font-medium">{employee.first_name} {employee.last_name}</h3>
+                      <h3 class="text-lg font-medium">
+                        {if employee.profile do
+                          "#{employee.profile.first_name} #{employee.profile.last_name}"
+                        else
+                          "Profile Deleted"
+                        end}
+                      </h3>
                       <p class="text-sm text-gray-500">{employee.position || "No position"}</p>
                     </div>
 
@@ -512,7 +767,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                     </div>
                     <div>
                       <dt class="text-gray-500">Phone</dt>
-                      <dd>{employee.phone || "N/A"}</dd>
+                      <dd>{if employee.profile, do: employee.profile.phone || "N/A", else: "N/A"}</dd>
                     </div>
                     <div>
                       <dt class="text-gray-500">Department</dt>

@@ -3,9 +3,14 @@ defmodule PhxplateWeb.Dashboard.Basic.BasicLive do
   use SaladUI
 
   alias PhxplateWeb.PageMeta
-  alias Phxplate.Bookmarks
+  alias Phxplate.{Bookmarks, PubSub.DataSync}
 
+  @impl true
   def mount(_params, _session, socket) do
+    if connected?(socket) do
+      DataSync.subscribe("bookmarks", socket.assigns.current_user.id)
+    end
+
     bookmark_count = Bookmarks.count_user_bookmarks(socket.assigns.current_user.id)
 
     {:ok,
@@ -17,6 +22,7 @@ defmodule PhxplateWeb.Dashboard.Basic.BasicLive do
      |> assign(:bookmark_count, bookmark_count)}
   end
 
+  @impl true
   def handle_params(_params, url, socket) do
     uri = URI.parse(url)
     socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
@@ -24,6 +30,21 @@ defmodule PhxplateWeb.Dashboard.Basic.BasicLive do
     {:noreply, socket}
   end
 
+  @impl true
+  def handle_info({:created, %{type: :bookmark}}, socket) do
+    bookmark_count = Bookmarks.count_user_bookmarks(socket.assigns.current_user.id)
+    {:noreply, assign(socket, :bookmark_count, bookmark_count)}
+  end
+
+  def handle_info({:deleted, %{type: :bookmark}}, socket) do
+    bookmark_count = Bookmarks.count_user_bookmarks(socket.assigns.current_user.id)
+    {:noreply, assign(socket, :bookmark_count, bookmark_count)}
+  end
+
+  # Ignore other events
+  def handle_info(_event, socket), do: {:noreply, socket}
+
+  @impl true
   def render(assigns) do
     ~H"""
     <main>

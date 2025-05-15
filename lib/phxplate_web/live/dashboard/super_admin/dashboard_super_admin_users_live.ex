@@ -1,8 +1,10 @@
 defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
   use PhxplateWeb, :live_view
-  alias Phxplate.{Accounts, Repo}
+  alias Phxplate.{Accounts, Repo, Companies}
   alias PhxplateWeb.{PageMeta, Components.ActivityTimelineComponent}
+  alias Phxplate.PubSub.DataSync
 
+  @impl true
   def mount(_params, _session, socket) do
     plans = Phxplate.Subscriptions.list_all_plans()
 
@@ -40,6 +42,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
     )
   end
 
+  @impl true
   def handle_event("select_user", %{"id" => user_id}, socket) do
     user = Accounts.get_user!(user_id) |> Repo.preload([:profile, :subscription])
     activities = Phxplate.Tracking.get_user_activities(user_id, 20)
@@ -115,11 +118,19 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
          user = Accounts.get_user!(user_id) |> Repo.preload(:subscription),
          tier = String.to_existing_atom(tier) do
       result =
-        if user.subscription do
-          Phxplate.Subscriptions.admin_update_subscription_tier(user.subscription, tier, socket.assigns.current_user)
+        if tier == :none do
+          if user.subscription do
+            Phxplate.Subscriptions.admin_update_subscription_tier(user.subscription, tier, socket.assigns.current_user)
+          else
+            {:ok, nil} # Already has no subscription
+          end
         else
-          # Create a new subscription with the selected tier
-          Phxplate.Subscriptions.admin_create_subscription(user_id, tier, :active)
+          if user.subscription do
+            Phxplate.Subscriptions.admin_update_subscription_tier(user.subscription, tier, socket.assigns.current_user)
+          else
+            # Create a new subscription with the selected tier
+            Phxplate.Subscriptions.admin_create_subscription(user_id, tier, :active)
+          end
         end
 
       case result do
@@ -156,8 +167,35 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
 
   def handle_event("confirm_delete_user", %{"user_id" => user_id}, socket) do
     with %{role: :super_admin} <- socket.assigns.current_user,
-         user = Accounts.get_user!(user_id),
+         user = Accounts.get_user!(user_id) |> Repo.preload(:profile),
          {:ok, _deleted} <- Accounts.delete_user(user) do
+      # Find any associated employee before broadcasting events
+      employee = Companies.get_employee_by_user_id(user_id)
+
+      # Broadcast user deletion to all relevant topics
+      DataSync.broadcast("users", "all", {:deleted, %{type: :user, id: user_id}})
+
+      # If user has a profile, broadcast profile deletion
+      if profile = user.profile do
+        DataSync.broadcast("profiles", profile.id, {:deleted, %{type: :profile, id: profile.id}})
+      end
+
+      # If we found an employee, broadcast employee deletion
+      if employee do
+        # Broadcast employee deletion events
+        DataSync.broadcast("employees", employee.company_id, {:deleted, %{type: :employee, id: employee.id}})
+
+        # Also broadcast to the specific company channel
+        DataSync.broadcast("companies", employee.company_id, {:employee_deleted, %{
+          type: :employee,
+          id: employee.id,
+          user_id: user_id
+        }})
+      end
+
+      # Broadcast logout event to force the user to log out if they're still logged in
+      DataSync.broadcast("users", user_id, {:force_logout, %{type: :user, id: user_id}})
+
       socket =
         socket
         |> assign(:selected_user, nil)
@@ -177,6 +215,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
     {:noreply, load_users(socket, page)}
   end
 
+  @impl true
   def handle_params(params, _uri, socket) do
     page =
       case params["page"] do
@@ -187,6 +226,61 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
     {:noreply, load_users(socket, page)}
   end
 
+  @impl true
+  def handle_info({:created, %{type: :profile, profile: new_profile, global_scope: true}}, socket) do
+    current_users = socket.assigns.users
+    current_selected_user = socket.assigns.selected_user
+
+    updated_users = Enum.map(current_users, fn user_in_list ->
+      if user_in_list.id == new_profile.user_id do
+        %{user_in_list | profile: new_profile}
+      else
+        user_in_list
+      end
+    end)
+
+    updated_selected_user =
+      if current_selected_user && current_selected_user.id == new_profile.user_id do
+        # Ensure we are creating a new map for selected_user to help LiveView detect the change.
+        # Preloading should be handled when the user is initially selected or list is loaded.
+        Map.put(current_selected_user, :profile, new_profile)
+      else
+        current_selected_user
+      end
+
+    {:noreply, assign(socket, users: updated_users, selected_user: updated_selected_user)}
+  end
+
+  def handle_info({:updated, %{type: :profile, profile: updated_profile, global_scope: true}}, socket) do
+    current_users = socket.assigns.users
+    current_selected_user = socket.assigns.selected_user
+
+    updated_users = Enum.map(current_users, fn user_in_list ->
+      if user_in_list.id == updated_profile.user_id do
+        %{user_in_list | profile: updated_profile}
+      else
+        user_in_list
+      end
+    end)
+
+    updated_selected_user =
+      if current_selected_user && current_selected_user.id == updated_profile.user_id do
+        # Ensure we are creating a new map for selected_user.
+        Map.put(current_selected_user, :profile, updated_profile)
+      else
+        current_selected_user
+      end
+
+    {:noreply, assign(socket, users: updated_users, selected_user: updated_selected_user)}
+  end
+
+  # Handle company deletion events
+  def handle_info({:deleted, %{type: :company}}, socket) do
+    # Just ignore company deletion events in the users view
+    {:noreply, socket}
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">
