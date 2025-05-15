@@ -35,7 +35,7 @@ defmodule PhxplateWeb.UserForgotPasswordLive do
     if user = Accounts.get_user_by_email(email) do
       Accounts.deliver_user_reset_password_instructions(
         user,
-        &url(~p"/reset_password/#{&1}")
+        &url(~p"/reset-password/#{&1}")
       )
     end
 

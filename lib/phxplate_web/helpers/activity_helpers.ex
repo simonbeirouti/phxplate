@@ -12,6 +12,8 @@ defmodule PhxplateWeb.Helpers.ActivityHelpers do
   def humanize_action("company_create"), do: "Company Created"
   def humanize_action("company_update"), do: "Company Updated"
   def humanize_action("employee_delete"), do: "Employee Deleted"
+  def humanize_action("login"), do: "User Logged In"
+  def humanize_action("logout"), do: "User Logged Out"
   def humanize_action(action) when is_binary(action) do
     action
     |> String.replace("_", " ")

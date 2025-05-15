@@ -6,8 +6,6 @@ defmodule PhxplateWeb.Authorization do
   import Phoenix.Controller
   import Plug.Conn
 
-  alias Phxplate.Accounts.User
-
   def init(role), do: role
 
   def call(conn, role) do

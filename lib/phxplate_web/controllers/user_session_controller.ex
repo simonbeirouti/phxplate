@@ -22,6 +22,12 @@ defmodule PhxplateWeb.UserSessionController do
     %{"email" => email, "password" => password} = user_params
 
     if user = Accounts.get_user_by_email_and_password(email, password) do
+      # Track login activity
+      Phxplate.Tracking.track_user_activity("login", user, user, %{}, %{
+        "ip" => conn.remote_ip |> :inet.ntoa() |> to_string(),
+        "user_agent" => get_req_header(conn, "user-agent") |> List.first()
+      })
+
       conn
       |> put_flash(:info, info)
       |> UserAuth.log_in_user(user, user_params)
@@ -35,6 +41,14 @@ defmodule PhxplateWeb.UserSessionController do
   end
 
   def delete(conn, _params) do
+    # Track logout activity
+    if user = conn.assigns.current_user do
+      Phxplate.Tracking.track_user_activity("logout", user, user, %{}, %{
+        "ip" => conn.remote_ip |> :inet.ntoa() |> to_string(),
+        "user_agent" => get_req_header(conn, "user-agent") |> List.first()
+      })
+    end
+
     conn
     |> put_flash(:info, "Logged out successfully.")
     |> UserAuth.log_out_user()

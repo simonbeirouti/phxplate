@@ -14,6 +14,7 @@ defmodule Phxplate.Accounts.User do
     has_one :profile, Phxplate.Accounts.Profile
     has_one :subscription, Phxplate.Subscriptions.Subscription
     has_many :tokens, Phxplate.Accounts.UserToken
+    has_many :companies, Phxplate.Companies.Company, foreign_key: :owner_id
 
     timestamps(type: :utc_datetime)
   end
@@ -137,18 +138,8 @@ defmodule Phxplate.Accounts.User do
   Confirms the account by setting `confirmed_at`.
   """
   def confirm_changeset(user) do
-    changeset = change(user, confirmed_at: DateTime.utc_now() |> DateTime.truncate(:second))
-
-    if changeset.valid? do
-      case Phxplate.Repo.update(changeset) do
-        {:ok, confirmed_user} ->
-          Phxplate.Tracking.track_user_activity("account_confirmed", confirmed_user, confirmed_user)
-          {:ok, confirmed_user}
-        error -> error
-      end
-    else
-      {:error, changeset}
-    end
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    change(user, confirmed_at: now)
   end
 
   @doc """
@@ -202,6 +193,14 @@ defmodule Phxplate.Accounts.User do
     user
     |> cast(attrs, [:role])
     |> validate_role()
+  end
+
+  @doc """
+  A user changeset for deleting the user.
+  """
+  def delete_changeset(user) do
+    change(user)
+    |> foreign_key_constraint(:companies, name: "companies_owner_id_fkey")
   end
 
 end

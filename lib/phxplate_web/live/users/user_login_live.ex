@@ -22,7 +22,7 @@ defmodule PhxplateWeb.UserLoginLive do
 
           <:actions>
             <.input field={@form[:remember_me]} type="checkbox" label="Keep me logged in" />
-            <.link href={~p"/reset_password"} class="text-sm font-semibold">
+            <.link href={~p"/reset-password"} class="text-sm font-semibold">
               Forgot your password?
             </.link>
           </:actions>

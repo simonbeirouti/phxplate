@@ -7,8 +7,13 @@ defmodule Phxplate.Subscriptions do
   alias Phxplate.Repo
   alias Phxplate.Subscriptions.{Subscription, Plan}
   alias Phxplate.Accounts.User
+  alias Phxplate.Accounts
+  alias Phxplate.PubSub.DataSync
 
   require Logger
+
+  @valid_statuses [:active, :canceled, :past_due, :incomplete, :trialing]
+  @valid_tiers [:none, :small, :medium, :large]
 
   @doc """
   Gets a subscription by ID.
@@ -32,6 +37,29 @@ defmodule Phxplate.Subscriptions do
     %Subscription{}
     |> Subscription.changeset(attrs)
     |> Repo.insert()
+    |> case do
+      {:ok, subscription} = result ->
+        # Broadcast creation
+        DataSync.broadcast("subscriptions", subscription.user_id,
+          {:created, %{type: :subscription, subscription: subscription}}
+        )
+        DataSync.broadcast("subscriptions", "all",
+          {:created, %{type: :subscription, subscription: subscription}}
+        )
+
+        # Update user role based on the new subscription's plan
+        try do
+          user = Accounts.get_user!(subscription.user_id)
+          plan = get_plan!(subscription.plan_id)
+          maybe_update_user_role_from_plan(user, plan)
+        rescue
+          e in Ecto.NoResultsError -> Logger.error("Failed to find user or plan for role update during subscription creation: #{inspect(e)}")
+          e -> Logger.error("Error during role update in create_subscription: #{inspect(e)}, stacktrace: #{inspect(__STACKTRACE__)}")
+        end
+
+        result
+      error -> error
+    end
   end
 
   @doc """
@@ -41,6 +69,29 @@ defmodule Phxplate.Subscriptions do
     subscription
     |> Subscription.changeset(attrs)
     |> Repo.update()
+    |> case do
+      {:ok, updated_subscription} = result ->
+        # Broadcast update
+        DataSync.broadcast("subscriptions", updated_subscription.user_id,
+          {:updated, %{type: :subscription, subscription: updated_subscription}}
+        )
+        DataSync.broadcast("subscriptions", "all",
+          {:updated, %{type: :subscription, subscription: updated_subscription}}
+        )
+
+        # Update user role based on the updated subscription's plan
+        try do
+          user = Accounts.get_user!(updated_subscription.user_id)
+          plan = get_plan!(updated_subscription.plan_id) # Assumes plan_id reflects the new plan
+          maybe_update_user_role_from_plan(user, plan)
+        rescue
+          e in Ecto.NoResultsError -> Logger.error("Failed to find user or plan for role update during subscription update: #{inspect(e)}")
+          e -> Logger.error("Error during role update in update_subscription: #{inspect(e)}, stacktrace: #{inspect(__STACKTRACE__)}")
+        end
+
+        result
+      error -> error
+    end
   end
 
   @doc """
@@ -48,6 +99,18 @@ defmodule Phxplate.Subscriptions do
   """
   def delete_subscription(%Subscription{} = subscription) do
     Repo.delete(subscription)
+    |> case do
+      {:ok, deleted_subscription} = result ->
+        # Broadcast deletion
+        DataSync.broadcast("subscriptions", deleted_subscription.user_id,
+          {:deleted, %{type: :subscription, id: deleted_subscription.id}}
+        )
+        DataSync.broadcast("subscriptions", "all",
+          {:deleted, %{type: :subscription, id: deleted_subscription.id}}
+        )
+        result
+      error -> error
+    end
   end
 
   @doc """
@@ -181,12 +244,12 @@ defmodule Phxplate.Subscriptions do
   """
   def change_subscription_plan(%User{} = user, %Plan{} = plan) do
     case create_checkout_session(user, plan) do
-      {:ok, session} = result ->
+      {:ok, _session} = result ->
         # Track the plan change attempt
-        Phxplate.Tracking.track_user_activity(
+        track_subscription_change(
           "subscription_plan_change_initiated",
-          %{id: user.id},
           user,
+          nil,
           %{
             "new_plan" => plan.name,
             "price" => plan.unit_amount,
@@ -213,10 +276,10 @@ defmodule Phxplate.Subscriptions do
             case update_subscription(subscription, %{subscription_status: :canceled}) do
               {:ok, updated_subscription} ->
                 # Track the cancellation
-                Phxplate.Tracking.track_user_activity(
+                track_subscription_change(
                   "subscription_cancelled",
-                  %{id: user.id},
                   user,
+                  nil,
                   %{
                     "plan" => subscription.plan.name,
                     "status" => "canceled",
@@ -280,23 +343,21 @@ defmodule Phxplate.Subscriptions do
   Should only be used by super admins for administrative purposes.
   """
   def admin_update_subscription_status(subscription, status, actor \\ nil)
-  def admin_update_subscription_status(%Subscription{} = subscription, status, actor) when status in [:active, :canceled, :past_due, :incomplete, :trialing] do
+  def admin_update_subscription_status(%Subscription{} = subscription, status, actor) when status in @valid_statuses do
     case update_subscription(subscription, %{subscription_status: status}) do
       {:ok, updated_subscription} ->
         # Track the status change
         user = %{id: subscription.user_id}
-        tracking_actor = actor || user  # If no actor provided, use the user as actor
-
         action = case status do
           :active -> "subscription_reactivated"
           :canceled -> "subscription_cancelled"
           _ -> "subscription_status_updated"
         end
 
-        Phxplate.Tracking.track_user_activity(
+        track_subscription_change(
           action,
           user,
-          tracking_actor,
+          actor,
           %{
             "status" => status,
             "plan" => subscription.plan.name,
@@ -316,37 +377,37 @@ defmodule Phxplate.Subscriptions do
   Should only be used by super admins for administrative purposes.
   """
   def admin_update_subscription_tier(subscription, tier, actor \\ nil)
-  def admin_update_subscription_tier(%Subscription{} = subscription, tier, actor) when tier in [:small, :medium, :large] do
-    # Find a plan that matches the tier (using monthly plan as default)
-    plans = list_all_plans()
-    tier_string = Atom.to_string(tier)
-
-    plan = plans
-      |> Enum.find(fn {t, _} -> t == tier_string end)
-      |> case do
-        {_, %{monthly: plan}} when not is_nil(plan) -> plan
-        _ -> nil
+  def admin_update_subscription_tier(%Subscription{} = subscription, :none, actor) do
+    # Special handling for downgrading to no subscription
+    case delete_subscription(subscription) do
+      {:ok, _deleted} ->
+        if actor do
+          track_subscription_change(
+            "subscription_tier_update",
+            %{id: subscription.user_id},
+            actor,
+            %{"tier" => "none"}
+          )
+        end
+        {:ok, nil}
+      error -> error
+    end
+  end
+  def admin_update_subscription_tier(%Subscription{} = subscription, tier, actor) when tier in @valid_tiers do
+    with {:ok, plan} <- find_plan_by_tier(tier),
+         {:ok, updated_subscription} <- update_subscription(subscription, %{
+           paid_tier: tier,
+           plan_id: plan.id
+         }) do
+      if actor do
+        track_subscription_change(
+          "subscription_tier_update",
+          %{id: subscription.user_id},
+          actor,
+          %{"tier" => tier}
+        )
       end
-
-    if plan do
-      case update_subscription(subscription, %{
-        paid_tier: tier,
-        plan_id: plan.id
-      }) do
-        {:ok, updated_subscription} ->
-          if actor do
-            Phxplate.Tracking.track_user_activity(
-              "subscription_tier_update",
-              %{id: subscription.user_id},
-              actor,
-              %{"tier" => tier}
-            )
-          end
-          {:ok, updated_subscription}
-        error -> error
-      end
-    else
-      {:error, :plan_not_found}
+      {:ok, updated_subscription}
     end
   end
   def admin_update_subscription_tier(_subscription, _tier, _actor), do: {:error, :invalid_tier}
@@ -356,19 +417,8 @@ defmodule Phxplate.Subscriptions do
   This bypasses Stripe and only creates a local database record.
   Should only be used by super admins for administrative purposes.
   """
-  def admin_create_subscription(user_id, tier, status) when tier in [:small, :medium, :large] and status in [:active, :canceled, :past_due, :incomplete, :trialing] do
-    # Find a plan that matches the tier (using monthly plan as default)
-    plans = list_all_plans()
-    tier_string = Atom.to_string(tier)
-
-    plan = plans
-      |> Enum.find(fn {t, _} -> t == tier_string end)
-      |> case do
-        {_, %{monthly: plan}} when not is_nil(plan) -> plan
-        _ -> nil
-      end
-
-    if plan do
+  def admin_create_subscription(user_id, tier, status) when tier in @valid_tiers and status in @valid_statuses do
+    with {:ok, plan} <- find_plan_by_tier(tier) do
       attrs = %{
         user_id: user_id,
         paid_tier: tier,
@@ -378,10 +428,66 @@ defmodule Phxplate.Subscriptions do
         stripe_subscription_id: "admin_created_#{user_id}"
       }
       create_subscription(attrs)
-    else
-      {:error, :plan_not_found}
     end
   end
   def admin_create_subscription(_user_id, _tier, _status), do: {:error, :invalid_parameters}
+
+  # Helper function to track subscription changes
+  defp track_subscription_change(action, user, actor, additional_data) do
+    tracking_actor = actor || user
+    additional_data = additional_data || %{}
+    Phxplate.Tracking.track_user_activity(action, user, tracking_actor, additional_data)
+  end
+
+  # Helper function to find plan by tier
+  defp find_plan_by_tier(tier) when tier in @valid_tiers do
+    tier_string = Atom.to_string(tier)
+
+    list_all_plans()
+    |> Enum.find(fn {t, _} -> t == tier_string end)
+    |> case do
+      {_, %{monthly: plan}} when not is_nil(plan) -> {:ok, plan}
+      _ -> {:error, :plan_not_found}
+    end
+  end
+
+  # New helper function to update user role based on plan
+  defp maybe_update_user_role_from_plan(%User{} = user, %Plan{} = plan) do
+    current_role = user.role
+    # Assuming plan.metadata["tier"] is "small", "medium", or "large" (as strings)
+    plan_tier = Map.get(plan.metadata, "tier")
+
+    new_role =
+      cond do
+        # Upgrade from :basic to :admin if plan tier is "small", "medium" or "large"
+        # and user is currently :basic.
+        current_role == :basic && plan_tier in ["small", "medium", "large"] ->
+          :admin
+        # Add other rules here if needed (e.g., downgrades, other role tiers).
+        # For now, only this specific upgrade path is handled.
+        true ->
+          nil # No role change based on current logic
+      end
+
+    if new_role && current_role != new_role do
+      Logger.info("Attempting to change user #{user.id} role from #{current_role} to #{new_role} based on plan #{plan.name} (tier: #{plan_tier})")
+      # Passing `nil` as the actor, so `Accounts.update_user` will log the user themselves
+      # as initiating the change (via subscription action).
+      case Accounts.update_user(user, %{"role" => new_role}, nil) do
+        {:ok, updated_user} ->
+          Logger.info("User #{updated_user.id} role successfully changed to #{updated_user.role}")
+          # Note: If LiveViews need to react immediately to this role change across the user's sessions,
+          # `Phxplate.Accounts.update_user/3` would ideally broadcast this user update via PubSub.
+          # This change focuses on ensuring the database is updated.
+          :ok
+        {:error, changeset} ->
+          Logger.error("Failed to update user #{user.id} role to #{new_role}: #{inspect(changeset.errors)}")
+          {:error, :role_update_failed}
+      end
+    else
+      Logger.info("No role change for user #{user.id} (current role: #{current_role}, plan: #{plan.name}, tier: #{plan_tier}). Calculated new role: #{new_role || "none"}")
+      :no_role_change_needed
+    end
+  end
 
 end
