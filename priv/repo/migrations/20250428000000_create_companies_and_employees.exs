@@ -11,7 +11,7 @@ defmodule Phxplate.Repo.Migrations.CreateCompaniesAndEmployees do
       add :plan, :string, null: false, default: "basic"
       add :logo, :string
       add :website, :string
-      add :owner_id, references(:users, on_delete: :nothing), null: false
+      add :owner_id, references(:users, on_delete: :delete_all), null: false
 
       timestamps()
     end

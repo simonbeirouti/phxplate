@@ -1,7 +1,7 @@
 const ForceLogout = {
   mounted() {
     this.handleEvent("js_force_logout", (payload) => {
-      window.location.href = "/logout";
+      window.location.href = "/";
     });
   },
   destroyed() {

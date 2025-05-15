@@ -16,6 +16,8 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
       DataSync.subscribe("companies", "all")
       # Subscribe to employee updates for all companies; will filter relevance in handle_info
       DataSync.subscribe("employees", "all")
+      # Subscribe to user-specific events for force logout
+      DataSync.subscribe("users", current_user.id)
     end
 
     companies = Companies.list_companies_by_owner(current_user.id)

@@ -14,6 +14,7 @@ defmodule Phxplate.Accounts.User do
     has_one :profile, Phxplate.Accounts.Profile
     has_one :subscription, Phxplate.Subscriptions.Subscription
     has_many :tokens, Phxplate.Accounts.UserToken
+    has_many :companies, Phxplate.Companies.Company, foreign_key: :owner_id
 
     timestamps(type: :utc_datetime)
   end
@@ -192,6 +193,14 @@ defmodule Phxplate.Accounts.User do
     user
     |> cast(attrs, [:role])
     |> validate_role()
+  end
+
+  @doc """
+  A user changeset for deleting the user.
+  """
+  def delete_changeset(user) do
+    change(user)
+    |> foreign_key_constraint(:companies, name: "companies_owner_id_fkey")
   end
 
 end

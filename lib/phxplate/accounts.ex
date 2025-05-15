@@ -559,8 +559,37 @@ defmodule Phxplate.Accounts do
       end
     end
 
-    # Then delete the user
-    Repo.delete(user)
+    # Preload companies to ensure proper cascade deletion
+    user = Repo.preload(user, [:companies, :profile])
+
+    # Store company IDs before deletion for broadcasting
+    company_ids = Enum.map(user.companies, & &1.id)
+
+    # Then delete the user with proper changeset to handle company deletion
+    case user |> User.delete_changeset() |> Repo.delete() do
+      {:ok, deleted_user} = result ->
+        # Broadcast user deletion
+        DataSync.broadcast("users", "all", {:deleted, %{type: :user, id: deleted_user.id}})
+
+        # Broadcast profile deletion if exists
+        if deleted_user.profile do
+          DataSync.broadcast("profiles", deleted_user.profile.id, {:deleted, %{type: :profile, id: deleted_user.profile.id}})
+        end
+
+        # Broadcast company deletions
+        Enum.each(company_ids, fn company_id ->
+          DataSync.broadcast("companies", "all", {:deleted, %{type: :company, id: company_id}})
+          DataSync.broadcast("companies", company_id, {:deleted, %{type: :company, id: company_id}})
+        end)
+
+        # Force logout for the deleted user
+        DataSync.broadcast("users", deleted_user.id, {:force_logout, %{type: :user, id: deleted_user.id}})
+
+        result
+
+      error ->
+        error
+    end
   end
 
   @doc """

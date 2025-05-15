@@ -274,6 +274,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
     {:noreply, assign(socket, users: updated_users, selected_user: updated_selected_user)}
   end
 
+  # Handle company deletion events
+  def handle_info({:deleted, %{type: :company}}, socket) do
+    # Just ignore company deletion events in the users view
+    {:noreply, socket}
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
