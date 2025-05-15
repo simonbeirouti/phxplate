@@ -7,12 +7,13 @@ defmodule Phxplate.Subscriptions do
   alias Phxplate.Repo
   alias Phxplate.Subscriptions.{Subscription, Plan}
   alias Phxplate.Accounts.User
+  alias Phxplate.Accounts
   alias Phxplate.PubSub.DataSync
 
   require Logger
 
   @valid_statuses [:active, :canceled, :past_due, :incomplete, :trialing]
-  @valid_tiers [:small, :medium, :large]
+  @valid_tiers [:none, :small, :medium, :large]
 
   @doc """
   Gets a subscription by ID.
@@ -45,6 +46,17 @@ defmodule Phxplate.Subscriptions do
         DataSync.broadcast("subscriptions", "all",
           {:created, %{type: :subscription, subscription: subscription}}
         )
+
+        # Update user role based on the new subscription's plan
+        try do
+          user = Accounts.get_user!(subscription.user_id)
+          plan = get_plan!(subscription.plan_id)
+          maybe_update_user_role_from_plan(user, plan)
+        rescue
+          e in Ecto.NoResultsError -> Logger.error("Failed to find user or plan for role update during subscription creation: #{inspect(e)}")
+          e -> Logger.error("Error during role update in create_subscription: #{inspect(e)}, stacktrace: #{inspect(__STACKTRACE__)}")
+        end
+
         result
       error -> error
     end
@@ -66,6 +78,17 @@ defmodule Phxplate.Subscriptions do
         DataSync.broadcast("subscriptions", "all",
           {:updated, %{type: :subscription, subscription: updated_subscription}}
         )
+
+        # Update user role based on the updated subscription's plan
+        try do
+          user = Accounts.get_user!(updated_subscription.user_id)
+          plan = get_plan!(updated_subscription.plan_id) # Assumes plan_id reflects the new plan
+          maybe_update_user_role_from_plan(user, plan)
+        rescue
+          e in Ecto.NoResultsError -> Logger.error("Failed to find user or plan for role update during subscription update: #{inspect(e)}")
+          e -> Logger.error("Error during role update in update_subscription: #{inspect(e)}, stacktrace: #{inspect(__STACKTRACE__)}")
+        end
+
         result
       error -> error
     end
@@ -354,6 +377,22 @@ defmodule Phxplate.Subscriptions do
   Should only be used by super admins for administrative purposes.
   """
   def admin_update_subscription_tier(subscription, tier, actor \\ nil)
+  def admin_update_subscription_tier(%Subscription{} = subscription, :none, actor) do
+    # Special handling for downgrading to no subscription
+    case delete_subscription(subscription) do
+      {:ok, _deleted} ->
+        if actor do
+          track_subscription_change(
+            "subscription_tier_update",
+            %{id: subscription.user_id},
+            actor,
+            %{"tier" => "none"}
+          )
+        end
+        {:ok, nil}
+      error -> error
+    end
+  end
   def admin_update_subscription_tier(%Subscription{} = subscription, tier, actor) when tier in @valid_tiers do
     with {:ok, plan} <- find_plan_by_tier(tier),
          {:ok, updated_subscription} <- update_subscription(subscription, %{
@@ -408,6 +447,45 @@ defmodule Phxplate.Subscriptions do
     |> case do
       {_, %{monthly: plan}} when not is_nil(plan) -> {:ok, plan}
       _ -> {:error, :plan_not_found}
+    end
+  end
+
+  # New helper function to update user role based on plan
+  defp maybe_update_user_role_from_plan(%User{} = user, %Plan{} = plan) do
+    current_role = user.role
+    # Assuming plan.metadata["tier"] is "small", "medium", or "large" (as strings)
+    plan_tier = Map.get(plan.metadata, "tier")
+
+    new_role =
+      cond do
+        # Upgrade from :basic to :admin if plan tier is "small", "medium" or "large"
+        # and user is currently :basic.
+        current_role == :basic && plan_tier in ["small", "medium", "large"] ->
+          :admin
+        # Add other rules here if needed (e.g., downgrades, other role tiers).
+        # For now, only this specific upgrade path is handled.
+        true ->
+          nil # No role change based on current logic
+      end
+
+    if new_role && current_role != new_role do
+      Logger.info("Attempting to change user #{user.id} role from #{current_role} to #{new_role} based on plan #{plan.name} (tier: #{plan_tier})")
+      # Passing `nil` as the actor, so `Accounts.update_user` will log the user themselves
+      # as initiating the change (via subscription action).
+      case Accounts.update_user(user, %{"role" => new_role}, nil) do
+        {:ok, updated_user} ->
+          Logger.info("User #{updated_user.id} role successfully changed to #{updated_user.role}")
+          # Note: If LiveViews need to react immediately to this role change across the user's sessions,
+          # `Phxplate.Accounts.update_user/3` would ideally broadcast this user update via PubSub.
+          # This change focuses on ensuring the database is updated.
+          :ok
+        {:error, changeset} ->
+          Logger.error("Failed to update user #{user.id} role to #{new_role}: #{inspect(changeset.errors)}")
+          {:error, :role_update_failed}
+      end
+    else
+      Logger.info("No role change for user #{user.id} (current role: #{current_role}, plan: #{plan.name}, tier: #{plan_tier}). Calculated new role: #{new_role || "none"}")
+      :no_role_change_needed
     end
   end
 

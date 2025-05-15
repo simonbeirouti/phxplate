@@ -180,6 +180,7 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
 
     user_data = if current_user.profile do
       %{
+        id: current_user.id,
         name: current_user.profile.first_name,
         email: current_user.email,
         role: current_user.role,
@@ -187,6 +188,7 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
       }
     else
       %{
+        id: current_user.id,
         name: current_user.email,
         email: current_user.email,
         role: current_user.role,

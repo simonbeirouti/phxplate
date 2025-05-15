@@ -116,11 +116,19 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
          user = Accounts.get_user!(user_id) |> Repo.preload(:subscription),
          tier = String.to_existing_atom(tier) do
       result =
-        if user.subscription do
-          Phxplate.Subscriptions.admin_update_subscription_tier(user.subscription, tier, socket.assigns.current_user)
+        if tier == :none do
+          if user.subscription do
+            Phxplate.Subscriptions.admin_update_subscription_tier(user.subscription, tier, socket.assigns.current_user)
+          else
+            {:ok, nil} # Already has no subscription
+          end
         else
-          # Create a new subscription with the selected tier
-          Phxplate.Subscriptions.admin_create_subscription(user_id, tier, :active)
+          if user.subscription do
+            Phxplate.Subscriptions.admin_update_subscription_tier(user.subscription, tier, socket.assigns.current_user)
+          else
+            # Create a new subscription with the selected tier
+            Phxplate.Subscriptions.admin_create_subscription(user_id, tier, :active)
+          end
         end
 
       case result do
