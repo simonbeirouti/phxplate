@@ -19,13 +19,4 @@ defmodule PhxplateWeb.PageController do
     )
     |> render(:about, layout: false)
   end
-
-  def contact(conn, _params) do
-    conn
-    |> PageMeta.assign_metadata(
-      title: "Contact",
-      description: "Get in touch with us"
-    )
-    |> render(:contact, layout: false)
-  end
 end

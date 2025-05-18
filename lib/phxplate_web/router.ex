@@ -40,11 +40,11 @@ defmodule PhxplateWeb.Router do
 
     get "/", PageController, :home
     get "/about", PageController, :about
-    get "/contact", PageController, :contact
 
     live_session :public,
       on_mount: [{PhxplateWeb.UserAuth, :mount_current_user}],
       layout: {PhxplateWeb.Layouts, :public} do
+      live "/contact", ContactLive, :index
       live "/pricing", PricingLive, :index
       live "/companies", Public.CompaniesLive, :index
       live "/companies/:id", Public.CompanyShowLive, :show
