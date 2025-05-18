@@ -2,6 +2,7 @@ defmodule PhxplateWeb.Dashboard.Company.CompanyViewLive do
   use PhxplateWeb, :live_view
   alias Phxplate.{Companies, Bookmarks}
   alias Phxplate.PubSub.DataSync
+  alias PhxplateWeb.PageMeta
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -18,7 +19,11 @@ defmodule PhxplateWeb.Dashboard.Company.CompanyViewLive do
       {:ok, data} ->
         {:ok,
          socket
-         |> assign(:page_title, data.company.name)
+         |> PageMeta.assign_metadata(
+           title: data.company.name,
+           description: "View company information",
+           url: ~p"/dashboard/company/#{data.company.id}"
+         )
          |> assign(:company, data.company)
          |> assign(:is_bookmarked, data.is_bookmarked)}
 

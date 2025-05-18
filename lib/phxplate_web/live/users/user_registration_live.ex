@@ -3,6 +3,7 @@ defmodule PhxplateWeb.UserRegistrationLive do
 
   alias Phxplate.Accounts
   alias Phxplate.Accounts.User
+  alias PhxplateWeb.PageMeta
 
   def render(assigns) do
     ~H"""
@@ -49,6 +50,11 @@ defmodule PhxplateWeb.UserRegistrationLive do
 
     socket =
       socket
+      |> PageMeta.assign_metadata(
+        title: "Register",
+        description: "Create a new account",
+        url: ~p"/register"
+      )
       |> assign(trigger_submit: false, check_errors: false)
       |> assign_form(changeset)
 

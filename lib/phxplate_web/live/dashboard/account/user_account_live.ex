@@ -4,6 +4,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
   alias PhxplateWeb.Components.UI.TabsNew
   alias PhxplateWeb.Components.Upload.ImageUploadComponent
   alias Phxplate.{Repo, Accounts}
+  alias PhxplateWeb.PageMeta
   require Logger
 
   @social_networks [:github, :twitter, :linkedin, :facebook, :instagram]
@@ -44,20 +45,37 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
 
     socket =
       socket
+      |> PageMeta.assign_metadata(
+        title: initial_title,
+        description: initial_subtitle,
+        url: ~p"/dashboard/account"
+      )
       |> assign(:user, user)
       |> assign(:activities, activities)
-      |> assign(:page_title, initial_title)
       |> assign(:page_subtitle, initial_subtitle)
       |> assign(:form, to_form(changeset))
       |> assign(:social_links, social_links)
       |> assign(:social_networks, @social_networks)
+      |> assign(:selected_tab, "profile") # Default selected tab
 
     {:ok, socket}
   end
 
   @impl true
-  def handle_params(_params, _url, socket) do
-    {:noreply, socket}
+  def handle_params(params, _url, socket) do
+    # Get the tab from params or default to "profile"
+    tab = Map.get(params, "tab", "profile")
+
+    # Ensure that the tab is valid or fallback to "profile"
+    tab = if tab in ["profile", "subscription", "settings", "activities"], do: tab, else: "profile"
+
+    %{title: title, subtitle: subtitle} = get_tab_titles(tab)
+
+    {:noreply,
+     socket
+     |> PageMeta.assign_metadata(title: title, description: subtitle)
+     |> assign(:page_subtitle, subtitle)
+     |> assign(:selected_tab, tab)}
   end
 
   @impl true
@@ -71,8 +89,10 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
 
     {:noreply,
      socket
-     |> assign(:page_title, title)
-     |> assign(:page_subtitle, subtitle)}
+     |> PageMeta.assign_metadata(title: title, description: subtitle)
+     |> assign(:page_subtitle, subtitle)
+     |> assign(:selected_tab, tab)
+     |> push_patch(to: ~p"/dashboard/account?tab=#{tab}", replace: true)}
   end
 
   @impl true
@@ -201,7 +221,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
       <div class="mt-4">
         <TabsNew.tabs
           :let={builder}
-          default="profile"
+          default={@selected_tab}
           id="user_tabs"
           class="w-full"
           on_change="tab_changed"

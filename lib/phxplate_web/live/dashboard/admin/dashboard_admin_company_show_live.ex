@@ -4,7 +4,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
   alias Phxplate.Companies
   alias PhxplateWeb.Components.ActivityTimelineComponent
   alias PhxplateWeb.Components.Upload.ImageUploadComponent
-  alias PhxplateWeb.Authorization
+  alias PhxplateWeb.{Authorization, PageMeta}
   alias Phxplate.PubSub.DataSync
   alias Phxplate.Repo
 
@@ -39,9 +39,12 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
 
         socket =
           socket
+          |> PageMeta.assign_metadata(
+            title: "#{company.name} Details",
+            description: "Company details and employee management",
+            url: ~p"/dashboard/admin/company/#{company.id}"
+          )
           |> assign(
-            page_title: "#{company.name} Details",
-            page_description: "Company details and employee management",
             company: company,
             form:
               to_form(%{

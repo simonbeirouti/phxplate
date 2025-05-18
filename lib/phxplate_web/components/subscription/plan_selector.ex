@@ -14,6 +14,7 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
   attr :current_user, :any, default: nil, doc: "The currently logged-in user, if any."
   attr :current_subscription, :any, default: nil, doc: "The user's current subscription, if any."
   attr :target, :any, default: nil, doc: "The target for phx-target, if any."
+  attr :loading, :boolean, default: false, doc: "Whether the plan selection is loading."
 
   def plan_selector(assigns) do
     ~H"""
@@ -34,6 +35,7 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
                 current_user={@current_user}
                 current_subscription={@current_subscription}
                 target={@target}
+                loading={@loading}
               />
             </div>
           </div>
@@ -49,6 +51,7 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
                 current_user={@current_user}
                 current_subscription={@current_subscription}
                 target={@target}
+                loading={@loading}
               />
             </div>
           </div>
@@ -66,6 +69,7 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
   attr :current_user, :any, default: nil
   attr :current_subscription, :any, default: nil
   attr :target, :any, default: nil
+  attr :loading, :boolean, default: false
 
   def plan_card(assigns) do
     ~H"""
@@ -104,8 +108,14 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
             phx-value-plan-id={@plan.id}
             phx-target={@target}
             class="w-full"
+            disabled={@loading}
           >
-            Select Plan
+            <%= if @loading do %>
+              <div class="inline-block animate-spin h-4 w-4 mr-2 border-2 border-white rounded-full border-t-transparent" />
+              Processing...
+            <% else %>
+              Select Plan
+            <% end %>
           </.button>
         <% end %>
       </.card_footer>

@@ -2,6 +2,7 @@ defmodule PhxplateWeb.PricingLive do
   use PhxplateWeb, :live_view
   alias Phxplate.Subscriptions
   import PhxplateWeb.Components.Subscription.PlanSelector
+  alias PhxplateWeb.PageMeta
 
   @impl true
   def mount(_params, _session, socket) do
@@ -19,13 +20,16 @@ defmodule PhxplateWeb.PricingLive do
       end
 
     {:ok,
-     assign(socket,
-       page_title: "Pricing",
-       page_description: "Choose the right plan for you",
-       page_image: "https://via.placeholder.com/1200x630",
-       page_url: "https://phxplate.com/pricing",
+     socket
+     |> PageMeta.assign_metadata(
+       title: "Pricing",
+       description: "Choose the right plan for you",
+       url: "https://phxplate.com/pricing"
+     )
+     |> assign(
        plans: plans,
-       current_subscription: subscription
+       current_subscription: subscription,
+       loading: false
      )}
   end
 
@@ -34,17 +38,16 @@ defmodule PhxplateWeb.PricingLive do
     ~H"""
     <div class="py-24 sm:py-32">
       <div class="mx-auto max-w-7xl px-6 lg:px-8">
-        <div class="mx-auto max-w-4xl text-center">
-          <h2 class="text-base font-semibold leading-7 text-indigo-600">Pricing</h2>
-          <p class="mt-2 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
-            Choose the right plan for&nbsp;you
-          </p>
+        <div class="text-center mb-12">
+          <h1 class="text-4xl font-bold text-gray-900">Pricing</h1>
+          <p class="mt-4 text-lg text-gray-500">Choose the right plan for you</p>
         </div>
 
         <.plan_selector
           plans={@plans}
           current_user={@current_user}
           current_subscription={@current_subscription}
+          loading={@loading}
         />
       </div>
     </div>
@@ -58,9 +61,23 @@ defmodule PhxplateWeb.PricingLive do
         # User not logged in: redirect to register with plan_id as URL parameter
         {:noreply, push_navigate(socket, to: ~p"/register?plan_id=#{plan_id}")}
 
-      _user ->
-        # User logged in: redirect to billing page to manage subscription
-        {:noreply, push_navigate(socket, to: ~p"/dashboard/account")}
+      user ->
+        # User logged in: redirect directly to Stripe checkout instead of the dashboard
+        socket = assign(socket, :loading, true)
+        plan = Subscriptions.get_plan!(plan_id)
+
+        case Subscriptions.change_subscription_plan(user, plan) do
+          {:ok, %Stripe.Session{url: checkout_url}} ->
+            # Redirect to Stripe checkout
+            {:noreply, redirect(socket, external: checkout_url)}
+
+          {:error, _error} ->
+            # Handle error
+            {:noreply,
+             socket
+             |> assign(:loading, false)
+             |> put_flash(:error, "Failed to process subscription. Please try again later.")}
+        end
     end
   end
 end
