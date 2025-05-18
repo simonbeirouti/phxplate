@@ -1,9 +1,12 @@
 defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
   use PhxplateWeb, :live_view
-  alias PhxplateWeb.Dashboard.Account.{ProfileLive, SettingsLive, BillingLive, ActivitiesLive}
+  alias PhxplateWeb.Dashboard.Account.{SettingsLive, BillingLive, ActivitiesLive}
   alias PhxplateWeb.Components.UI.TabsNew
-  alias Phxplate.Repo
+  alias PhxplateWeb.Components.Upload.ImageUploadComponent
+  alias Phxplate.{Repo, AWS.S3, Accounts}
   require Logger
+
+  @social_networks [:github, :twitter, :linkedin, :facebook, :instagram]
 
   @tab_titles %{
     "profile" => %{
@@ -32,73 +35,147 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
     # Get initial tab titles
     %{title: initial_title, subtitle: initial_subtitle} = get_tab_titles("profile")
 
+    # Get the existing profile or create a new one
+    profile = user.profile || %Accounts.Profile{user_id: user.id}
+    changeset = Accounts.change_profile(profile)
+
+    # Extract social links from profile or use empty map
+    social_links = profile.social_links || %{}
+
     socket =
       socket
       |> assign(:user, user)
       |> assign(:activities, activities)
       |> assign(:page_title, initial_title)
       |> assign(:page_subtitle, initial_subtitle)
-      |> assign(:show_status_dialog, false)
-      |> assign(:status_message, nil)
-      |> assign(:status_type, nil)
+      |> assign(:form, to_form(changeset))
+      |> assign(:social_links, social_links)
+      |> assign(:social_networks, @social_networks)
 
     {:ok, socket}
   end
 
   @impl true
   def handle_params(params, _url, socket) do
-    socket =
-      socket
-      |> maybe_show_status_dialog(params["status"])
-
     {:noreply, socket}
   end
 
-  defp maybe_show_status_dialog(socket, status) do
-    {message, type} = case status do
-      "success" -> {"Your subscription has been updated successfully.", :success}
-      "error" -> {"There was an error processing your subscription. Please try again.", :error}
-      "canceled" -> {"Your subscription change was canceled.", :info}
-      _ -> {nil, nil}
-    end
-
-    if message do
-      socket
-      |> assign(:show_status_dialog, true)
-      |> assign(:status_message, message)
-      |> assign(:status_type, type)
-    else
-      socket
-    end
+  @impl true
+  def handle_event("close_dialog", _, socket) do
+    {:noreply, socket}
   end
 
   @impl true
-  def handle_event("close_status_dialog", _, socket) do
-    {:noreply, assign(socket, :show_status_dialog, false)}
-  end
-
   def handle_event("tab_changed", %{"tab" => tab}, socket) do
     %{title: title, subtitle: subtitle} = get_tab_titles(tab)
 
     {:noreply,
-      socket
-      |> assign(:page_title, title)
-      |> assign(:page_subtitle, subtitle)
-    }
+     socket
+     |> assign(:page_title, title)
+     |> assign(:page_subtitle, subtitle)}
   end
 
   @impl true
-  def handle_info({:flash_msg, type, message}, socket) do
-    Logger.debug("Received flash message - Type: #{type}, Message: #{message}")
-    {:noreply, put_flash(socket, type, message)}
+  def handle_event("validate", _params, socket) do
+    {:noreply, socket}
   end
 
   @impl true
-  def handle_info({:profile_updated, updated_profile}, socket) do
-    Logger.debug("Received profile update - Profile ID: #{updated_profile.id}")
-    # Update the user's profile in the socket assigns
-    user = %{socket.assigns.user | profile: updated_profile}
-    {:noreply, assign(socket, :user, user)}
+  def handle_event("save", params, socket) do
+    if Map.has_key?(params, "profile") do
+      handle_profile_save(socket, params["profile"])
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_info({:image_uploaded, %{type: :avatar, url: url, old_url: old_url}}, socket) do
+    case Accounts.update_profile(socket.assigns.user.profile, %{avatar_url: url}) do
+      {:ok, updated_profile} ->
+        user = %{socket.assigns.user | profile: updated_profile}
+
+        {:noreply,
+         socket
+         |> assign(:user, user)
+         |> assign(:form, to_form(Accounts.change_profile(updated_profile)))
+         |> put_flash(:info, "Avatar uploaded successfully")}
+
+      {:error, _changeset} ->
+        # If the profile update failed, try to delete the new image to avoid orphaned files
+        if url do
+          Task.start(fn -> Phxplate.AWS.S3.delete_file(url) end)
+        end
+
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to update profile with new avatar")}
+    end
+  end
+
+  @impl true
+  def handle_info({:image_uploaded_error, %{error: error_msg}}, socket) do
+    {:noreply,
+     socket
+     |> put_flash(:error, error_msg)}
+  end
+
+  defp handle_profile_save(socket, profile_params) do
+    profile_params = clean_params(profile_params)
+    social_links = extract_social_links(profile_params)
+    profile_params = Map.put(profile_params, "social_links", social_links)
+
+    case Accounts.update_user_profile(socket.assigns.user, profile_params) do
+      {:ok, updated_profile} ->
+        user = %{socket.assigns.user | profile: updated_profile}
+
+        {:noreply,
+         socket
+         |> assign(:user, user)
+         |> assign(:social_links, social_links)
+         |> assign(:form, to_form(Accounts.change_profile(updated_profile)))
+         |> put_flash(:info, "Profile updated successfully!")}
+
+      {:error, changeset} ->
+        error_message =
+          case changeset.errors do
+            [] ->
+              "Failed to update profile. Please check your input and try again."
+
+            errors ->
+              errors
+              |> Enum.map(fn {field, {msg, _}} ->
+                "#{Phoenix.Naming.humanize(field)} #{msg}"
+              end)
+              |> Enum.join(". ")
+          end
+
+        {:noreply,
+         socket
+         |> assign(:form, to_form(changeset))
+         |> put_flash(:error, error_message)}
+    end
+  end
+
+  # Clean params by removing _unused_ fields
+  defp clean_params(params) do
+    params
+    |> Enum.reject(fn {key, _value} -> String.starts_with?(key, "_unused_") end)
+    |> Map.new()
+  end
+
+  # Extract social links from params and validate URLs
+  defp extract_social_links(params) do
+    @social_networks
+    |> Enum.reduce(%{}, fn network, acc ->
+      case params["social_links_#{network}"] do
+        url when is_binary(url) and url != "" ->
+          Map.put(acc, Atom.to_string(network), url)
+
+        _ ->
+          acc
+      end
+    end)
   end
 
   # Get the title and subtitle for a specific tab
@@ -114,53 +191,18 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">
       <.header>
-        <%= @page_title %>
-        <:subtitle><%= @page_subtitle %></:subtitle>
+        {@page_title}
+        <:subtitle>{@page_subtitle}</:subtitle>
       </.header>
 
-      <.dialog :if={@show_status_dialog} id="status-dialog" show={true}>
-        <div class="text-center">
-          <div class={"mx-auto flex items-center justify-center h-16 w-16 rounded-full mb-4 #{
-            case @status_type do
-              :success -> "bg-green-100"
-              :error -> "bg-red-100"
-              _ -> "bg-blue-100"
-            end
-          }"}>
-            <%= case @status_type do %>
-              <% :success -> %>
-                <Lucideicons.check class="h-8 w-8 text-green-600" />
-              <% :error -> %>
-                <Lucideicons.x class="h-8 w-8 text-red-600" />
-              <% _ -> %>
-                <Lucideicons.info class="h-8 w-8 text-blue-600" />
-            <% end %>
-          </div>
-          <.header>
-            <%= case @status_type do %>
-              <% :success -> %>
-                Subscription Updated
-              <% :error -> %>
-                Subscription Error
-              <% _ -> %>
-                Subscription Status
-            <% end %>
-            <:subtitle><%= @status_message %></:subtitle>
-        </.header>
-
-          <.dialog_footer class="mt-4">
-            <.button
-              phx-click={JS.push("close_status_dialog")}
-              class="w-full"
-            >
-              Close
-            </.button>
-          </.dialog_footer>
-        </div>
-      </.dialog>
-
       <div class="mt-4">
-        <TabsNew.tabs :let={builder} default="profile" id="user_tabs" class="w-full" on_change="tab_changed">
+        <TabsNew.tabs
+          :let={builder}
+          default="profile"
+          id="user_tabs"
+          class="w-full"
+          on_change="tab_changed"
+        >
           <TabsNew.tabs_list class="grid w-full lg:w-1/2 grid-cols-4">
             <TabsNew.tabs_trigger value="profile" builder={builder}>
               Profile
@@ -180,7 +222,74 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
           </TabsNew.tabs_list>
 
           <TabsNew.tabs_content value="profile">
-            <.live_component module={ProfileLive} id="user_profile_form" user={@user} />
+            <div class="flex flex-col items-center gap-4">
+              <.live_component
+                module={ImageUploadComponent}
+                id="profile-avatar"
+                type={:avatar}
+                image_url={@user.profile.avatar_url}
+                entity_type={:user}
+                entity_id={@user.id}
+                on_upload_complete="image_uploaded"
+              />
+            </div>
+            <.simple_form for={@form} id="profile-form" phx-change="validate" phx-submit="save">
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <.input
+                    field={@form[:first_name]}
+                    type="text"
+                    label="First Name"
+                    phx-debounce="blur"
+                  />
+                </div>
+                <div>
+                  <.input field={@form[:last_name]} type="text" label="Last Name" phx-debounce="blur" />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <.input field={@form[:phone]} type="tel" label="Phone Number" phx-debounce="blur" />
+                </div>
+                <div>
+                  <.input field={@form[:location]} type="text" label="Location" phx-debounce="blur" />
+                </div>
+              </div>
+
+              <.input field={@form[:bio]} type="textarea" label="Bio" phx-debounce="blur" />
+
+              <div class="space-y-4">
+                <label class="block text-sm font-semibold leading-6">Links</label>
+                <div class="grid grid-cols-2 gap-4">
+                  <.input
+                    field={@form[:website]}
+                    type="url"
+                    label="Website"
+                    phx-debounce="blur"
+                    placeholder="https://"
+                  />
+                  <%= for network <- @social_networks do %>
+                    <div>
+                      <.input
+                        name={"profile[social_links_#{network}]"}
+                        value={@social_links[Atom.to_string(network)]}
+                        type="url"
+                        label={Phoenix.Naming.humanize(network)}
+                        phx-debounce="blur"
+                        placeholder={"Your #{Phoenix.Naming.humanize(network)} URL"}
+                      />
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+
+              <:actions>
+                <.button phx-disable-with="Saving..." class="w-full md:w-auto mb-8">
+                  Save Profile
+                </.button>
+              </:actions>
+            </.simple_form>
           </TabsNew.tabs_content>
 
           <TabsNew.tabs_content value="subscription">

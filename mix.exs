@@ -64,7 +64,11 @@ defmodule Phxplate.MixProject do
       {:salad_ui, "~> 0.14.9"},
       {:lucide_icons, "~> 2.0"},
       {:faker, "~> 0.18.0"},
-      {:stripity_stripe, "~> 2.0"}
+      {:stripity_stripe, "~> 2.0"},
+      {:ex_aws, "~> 2.1"},
+      {:ex_aws_s3, "~> 2.0"},
+      {:hackney, "~> 1.9"},
+      {:sweet_xml, "~> 0.6"}
     ]
   end
 
