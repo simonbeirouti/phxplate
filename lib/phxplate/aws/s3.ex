@@ -192,11 +192,6 @@ defmodule Phxplate.AWS.S3 do
   def presigned_url(path, expires_in \\ 3600) do
     bucket = get_bucket()
     bucket |> S3.presigned_url(:get, path, [expires_in: expires_in])
-    |> IO.inspect()
-    |> case do
-      {:ok, url} -> {:ok, url}
-      {:error, reason} -> {:error, "Failed to generate presigned URL: #{inspect(reason)}"}
-    end
   end
 
   @doc """

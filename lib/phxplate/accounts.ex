@@ -481,6 +481,13 @@ defmodule Phxplate.Accounts do
     |> Repo.insert()
     |> case do
       {:ok, profile} = result ->
+        # For new profiles, track all provided fields
+        changed_fields = Map.take(attrs, ["first_name", "last_name", "bio", "avatar_url", "phone", "location", "website", "social_links"])
+
+        if map_size(changed_fields) > 0 do
+          Phxplate.Tracking.track_user_activity("profile_create", user, user, changed_fields)
+        end
+
         # Broadcast profile creation
         DataSync.broadcast("profiles", user.id, {:created, %{type: :profile, profile: profile}})
         # Also broadcast to "all" topic for global updates
@@ -508,6 +515,35 @@ defmodule Phxplate.Accounts do
     |> Repo.update()
     |> case do
       {:ok, updated_profile} = result ->
+        # Track only changed fields with special handling for avatar_url
+        changed_fields = Enum.reduce(["first_name", "last_name", "bio", "avatar_url", "phone", "location", "website", "social_links"], %{}, fn field, acc ->
+          old_value = Map.get(profile, String.to_atom(field))
+
+          # Get new value from attrs, handling both string and atom keys
+          new_value = cond do
+            is_map_key(attrs, field) -> Map.get(attrs, field)
+            is_map_key(attrs, String.to_atom(field)) -> Map.get(attrs, String.to_atom(field))
+            true -> nil
+          end
+
+          # Always include avatar_url when it's present in attrs (for image uploads)
+          if field == "avatar_url" && new_value != nil do
+            Map.put(acc, field, new_value)
+          else
+            # For other fields, only include if changed
+            if new_value && old_value != new_value do
+              Map.put(acc, field, new_value)
+            else
+              acc
+            end
+          end
+        end)
+
+        if map_size(changed_fields) > 0 do
+          user = Repo.get!(User, updated_profile.user_id)
+          Phxplate.Tracking.track_user_activity("profile_update", user, user, changed_fields)
+        end
+
         # Broadcast profile update
         DataSync.broadcast("profiles", profile.user_id, {:updated, %{type: :profile, profile: updated_profile}})
         # Also broadcast to "all" topic for global updates
@@ -612,6 +648,42 @@ defmodule Phxplate.Accounts do
     |> Repo.insert_or_update()
     |> case do
       {:ok, updated_profile} = result ->
+        # For new profiles, track all fields
+        # For existing profiles, track only changed fields
+        changed_fields = if profile.id do
+          # Update - track only changed fields
+          Enum.reduce(["first_name", "last_name", "bio", "avatar_url", "phone", "location", "website", "social_links"], %{}, fn field, acc ->
+            old_value = Map.get(profile, String.to_atom(field))
+
+            # Get new value from attrs, handling both string and atom keys
+            new_value = cond do
+              is_map_key(attrs, field) -> Map.get(attrs, field)
+              is_map_key(attrs, String.to_atom(field)) -> Map.get(attrs, String.to_atom(field))
+              true -> nil
+            end
+
+            # Always include avatar_url when it's present in attrs (for image uploads)
+            if field == "avatar_url" && new_value != nil do
+              Map.put(acc, field, new_value)
+            else
+              # For other fields, only include if changed
+              if new_value && old_value != new_value do
+                Map.put(acc, field, new_value)
+              else
+                acc
+              end
+            end
+          end)
+        else
+          # New profile - track all provided fields
+          Map.take(attrs, ["first_name", "last_name", "bio", "avatar_url", "phone", "location", "website", "social_links"])
+        end
+
+        if map_size(changed_fields) > 0 do
+          action = if profile.id, do: "profile_update", else: "profile_create"
+          Phxplate.Tracking.track_user_activity(action, user, user, changed_fields)
+        end
+
         # Broadcast profile update or creation
         event_type = if profile.id, do: :updated, else: :created
         DataSync.broadcast("profiles", user.id, {event_type, %{type: :profile, profile: updated_profile}})

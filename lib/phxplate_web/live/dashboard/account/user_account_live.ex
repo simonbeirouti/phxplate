@@ -91,15 +91,18 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
 
   @impl true
   def handle_info({:image_uploaded, %{type: :avatar, url: url, old_url: _old_url}}, socket) do
-          case Accounts.update_profile(socket.assigns.user.profile, %{avatar_url: url}) do
-            {:ok, updated_profile} ->
-              user = %{socket.assigns.user | profile: updated_profile}
+    # Create a profile update map with only the avatar_url field
+    profile_update = %{"avatar_url" => url}
+
+    case Accounts.update_profile(socket.assigns.user.profile, profile_update) do
+      {:ok, updated_profile} ->
+        user = %{socket.assigns.user | profile: updated_profile}
 
         {:noreply,
-         socket
-         |> assign(:user, user)
-         |> assign(:form, to_form(Accounts.change_profile(updated_profile)))
-         |> put_flash(:info, "Avatar uploaded successfully")}
+        socket
+        |> assign(:user, user)
+        |> assign(:form, to_form(Accounts.change_profile(updated_profile)))
+        |> put_flash(:info, "Avatar uploaded successfully")}
 
       {:error, _changeset} ->
         # If the profile update failed, try to delete the new image to avoid orphaned files
@@ -109,7 +112,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
 
         {:noreply,
         socket
-         |> put_flash(:error, "Failed to update profile with new avatar")}
+        |> put_flash(:error, "Failed to update profile with new avatar")}
     end
   end
 
