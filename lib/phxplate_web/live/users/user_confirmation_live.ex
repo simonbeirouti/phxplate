@@ -2,6 +2,7 @@ defmodule PhxplateWeb.UserConfirmationLive do
   use PhxplateWeb, :live_view
 
   alias Phxplate.Accounts
+  alias PhxplateWeb.PageMeta
 
   def render(%{live_action: :edit} = assigns) do
     ~H"""
@@ -26,7 +27,16 @@ defmodule PhxplateWeb.UserConfirmationLive do
 
   def mount(%{"token" => token}, _session, socket) do
     form = to_form(%{"token" => token}, as: "user")
-    {:ok, assign(socket, form: form), temporary_assigns: [form: nil]}
+
+    socket =
+      socket
+      |> PageMeta.assign_metadata(
+        title: "Confirm Account",
+        description: "Confirm your account to complete registration"
+      )
+      |> assign(form: form)
+
+    {:ok, socket, temporary_assigns: [form: nil]}
   end
 
   # Do not log in the user after confirmation to avoid a

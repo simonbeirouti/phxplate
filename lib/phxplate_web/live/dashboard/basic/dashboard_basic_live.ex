@@ -17,7 +17,8 @@ defmodule PhxplateWeb.Dashboard.Basic.BasicLive do
      socket
      |> PageMeta.assign_metadata(
        title: "Basic Dashboard",
-       description: "Your personalized dashboard"
+       description: "Your personalized dashboard",
+       url: ~p"/dashboard/basic"
      )
      |> assign(:bookmark_count, bookmark_count)}
   end

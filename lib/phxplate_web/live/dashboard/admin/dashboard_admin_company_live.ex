@@ -3,6 +3,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyLive do
 
   alias Phxplate.{Companies, Subscriptions, Repo}
   alias Phxplate.PubSub.DataSync
+  alias PhxplateWeb.PageMeta
   import PhxplateWeb.Components.CompaniesGrid
   import PhxplateWeb.Dashboard.Admin.CompanyHelpers
 
@@ -23,9 +24,13 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyLive do
     end
 
     {:ok,
-     assign(socket,
-       page_title: "Company Management",
-       page_description: "Manage your companies",
+     socket
+     |> PageMeta.assign_metadata(
+       title: "Company Management",
+       description: "Manage your companies",
+       url: ~p"/dashboard/admin/companies"
+     )
+     |> assign(
        companies: companies,
        subscription: subscription
      )}

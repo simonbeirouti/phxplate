@@ -58,13 +58,13 @@ defmodule PhxplateWeb.Components.NavComponent do
             id="nav-menu-button"
           >
             <span class="sr-only">Open main menu</span>
-            <Lucideicons.rows_3 class="h-6 w-6" />
+            <Lucideicons.menu class="h-6 w-6" />
           </button>
         </div>
       </div>
 
       <div id="mobile-menu" class="hidden md:hidden" phx-hook="NavMenu">
-        <div class="space-y-1 px-2 pb-3 pt-2">
+        <div class="space-y-2 p-2">
           <%= for link <- @public_links do %>
             <.link
               href={link.href}
@@ -74,8 +74,8 @@ defmodule PhxplateWeb.Components.NavComponent do
             </.link>
           <% end %>
           <%= if @current_user do %>
-            <.link href={~p"/dashboard"}>
-              <.button>Dashboard</.button>
+            <.link class="w-full" href={~p"/dashboard"}>
+              <.button class="mt-2 w-full">Dashboard</.button>
             </.link>
           <% else %>
             <div class="flex items-center space-x-2 w-full">

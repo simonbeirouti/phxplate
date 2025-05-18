@@ -25,5 +25,19 @@ defmodule Phxplate.Accounts.Profile do
     |> cast(attrs, [:first_name, :last_name, :bio, :avatar_url, :phone, :location, :website, :social_links, :user_id])
     |> validate_required([:user_id])
     |> foreign_key_constraint(:user_id)
+    |> put_default_avatar()
+  end
+
+  defp put_default_avatar(changeset) do
+    if get_field(changeset, :avatar_url) == nil do
+      put_change(changeset, :avatar_url, default_avatar())
+    else
+      changeset
+    end
+  end
+
+  def default_avatar do
+    seed = :crypto.strong_rand_bytes(10) |> Base.encode16(case: :lower)
+    "https://api.dicebear.com/7.x/avataaars/svg?seed=#{seed}"
   end
 end

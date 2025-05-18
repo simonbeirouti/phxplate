@@ -14,7 +14,6 @@ defmodule PhxplateWeb.UserSessionHandlerLive do
     {:ok, assign(socket, current_user: current_user)}
   end
 
-  @impl true
   def handle_info({:force_logout, _payload}, socket) do
     {:noreply, push_event(socket, "js_force_logout", %{reason: "user_deleted"})}
   end

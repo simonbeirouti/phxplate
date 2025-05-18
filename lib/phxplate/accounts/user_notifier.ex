@@ -98,4 +98,45 @@ defmodule Phxplate.Accounts.UserNotifier do
     ==============================
     """)
   end
+
+  @doc """
+  Deliver contact form submission email.
+
+  Sends the contents of the contact form to the admin email address
+  and includes information about the sender.
+  """
+  def deliver_contact_form_email(email, name, subject, message, user_id) do
+    admin_email = "admin@example.com" # Replace with actual admin email
+
+    user_info = if user_id, do: "\nSubmitted by registered user ID: #{user_id}", else: "\nSubmitted by unregistered visitor"
+
+    deliver(admin_email, "Contact Form: #{subject}", """
+    ==============================
+
+    New contact form submission:
+
+    From: #{name} (#{email})#{user_info}
+    Subject: #{subject}
+
+    Message:
+    #{message}
+
+    ==============================
+    """)
+
+    # Also send a confirmation to the user
+    deliver(email, "Thank you for contacting us", """
+    ==============================
+
+    Hi #{name},
+
+    Thank you for contacting us. This is a confirmation that we have received your message:
+
+    Subject: #{subject}
+
+    Our team will review your message and get back to you as soon as possible.
+
+    ==============================
+    """)
+  end
 end

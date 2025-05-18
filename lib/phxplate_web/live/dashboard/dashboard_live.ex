@@ -1,14 +1,15 @@
 defmodule PhxplateWeb.DashboardLive do
   use PhxplateWeb, :live_view
   alias Phxplate.Accounts.User
+  alias PhxplateWeb.PageMeta
 
   def mount(_params, _session, socket) do
     {:ok,
-     assign(socket,
-       page_title: "Dashboard",
-       page_description: "Just the dashboard",
-       page_image: "https://via.placeholder.com/1200x630",
-       page_url: "https://phxplate.com"
+     socket
+     |> PageMeta.assign_metadata(
+       title: "Dashboard",
+       description: "Just the dashboard",
+       url: "https://phxplate.com/dashboard"
      )}
   end
 
@@ -21,9 +22,14 @@ defmodule PhxplateWeb.DashboardLive do
 
   def render(assigns) do
     ~H"""
-    <div class="container mx-auto px-4 py-8">
-      <h1 class="text-3xl font-bold mb-6">Dashboard</h1>
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div class="flex-1 h-[calc(100vh-100px)]">
+      <.header>
+        Central Dashboard
+        <:subtitle>
+          Quick access to your different dashboards
+        </:subtitle>
+      </.header>
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <%= if User.is_basic?(@current_user) or User.is_admin?(@current_user) or User.is_super_admin?(@current_user) do %>
           <.dashboard_card
             title="Basic Dashboard"

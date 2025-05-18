@@ -333,10 +333,14 @@ defmodule PhxplateWeb.StripeController do
       {:ok, session} ->
         # Process the successful checkout session
         process_successful_checkout(session)
-        Phoenix.Controller.redirect(conn, to: "/dashboard/account?status=success")
+        conn
+        |> put_flash(:info, "Your subscription has been updated successfully.")
+        |> Phoenix.Controller.redirect(to: "/dashboard/account?tab=subscription")
       {:error, error} ->
         Logger.error("Failed to retrieve checkout session: #{inspect(error)}")
-        Phoenix.Controller.redirect(conn, to: "/dashboard/account?status=error")
+        conn
+        |> put_flash(:error, "There was an error processing your subscription. Please try again.")
+        |> Phoenix.Controller.redirect(to: "/dashboard/account?tab=subscription")
     end
   end
 
@@ -372,8 +376,10 @@ defmodule PhxplateWeb.StripeController do
   end
 
   def cancel(conn, _params) do
-    # Redirect to billing page after canceled checkout
-    Phoenix.Controller.redirect(conn, to: "/dashboard/account?status=canceled")
+    # Redirect to billing page after canceled checkout with subscription tab selected
+    conn
+    |> put_flash(:info, "Your subscription change was canceled.")
+    |> Phoenix.Controller.redirect(to: "/dashboard/account?tab=subscription")
   end
 
   # Controller action for webhook

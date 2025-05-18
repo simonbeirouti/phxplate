@@ -9,13 +9,6 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
     subscription = Subscriptions.get_user_subscription(user.id)
     plans = Subscriptions.list_all_plans()
 
-    status_message = case assigns[:status] do
-      "success" -> {:info, "Your subscription has been updated successfully."}
-      "error" -> {:error, "There was an error processing your subscription. Please try again."}
-      "canceled" -> {:info, "Your subscription change was canceled."}
-      _ -> nil
-    end
-
     socket =
       socket
       |> assign(assigns)
@@ -26,13 +19,6 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
       |> assign(:loading_payment, false)
       |> assign(:checkout_url, nil)
       |> assign(:show_cancel_confirm, false)
-
-    socket = if status_message do
-      {type, msg} = status_message
-      put_flash(socket, type, msg)
-    else
-      socket
-    end
 
     {:ok, socket}
   end

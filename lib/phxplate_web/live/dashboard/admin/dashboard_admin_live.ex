@@ -2,6 +2,7 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
   use PhxplateWeb, :live_view
   alias Phxplate.{Companies, Subscriptions}
   alias Phxplate.PubSub.DataSync
+  alias PhxplateWeb.PageMeta
   import PhxplateWeb.Components.CompaniesGrid
   import PhxplateWeb.CoreComponents
   import PhxplateWeb.Dashboard.Admin.CompanyHelpers
@@ -31,8 +32,13 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
     end
 
     {:ok,
-     assign(socket,
-       page_title: "Admin Dashboard",
+     socket
+     |> PageMeta.assign_metadata(
+       title: "Admin Dashboard",
+       description: "View your dashboard and companies that you've created",
+       url: ~p"/dashboard/admin"
+     )
+     |> assign(
        companies: companies,
        employee_count: employee_count,
        subscription: subscription
