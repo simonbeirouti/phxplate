@@ -1,7 +1,18 @@
 defmodule PhxplateWeb.Dashboard.Account.SettingsLive do
+  @moduledoc """
+  LiveComponent for managing user account settings.
+
+  This component provides forms for users to update their email address
+  and password, with appropriate validation and error handling.
+  """
   use PhxplateWeb, :live_component
   alias Phxplate.Accounts
 
+  @doc """
+  Updates the component with initial form state.
+
+  Initializes forms for email and password changes with empty values.
+  """
   @impl true
   def update(assigns, socket) do
     socket =
@@ -120,6 +131,12 @@ defmodule PhxplateWeb.Dashboard.Account.SettingsLive do
     end
   end
 
+  @doc """
+  Renders the settings forms.
+
+  Displays forms for changing email and password with appropriate
+  validation and loading states.
+  """
   @impl true
   def render(assigns) do
     ~H"""

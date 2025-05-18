@@ -1,9 +1,22 @@
 defmodule PhxplateWeb.UserForgotPasswordLive do
+  @moduledoc """
+  LiveView for requesting password reset instructions.
+
+  This view allows users who have forgotten their password to request a password
+  reset link. It provides a form for users to enter their email address and handles
+  sending the reset instructions email if the account exists in the system.
+  """
   use PhxplateWeb, :live_view
 
   alias Phxplate.Accounts
   alias PhxplateWeb.PageMeta
 
+  @doc """
+  Renders the password reset request form.
+
+  Displays a form with an email field and submission button,
+  along with links to register or log in.
+  """
   def render(assigns) do
     ~H"""
     <div class="flex items-center justify-center h-full">
@@ -35,19 +48,33 @@ defmodule PhxplateWeb.UserForgotPasswordLive do
     """
   end
 
+  @doc """
+  Initializes the LiveView with an empty form and page metadata.
+
+  Sets up the initial form state for the email input field and
+  configures page metadata with appropriate title and description.
+  """
   def mount(_params, _session, socket) do
     socket =
       socket
       |> PageMeta.assign_metadata(
         title: "Reset Password",
         description: "Request a password reset link",
-        url: ~p"/reset-password"
+        url: "/reset-password"
       )
       |> assign(form: to_form(%{}, as: "user"))
 
     {:ok, socket}
   end
 
+  @doc """
+  Handles the form submission to send password reset instructions.
+
+  Processes the email submission, looks up the user by email,
+  and sends password reset instructions if the account exists.
+  For security, always shows the same success message regardless of
+  whether the email exists in the system.
+  """
   def handle_event("send_email", %{"user" => %{"email" => email}}, socket) do
     if user = Accounts.get_user_by_email(email) do
       Accounts.deliver_user_reset_password_instructions(

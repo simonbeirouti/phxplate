@@ -1,6 +1,20 @@
 defmodule Phxplate.Accounts do
   @moduledoc """
   The Accounts context.
+
+  This context handles all user-related operations including authentication,
+  registration, profile management, and admin functions. It provides the core
+  functionality for user management throughout the application, including:
+
+  - User authentication and session management
+  - User registration and account confirmation
+  - Password reset and email change workflows
+  - User profile creation and management
+  - Role-based access control
+  - User onboarding process
+
+  The context integrates with PubSub to broadcast user-related events in real-time
+  for LiveView updates across the application.
   """
 
   import Ecto.Query, warn: false
@@ -13,6 +27,11 @@ defmodule Phxplate.Accounts do
   @doc """
   Gets a user by email.
 
+  Performs a case-sensitive lookup of a user by their email address.
+
+  ## Parameters
+    - email: The email address to search for
+
   ## Examples
 
       iex> get_user_by_email("foo@example.com")
@@ -20,7 +39,6 @@ defmodule Phxplate.Accounts do
 
       iex> get_user_by_email("unknown@example.com")
       nil
-
   """
   def get_user_by_email(email) when is_binary(email) do
     Repo.get_by(User, email: email)
@@ -29,6 +47,13 @@ defmodule Phxplate.Accounts do
   @doc """
   Gets a user by email and password.
 
+  Verifies that the email exists and the password is correct.
+  Returns nil if the email doesn't exist or the password is invalid.
+
+  ## Parameters
+    - email: The email address to search for
+    - password: The password to verify
+
   ## Examples
 
       iex> get_user_by_email_and_password("foo@example.com", "correct_password")
@@ -36,7 +61,6 @@ defmodule Phxplate.Accounts do
 
       iex> get_user_by_email_and_password("foo@example.com", "invalid_password")
       nil
-
   """
   def get_user_by_email_and_password(email, password)
       when is_binary(email) and is_binary(password) do
@@ -47,7 +71,10 @@ defmodule Phxplate.Accounts do
   @doc """
   Gets a single user.
 
-  Raises `Ecto.NoResultsError` if the User does not exist.
+  Retrieves a user by their ID, raising an error if not found.
+
+  ## Parameters
+    - id: The ID of the user to retrieve
 
   ## Examples
 
@@ -56,17 +83,18 @@ defmodule Phxplate.Accounts do
 
       iex> get_user!(456)
       ** (Ecto.NoResultsError)
-
   """
   def get_user!(id), do: Repo.get!(User, id)
 
   @doc """
-  Lists all users.
+  Lists all users with pagination.
 
-  ## Options
+  Retrieves a paginated list of users, excluding the super admin (ID 1).
 
-    * `:page` - The page number (starting with 1)
-    * `:per_page` - The number of users per page
+  ## Parameters
+    - opts: Options for pagination
+      * `:page` - The page number (starting with 1)
+      * `:per_page` - The number of users per page
 
   ## Examples
 
@@ -75,7 +103,6 @@ defmodule Phxplate.Accounts do
 
       iex> list_users(page: 2, per_page: 10)
       [%User{}, ...]
-
   """
   def list_users(opts \\ []) do
     page = Keyword.get(opts, :page, 1)
@@ -92,6 +119,11 @@ defmodule Phxplate.Accounts do
 
   @doc """
   Counts all users (excluding the super admin).
+
+  Returns the total number of non-super-admin users in the system.
+
+  ## Returns
+    - Integer count of users
   """
   def count_users do
     User
@@ -101,6 +133,11 @@ defmodule Phxplate.Accounts do
 
   @doc """
   Counts active users (users who have confirmed their email).
+
+  Returns the count of users who have completed email confirmation.
+
+  ## Returns
+    - Integer count of confirmed users
   """
   def count_active_users do
     from(u in User, where: not is_nil(u.confirmed_at))
@@ -112,14 +149,19 @@ defmodule Phxplate.Accounts do
   @doc """
   Registers a user.
 
+  Creates a new user account with the provided attributes.
+  Validates email, password, and role requirements.
+
+  ## Parameters
+    - attrs: Map of attributes for the new user
+
   ## Examples
 
-      iex> register_user(%{field: value})
+      iex> register_user(%{email: "user@example.com", password: "SecurePassword123!"})
       {:ok, %User{}}
 
-      iex> register_user(%{field: bad_value})
+      iex> register_user(%{email: "invalid", password: "short"})
       {:error, %Ecto.Changeset{}}
-
   """
   def register_user(attrs) do
     %User{}
@@ -450,6 +492,11 @@ defmodule Phxplate.Accounts do
   @doc """
   Gets a profile by user_id.
 
+  Retrieves a user's profile by their user ID, or returns nil if not found.
+
+  ## Parameters
+    - user_id: The ID of the user whose profile to retrieve
+
   ## Examples
 
       iex> get_profile_by_user_id(123)
@@ -457,7 +504,6 @@ defmodule Phxplate.Accounts do
 
       iex> get_profile_by_user_id(456)
       nil
-
   """
   def get_profile_by_user_id(user_id) do
     Repo.get_by(Profile, user_id: user_id)
@@ -466,14 +512,20 @@ defmodule Phxplate.Accounts do
   @doc """
   Creates a profile for a user.
 
+  Creates a new profile for a user, tracks the activity, and broadcasts
+  the creation event via PubSub.
+
+  ## Parameters
+    - user: The user to create a profile for
+    - attrs: Map of attributes for the profile
+
   ## Examples
 
-      iex> create_profile(user, %{field: value})
+      iex> create_profile(user, %{first_name: "John", last_name: "Doe"})
       {:ok, %Profile{}}
 
-      iex> create_profile(user, %{field: bad_value})
+      iex> create_profile(user, %{first_name: ""})
       {:error, %Ecto.Changeset{}}
-
   """
   def create_profile(%User{} = user, attrs) do
     %Profile{user_id: user.id}
@@ -500,14 +552,20 @@ defmodule Phxplate.Accounts do
   @doc """
   Updates a profile.
 
+  Updates an existing profile with new attributes, tracks changes,
+  and broadcasts the update via PubSub.
+
+  ## Parameters
+    - profile: The profile to update
+    - attrs: Map of attributes to change
+
   ## Examples
 
-      iex> update_profile(profile, %{field: new_value})
+      iex> update_profile(profile, %{first_name: "Jane"})
       {:ok, %Profile{}}
 
-      iex> update_profile(profile, %{field: bad_value})
+      iex> update_profile(profile, %{first_name: ""})
       {:error, %Ecto.Changeset{}}
-
   """
   def update_profile(%Profile{} = profile, attrs) do
     profile
@@ -568,6 +626,15 @@ defmodule Phxplate.Accounts do
 
   @doc """
   Marks a user's onboarding as completed.
+
+  Updates a user record to indicate they've completed the onboarding process.
+
+  ## Parameters
+    - user: The user who has completed onboarding
+
+  ## Returns
+    - `{:ok, user}` on success
+    - `{:error, changeset}` on failure
   """
   def complete_onboarding(user) do
     user
@@ -577,12 +644,31 @@ defmodule Phxplate.Accounts do
 
   @doc """
   Checks if a user has completed onboarding.
+
+  Returns true if the user has completed the onboarding process.
+
+  ## Parameters
+    - user: The user to check
+
+  ## Returns
+    - true if onboarding is completed
+    - false otherwise
   """
   def onboarding_completed?(%Phxplate.Accounts.User{onboarding_completed: onboarding_completed}), do: onboarding_completed
   def onboarding_completed?(_), do: false
 
   @doc """
-  Delete the user from the application
+  Delete the user from the application.
+
+  Deletes a user and associated records, handling related employee records
+  and broadcasting relevant deletion events.
+
+  ## Parameters
+    - user: The user to delete
+
+  ## Returns
+    - `{:ok, user}` on success
+    - `{:error, changeset}` on failure
   """
   def delete_user(%User{} = user) do
     # First find and delete any associated employee records

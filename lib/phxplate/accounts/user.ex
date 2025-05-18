@@ -1,4 +1,13 @@
 defmodule Phxplate.Accounts.User do
+  @moduledoc """
+  Schema for user accounts.
+
+  This schema represents a user in the system, storing authentication details,
+  role information, and account status. Users can have roles (basic, admin, or super admin)
+  that determine their permissions in the system. The schema includes validation logic
+  for email and password requirements, and establishes associations with profiles,
+  subscriptions, tokens, and companies.
+  """
   use Ecto.Schema
   import Ecto.Changeset
 
@@ -22,10 +31,9 @@ defmodule Phxplate.Accounts.User do
   @doc """
   A user changeset for registration.
 
-  It is important to validate the length of both email and password.
-  Otherwise databases may truncate the email without warnings, which
-  could lead to unpredictable or insecure behaviour. Long passwords may
-  also be very expensive to hash for certain algorithms.
+  Creates a changeset for new user registration with comprehensive validation
+  for email and password fields. Enforces security requirements for passwords
+  and ensures email uniqueness.
 
   ## Options
 
@@ -103,7 +111,13 @@ defmodule Phxplate.Accounts.User do
   @doc """
   A user changeset for changing the email.
 
-  It requires the email to change otherwise an error is added.
+  Validates email format and uniqueness, and requires the email to
+  be different from the current one.
+
+  ## Parameters
+    - user: The user struct to change
+    - attrs: Map of attributes to apply to the user
+    - opts: Options controlling validation behavior
   """
   def email_changeset(user, attrs, opts \\ []) do
     user
@@ -117,6 +131,13 @@ defmodule Phxplate.Accounts.User do
 
   @doc """
   A user changeset for changing the password.
+
+  Validates password requirements and confirmation matching.
+
+  ## Parameters
+    - user: The user struct to change
+    - attrs: Map of attributes to apply to the user
+    - opts: Options controlling validation behavior
 
   ## Options
 
@@ -136,6 +157,12 @@ defmodule Phxplate.Accounts.User do
 
   @doc """
   Confirms the account by setting `confirmed_at`.
+
+  Sets the confirmed_at field to the current UTC timestamp,
+  marking the account as verified.
+
+  ## Parameters
+    - user: The user struct to confirm
   """
   def confirm_changeset(user) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -145,8 +172,16 @@ defmodule Phxplate.Accounts.User do
   @doc """
   Verifies the password.
 
-  If there is no user or the user doesn't have a password, we call
-  `Bcrypt.no_user_verify/0` to avoid timing attacks.
+  Safely compares the provided password against the stored hash.
+  Uses Bcrypt's timing-attack resistant comparison.
+
+  ## Parameters
+    - user: The user struct with a hashed password
+    - password: The plain text password to verify
+
+  ## Returns
+    - true if the password matches
+    - false otherwise
   """
   def valid_password?(%Phxplate.Accounts.User{hashed_password: hashed_password}, password)
       when is_binary(hashed_password) and byte_size(password) > 0 do
@@ -160,6 +195,13 @@ defmodule Phxplate.Accounts.User do
 
   @doc """
   Validates the current password otherwise adds an error to the changeset.
+
+  Checks if the provided password matches the user's current password.
+  Used when changing sensitive information to verify user identity.
+
+  ## Parameters
+    - changeset: The changeset to validate
+    - password: The plain text password to verify
   """
   def validate_current_password(changeset, password) do
     if valid_password?(changeset.data, password) do
@@ -171,23 +213,45 @@ defmodule Phxplate.Accounts.User do
 
   @doc """
   Returns true if the user has admin privileges.
+
+  Checks if the user's role is either admin or super_admin.
+
+  ## Parameters
+    - user: The user struct to check
   """
   def is_admin?(%__MODULE__{role: role}), do: role in [:admin, :super_admin]
 
   @doc """
   Returns true if the user has super admin privileges.
+
+  Checks if the user's role is specifically super_admin.
+
+  ## Parameters
+    - user: The user struct to check
   """
   def is_super_admin?(%__MODULE__{role: :super_admin}), do: true
   def is_super_admin?(_), do: false
 
   @doc """
   Returns true if the user has basic privileges.
+
+  Checks if the user's role is specifically basic.
+
+  ## Parameters
+    - user: The user struct to check
   """
   def is_basic?(%__MODULE__{role: :basic}), do: true
   def is_basic?(_), do: false
 
   @doc """
   A user changeset for updating the role.
+
+  Creates a changeset that only allows changing the user's role,
+  with validation to ensure the role is valid.
+
+  ## Parameters
+    - user: The user struct to change
+    - attrs: Map of attributes containing the new role
   """
   def role_changeset(user, attrs) do
     user
@@ -197,6 +261,12 @@ defmodule Phxplate.Accounts.User do
 
   @doc """
   A user changeset for deleting the user.
+
+  Creates a changeset that enforces foreign key constraints,
+  ensuring the user can't be deleted if they own companies.
+
+  ## Parameters
+    - user: The user struct to delete
   """
   def delete_changeset(user) do
     change(user)

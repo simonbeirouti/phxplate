@@ -1,10 +1,23 @@
 defmodule PhxplateWeb.Dashboard.Basic.BasicLive do
+  @moduledoc """
+  LiveView for the basic user dashboard.
+
+  This view provides a simple dashboard for users with basic access level,
+  displaying summary statistics like bookmark counts. It subscribes to
+  real-time updates for bookmarks via PubSub.
+  """
   use PhxplateWeb, :live_view
   use SaladUI
 
   alias PhxplateWeb.PageMeta
   alias Phxplate.{Bookmarks, PubSub.DataSync}
 
+  @doc """
+  Initializes the LiveView with user's bookmark count.
+
+  Sets up PubSub subscription for bookmark updates and assigns
+  the initial bookmark count to the socket.
+  """
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
@@ -18,11 +31,14 @@ defmodule PhxplateWeb.Dashboard.Basic.BasicLive do
      |> PageMeta.assign_metadata(
        title: "Basic Dashboard",
        description: "Your personalized dashboard",
-       url: ~p"/dashboard/basic"
+       url: "/dashboard/basic"
      )
      |> assign(:bookmark_count, bookmark_count)}
   end
 
+  @doc """
+  Handles URL parameters and updates the layout data with current path.
+  """
   @impl true
   def handle_params(_params, url, socket) do
     uri = URI.parse(url)
@@ -45,6 +61,12 @@ defmodule PhxplateWeb.Dashboard.Basic.BasicLive do
   # Ignore other events
   def handle_info(_event, socket), do: {:noreply, socket}
 
+  @doc """
+  Renders the basic dashboard view with bookmark statistics.
+
+  Displays a dashboard card showing the user's bookmark count
+  with a link to view all bookmarks.
+  """
   @impl true
   def render(assigns) do
     ~H"""

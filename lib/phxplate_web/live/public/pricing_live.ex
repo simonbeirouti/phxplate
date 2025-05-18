@@ -1,9 +1,24 @@
 defmodule PhxplateWeb.PricingLive do
+  @moduledoc """
+  LiveView for displaying subscription plans and pricing information.
+
+  This view lists available subscription plans for users to choose from, displaying
+  pricing information and features for each plan. It handles plan selection differently
+  based on authentication status - redirecting unauthenticated users to registration
+  and authenticated users to checkout. The view fetches the current user's subscription
+  status to highlight their current plan.
+  """
   use PhxplateWeb, :live_view
   alias Phxplate.Subscriptions
   import PhxplateWeb.Components.Subscription.PlanSelector
   alias PhxplateWeb.PageMeta
 
+  @doc """
+  Initializes the LiveView with available plans and user subscription info.
+
+  Fetches all subscription plans from the database and checks if the current user
+  has an active subscription. Sets page metadata with title and description.
+  """
   @impl true
   def mount(_params, _session, socket) do
     # Get all plans
@@ -24,7 +39,7 @@ defmodule PhxplateWeb.PricingLive do
      |> PageMeta.assign_metadata(
        title: "Pricing",
        description: "Choose the right plan for you",
-       url: "https://phxplate.com/pricing"
+       url: "/pricing"
      )
      |> assign(
        plans: plans,
@@ -33,6 +48,12 @@ defmodule PhxplateWeb.PricingLive do
      )}
   end
 
+  @doc """
+  Renders the pricing page with plan selection component.
+
+  Displays a heading and description followed by the plan selection component
+  which shows all available plans with their features and pricing.
+  """
   @impl true
   def render(assigns) do
     ~H"""
@@ -54,6 +75,13 @@ defmodule PhxplateWeb.PricingLive do
     """
   end
 
+  @doc """
+  Handles plan selection events from the user.
+
+  If the user is not authenticated, redirects them to the registration page
+  with the selected plan ID as a parameter. If the user is authenticated,
+  initiates the subscription change process by redirecting to Stripe checkout.
+  """
   @impl true
   def handle_event("select_plan", %{"plan-id" => plan_id}, socket) do
     case socket.assigns.current_user do

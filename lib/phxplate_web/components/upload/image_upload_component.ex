@@ -2,6 +2,11 @@ defmodule PhxplateWeb.Components.Upload.ImageUploadComponent do
   @moduledoc """
   LiveComponent for handling image uploads with S3 integration.
 
+  This component provides a complete UI for uploading, previewing, and managing
+  profile images, logos, or other image types. It integrates with AWS S3 for
+  storage and handles the complete lifecycle of image upload, validation, and
+  replacement of existing images.
+
   ## Props
   - `:type` - The type of image being uploaded (e.g., :avatar, :logo)
   - `:image_url` - Current image URL (optional)
@@ -24,6 +29,12 @@ defmodule PhxplateWeb.Components.Upload.ImageUploadComponent do
   alias Phxplate.AWS.S3
   require Logger
 
+  @doc """
+  Initializes the component with file upload capabilities.
+
+  Sets up the upload configuration with appropriate file type restrictions,
+  size limits, and upload handling.
+  """
   @impl true
   def mount(socket) do
     {:ok,
@@ -38,6 +49,11 @@ defmodule PhxplateWeb.Components.Upload.ImageUploadComponent do
      )}
   end
 
+  @doc """
+  Updates the component with the provided assigns.
+
+  Sets default values for optional attributes if they're not provided.
+  """
   @impl true
   def update(assigns, socket) do
     socket =
@@ -136,6 +152,12 @@ defmodule PhxplateWeb.Components.Upload.ImageUploadComponent do
   defp error_to_string(:too_many_files), do: "Too many files (max 1)"
   defp error_to_string(err), do: "Error: #{inspect(err)}"
 
+  @doc """
+  Renders the image upload component with preview, validation, and controls.
+
+  Displays the current image or a default, shows upload progress and validation errors,
+  and provides buttons to confirm or cancel uploads.
+  """
   @impl true
   def render(assigns) do
     ~H"""

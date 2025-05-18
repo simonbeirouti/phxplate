@@ -1,8 +1,22 @@
 defmodule PhxplateWeb.CompanyInvitationLive do
+  @moduledoc """
+  LiveView for handling company invitations.
+
+  This view is responsible for displaying a company invitation to a user
+  and providing functionality to accept the invitation. It validates the
+  invitation token and shows appropriate success or error messages.
+  """
   use PhxplateWeb, :live_view
 
   alias Phxplate.Companies
 
+  @doc """
+  Initializes the LiveView with invitation data.
+
+  Validates the invitation token, retrieves the company information,
+  and assigns both to the socket. Redirects with an error message
+  if the invitation is invalid or expired.
+  """
   def mount(%{"token" => token}, _session, socket) do
     case Companies.get_invitation_by_token(token) do
       nil ->
@@ -35,6 +49,11 @@ defmodule PhxplateWeb.CompanyInvitationLive do
     end
   end
 
+  @doc """
+  Renders the invitation acceptance view.
+
+  Displays a card with the company name and an accept button.
+  """
   def render(assigns) do
     ~H"""
     <div class="max-w-2xl mx-auto py-8 px-4">

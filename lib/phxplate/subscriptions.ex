@@ -1,6 +1,19 @@
 defmodule Phxplate.Subscriptions do
   @moduledoc """
   The Subscriptions context.
+
+  This context manages the subscription system that enables paid plans within the application.
+  It provides functionality for creating, updating, and managing subscriptions, including:
+
+  - Plan management (listing, retrieving, and selecting plans)
+  - User subscription management (creating, updating, and canceling subscriptions)
+  - Integration with Stripe for payment processing
+  - Subscription status tracking and updates
+  - Administrative subscription management functions
+  - Role-based upgrades based on subscription tier
+
+  The context handles the complete subscription lifecycle, from checkout through Stripe,
+  to tracking subscription status, to handling plan changes and cancellations.
   """
 
   import Ecto.Query, warn: false
@@ -17,11 +30,29 @@ defmodule Phxplate.Subscriptions do
 
   @doc """
   Gets a subscription by ID.
+
+  Retrieves a subscription by its ID with the associated plan preloaded.
+
+  ## Parameters
+    - id: The ID of the subscription to retrieve
+
+  ## Returns
+    - The subscription with its plan preloaded
+    - Raises Ecto.NoResultsError if the subscription doesn't exist
   """
   def get_subscription!(id), do: Repo.get!(Subscription, id) |> Repo.preload(:plan)
 
   @doc """
   Gets a subscription by stripe_subscription_id.
+
+  Retrieves a subscription using its Stripe subscription ID.
+
+  ## Parameters
+    - stripe_subscription_id: The Stripe subscription ID to look up
+
+  ## Returns
+    - `{:ok, subscription}` if found, with plan preloaded
+    - `{:error, :not_found}` if no matching subscription exists
   """
   def get_subscription_by_stripe_id(stripe_subscription_id) when is_binary(stripe_subscription_id) do
     case Repo.get_by(Subscription, stripe_subscription_id: stripe_subscription_id) do
@@ -32,6 +63,16 @@ defmodule Phxplate.Subscriptions do
 
   @doc """
   Creates a subscription.
+
+  Creates a new subscription record, broadcasts the creation event via PubSub,
+  and updates the user's role based on the subscription plan if necessary.
+
+  ## Parameters
+    - attrs: Map of attributes for the new subscription
+
+  ## Returns
+    - `{:ok, subscription}` on success
+    - `{:error, changeset}` on validation failure
   """
   def create_subscription(attrs \\ %{}) do
     %Subscription{}
@@ -115,6 +156,16 @@ defmodule Phxplate.Subscriptions do
 
   @doc """
   Gets a user's subscription.
+
+  Retrieves the subscription associated with a specific user,
+  with the subscription plan preloaded.
+
+  ## Parameters
+    - user_id: The ID of the user whose subscription to retrieve
+
+  ## Returns
+    - The subscription with its plan preloaded if found
+    - nil if the user has no subscription
   """
   def get_user_subscription(user_id) do
     Subscription
@@ -125,7 +176,12 @@ defmodule Phxplate.Subscriptions do
 
   @doc """
   Lists all plans grouped by tier with both monthly and yearly options.
-  Returns a map of tiers, each containing their monthly and yearly plans.
+
+  Groups available subscription plans by tier, separating monthly and yearly
+  billing options for each tier, making it easier to display plan options.
+
+  ## Returns
+    - A map of tiers, each containing their monthly and yearly plans
   """
   def list_all_plans do
     plans =
@@ -157,6 +213,15 @@ defmodule Phxplate.Subscriptions do
 
   @doc """
   Gets a plan by ID.
+
+  Retrieves a subscription plan by its ID.
+
+  ## Parameters
+    - id: The ID of the plan to retrieve
+
+  ## Returns
+    - The plan if found
+    - Raises Ecto.NoResultsError if the plan doesn't exist
   """
   def get_plan!(id), do: Repo.get!(Plan, id)
 
@@ -169,7 +234,18 @@ defmodule Phxplate.Subscriptions do
 
   @doc """
   Creates a checkout session for a user to subscribe to a plan.
-  Handles both new subscriptions and changes to existing subscriptions.
+
+  Integrates with Stripe to create a checkout session for a user to subscribe
+  to a specific plan. Handles both new subscriptions and plan changes for
+  existing subscribers.
+
+  ## Parameters
+    - user: The user who will be subscribing
+    - plan: The plan the user is subscribing to
+
+  ## Returns
+    - `{:ok, session}` with the Stripe checkout session on success
+    - `{:error, reason}` on failure
   """
   def create_checkout_session(%User{} = user, %Plan{} = plan) do
     stripe_price_id = plan.stripe_price_id
@@ -240,7 +316,17 @@ defmodule Phxplate.Subscriptions do
 
   @doc """
   Updates a user's subscription to a new plan.
-  Always redirects to Stripe checkout to ensure payment details are collected.
+
+  Creates a Stripe checkout session for changing to a new subscription plan,
+  tracks the activity, and returns the session for redirecting the user.
+
+  ## Parameters
+    - user: The user whose subscription to update
+    - plan: The new plan to subscribe to
+
+  ## Returns
+    - `{:ok, session}` with the Stripe checkout session on success
+    - `{:error, reason}` on failure
   """
   def change_subscription_plan(%User{} = user, %Plan{} = plan) do
     case create_checkout_session(user, plan) do
@@ -263,6 +349,16 @@ defmodule Phxplate.Subscriptions do
 
   @doc """
   Cancels a user's subscription.
+
+  Updates the subscription in Stripe to cancel at the end of the current billing period,
+  updates the local subscription record status, and tracks the cancellation activity.
+
+  ## Parameters
+    - user: The user whose subscription to cancel
+
+  ## Returns
+    - `{:ok, subscription}` with the updated subscription on success
+    - `{:error, reason}` on failure
   """
   def cancel_subscription(%User{} = user) do
     case get_user_subscription(user.id) do
@@ -317,7 +413,12 @@ defmodule Phxplate.Subscriptions do
   end
 
   @doc """
-  Acount total subscriptions on the platform
+  Counts total active subscriptions on the platform.
+
+  Returns the count of subscriptions with an active status.
+
+  ## Returns
+    - Integer count of active subscriptions
   """
   def count_active_subscriptions do
     Subscription
@@ -326,7 +427,12 @@ defmodule Phxplate.Subscriptions do
   end
 
   @doc """
-  Calculate total revenue on the platform
+  Calculates total revenue on the platform.
+
+  Sums the unit amounts of all active subscription plans.
+
+  ## Returns
+    - Integer total revenue amount (in cents)
   """
   def calculate_total_revenue do
     Subscription

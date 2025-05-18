@@ -1,10 +1,25 @@
 defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
+  @moduledoc """
+  LiveView hooks for managing layout data and subscriptions.
+
+  This module provides hooks that are applied to LiveViews to manage layout-related data
+  and PubSub subscriptions. It handles the assignment of layout data, including user details,
+  navigation menus, companies, and bookmarks, and subscribes to relevant PubSub topics
+  for real-time updates.
+  """
   import Phoenix.Component
   import Phoenix.LiveView, only: [connected?: 1]
   alias Phxplate.Accounts.User
   alias Phxplate.PubSub.DataSync
   alias Phxplate.{Companies, Bookmarks}
 
+  @doc """
+  Mounts default layout data and sets up PubSub subscriptions.
+
+  This hook runs when LiveViews are mounted. It subscribes to PubSub topics for
+  company, employee, invitation, and bookmark updates, and assigns initial layout
+  data to the socket.
+  """
   def on_mount(:default, _params, _session, socket) do
     if connected?(socket) do
       current_user = socket.assigns.current_user

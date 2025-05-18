@@ -1,10 +1,24 @@
 defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
+  @moduledoc """
+  LiveView for super admin user management.
+
+  This view provides comprehensive functionality for super admins to manage users,
+  including viewing user profiles, changing roles, managing subscriptions,
+  viewing activity timelines, and deleting user accounts. It features real-time
+  updates via PubSub subscriptions and a paginated user list.
+  """
   use PhxplateWeb, :live_view
   alias Phxplate.{Accounts, Repo, Companies}
   alias PhxplateWeb.{PageMeta, Components.ActivityTimelineComponent}
   alias Phxplate.PubSub.DataSync
 
   @impl true
+  @doc """
+  Initializes the LiveView with paginated users list and subscription data.
+
+  Sets up initial socket assigns with empty values for the selected user,
+  available plans, subscription statuses, and paid tier options.
+  """
   def mount(_params, _session, socket) do
     plans = Phxplate.Subscriptions.list_all_plans()
 
@@ -38,7 +52,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
     |> assign(:per_page, per_page)
     |> PageMeta.assign_metadata(
       title: "User Management",
-      description: "Manage users across the application"
+      description: "Manage users across the application",
+      url: "/dashboard/super_admin/users"
     )
   end
 
