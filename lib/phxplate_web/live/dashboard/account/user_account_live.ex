@@ -3,7 +3,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
   alias PhxplateWeb.Dashboard.Account.{SettingsLive, BillingLive, ActivitiesLive}
   alias PhxplateWeb.Components.UI.TabsNew
   alias PhxplateWeb.Components.Upload.ImageUploadComponent
-  alias Phxplate.{Repo, AWS.S3, Accounts}
+  alias Phxplate.{Repo, Accounts}
   require Logger
 
   @social_networks [:github, :twitter, :linkedin, :facebook, :instagram]
@@ -56,7 +56,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
   end
 
   @impl true
-  def handle_params(params, _url, socket) do
+  def handle_params(_params, _url, socket) do
     {:noreply, socket}
   end
 
@@ -83,17 +83,17 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
   @impl true
   def handle_event("save", params, socket) do
     if Map.has_key?(params, "profile") do
-      handle_profile_save(socket, params["profile"])
-    else
-      {:noreply, socket}
-    end
+        handle_profile_save(socket, params["profile"])
+      else
+    {:noreply, socket}
+  end
   end
 
   @impl true
-  def handle_info({:image_uploaded, %{type: :avatar, url: url, old_url: old_url}}, socket) do
-    case Accounts.update_profile(socket.assigns.user.profile, %{avatar_url: url}) do
-      {:ok, updated_profile} ->
-        user = %{socket.assigns.user | profile: updated_profile}
+  def handle_info({:image_uploaded, %{type: :avatar, url: url, old_url: _old_url}}, socket) do
+          case Accounts.update_profile(socket.assigns.user.profile, %{avatar_url: url}) do
+            {:ok, updated_profile} ->
+              user = %{socket.assigns.user | profile: updated_profile}
 
         {:noreply,
          socket
@@ -108,7 +108,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
         end
 
         {:noreply,
-         socket
+        socket
          |> put_flash(:error, "Failed to update profile with new avatar")}
     end
   end
@@ -130,10 +130,10 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
         user = %{socket.assigns.user | profile: updated_profile}
 
         {:noreply,
-         socket
-         |> assign(:user, user)
-         |> assign(:social_links, social_links)
-         |> assign(:form, to_form(Accounts.change_profile(updated_profile)))
+        socket
+        |> assign(:user, user)
+        |> assign(:social_links, social_links)
+        |> assign(:form, to_form(Accounts.change_profile(updated_profile)))
          |> put_flash(:info, "Profile updated successfully!")}
 
       {:error, changeset} ->
@@ -151,8 +151,8 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
           end
 
         {:noreply,
-         socket
-         |> assign(:form, to_form(changeset))
+        socket
+        |> assign(:form, to_form(changeset))
          |> put_flash(:error, error_message)}
     end
   end
@@ -222,7 +222,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
           </TabsNew.tabs_list>
 
           <TabsNew.tabs_content value="profile">
-            <div class="flex flex-col items-center gap-4">
+              <div class="flex flex-col items-center gap-4">
               <.live_component
                 module={ImageUploadComponent}
                 id="profile-avatar"
@@ -231,8 +231,8 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
                 entity_type={:user}
                 entity_id={@user.id}
                 on_upload_complete="image_uploaded"
-              />
-            </div>
+                        />
+                      </div>
             <.simple_form for={@form} id="profile-form" phx-change="validate" phx-submit="save">
               <div class="grid grid-cols-2 gap-4">
                 <div>

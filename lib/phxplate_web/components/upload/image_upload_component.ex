@@ -66,12 +66,6 @@ defmodule PhxplateWeb.Components.Upload.ImageUploadComponent do
     {:noreply, socket}
   end
 
-  # Check if there are any uploads to process
-  defp uploads_available?(socket) do
-    uploads = socket.assigns.uploads
-    uploads && uploads.image && uploads.image.entries != []
-  end
-
   # Handle file uploads
   defp handle_uploads(socket) do
     consume_uploaded_entries(socket, :image, fn %{path: path}, entry ->

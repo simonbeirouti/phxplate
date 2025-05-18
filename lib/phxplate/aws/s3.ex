@@ -46,7 +46,7 @@ defmodule Phxplate.AWS.S3 do
   def upload_file(%{path: path, filename: filename}, type, opts \\ []) do
     case validate_config!() do
       :ok -> upload_validated_file(path, filename, type, opts)
-      error -> {:error, "Invalid AWS S3 configuration"}
+      _error -> {:error, "Invalid AWS S3 configuration"}
     end
   end
 
@@ -67,7 +67,7 @@ defmodule Phxplate.AWS.S3 do
         {:error, "Upload failed: #{inspect(reason)}"}
     end
   rescue
-    e -> {:error, "Upload failed due to unexpected error"}
+    e -> {:error, "Upload failed due to unexpected error: #{inspect(e)}"}
   end
 
   @doc """
@@ -192,6 +192,11 @@ defmodule Phxplate.AWS.S3 do
   def presigned_url(path, expires_in \\ 3600) do
     bucket = get_bucket()
     bucket |> S3.presigned_url(:get, path, [expires_in: expires_in])
+    |> IO.inspect()
+    |> case do
+      {:ok, url} -> {:ok, url}
+      {:error, reason} -> {:error, "Failed to generate presigned URL: #{inspect(reason)}"}
+    end
   end
 
   @doc """
@@ -206,8 +211,8 @@ defmodule Phxplate.AWS.S3 do
   """
   def is_default_image?(url) when is_binary(url) do
     cond do
-      # No URL or empty URL
-      is_nil(url) || url == "" -> true
+      # Empty URL
+      url == "" -> true
 
       # Default avatar patterns
       String.contains?(url, "default-avatar") -> true
