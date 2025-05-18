@@ -38,7 +38,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
     |> assign(:per_page, per_page)
     |> PageMeta.assign_metadata(
       title: "User Management",
-      description: "Manage users across the application"
+      description: "Manage users across the application",
+      url: "/dashboard/super_admin/users"
     )
   end
 

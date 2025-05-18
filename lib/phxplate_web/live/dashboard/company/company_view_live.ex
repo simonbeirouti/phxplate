@@ -22,7 +22,7 @@ defmodule PhxplateWeb.Dashboard.Company.CompanyViewLive do
          |> PageMeta.assign_metadata(
            title: data.company.name,
            description: "View company information",
-           url: ~p"/dashboard/company/#{data.company.id}"
+           url: "/dashboard/company/#{data.company.id}"
          )
          |> assign(:company, data.company)
          |> assign(:is_bookmarked, data.is_bookmarked)}

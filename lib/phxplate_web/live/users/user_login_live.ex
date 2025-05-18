@@ -47,7 +47,7 @@ defmodule PhxplateWeb.UserLoginLive do
       |> PageMeta.assign_metadata(
         title: "Log in",
         description: "Log in to your account",
-        url: ~p"/login"
+        url: "/login"
       )
       |> assign(form: form)
 

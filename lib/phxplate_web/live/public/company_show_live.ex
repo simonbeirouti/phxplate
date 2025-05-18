@@ -28,7 +28,7 @@ defmodule PhxplateWeb.Public.CompanyShowLive do
        title: company.name,
        description: company.description,
        image: company.logo,
-       url: ~p"/companies/#{company.id}"
+       url: "/companies/#{company.id}"
      )
      |> assign(company: company, bookmarked: bookmarked)
     }

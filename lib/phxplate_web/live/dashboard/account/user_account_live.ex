@@ -48,7 +48,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
       |> PageMeta.assign_metadata(
         title: initial_title,
         description: initial_subtitle,
-        url: ~p"/dashboard/account"
+        url: "/dashboard/account"
       )
       |> assign(:user, user)
       |> assign(:activities, activities)

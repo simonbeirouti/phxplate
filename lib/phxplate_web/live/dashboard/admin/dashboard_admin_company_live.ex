@@ -28,7 +28,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyLive do
      |> PageMeta.assign_metadata(
        title: "Company Management",
        description: "Manage your companies",
-       url: ~p"/dashboard/admin/companies"
+       url: "/dashboard/admin/companies"
      )
      |> assign(
        companies: companies,

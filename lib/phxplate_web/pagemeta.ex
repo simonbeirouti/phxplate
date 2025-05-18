@@ -16,7 +16,8 @@ defmodule PhxplateWeb.PageMeta do
     title = Keyword.fetch!(opts, :title)
     description = Keyword.get(opts, :description)
     image = Keyword.get(opts, :image, "https://via.placeholder.com/1200x630")
-    url = Keyword.get(opts, :url, "https://phxplate.com")
+    base_url = Phxplate.config([:base_url])
+    url = base_url <> Keyword.get(opts, :url, "")
 
     metadata = %{
       page_title: "#{Phxplate.config([:title])} | #{title}",

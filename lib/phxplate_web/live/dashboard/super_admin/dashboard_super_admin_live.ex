@@ -28,7 +28,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
      |> assign(:page_title, "Super Admin Dashboard")
      |> PageMeta.assign_metadata(
        title: "Super Admin Dashboard",
-       description: "Super Admin Dashboard"
+       description: "Super Admin Dashboard",
+       url: "/dashboard/super_admin"
      )}
   end
 

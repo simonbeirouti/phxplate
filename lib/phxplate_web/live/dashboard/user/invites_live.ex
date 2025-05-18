@@ -46,7 +46,7 @@ defmodule PhxplateWeb.Dashboard.User.InvitesLive do
      |> PageMeta.assign_metadata(
        title: "My Invites",
        description: "View and manage your company invitations",
-       url: ~p"/dashboard/invites"
+       url: "/dashboard/invites"
      )
      |> assign(:pending_invites, pending_invites)}
   end

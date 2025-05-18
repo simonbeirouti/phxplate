@@ -6,7 +6,8 @@ defmodule PhxplateWeb.PageController do
     conn
     |> PageMeta.assign_metadata(
       title: "Home",
-      description: "Welcome to Phxplate"
+      description: "Welcome to Phxplate",
+      url: "/"
     )
     |> render(:home, layout: false)
   end
@@ -15,7 +16,8 @@ defmodule PhxplateWeb.PageController do
     conn
     |> PageMeta.assign_metadata(
       title: "About",
-      description: "Learn more about Phxplate"
+      description: "Learn more about Phxplate",
+      url: "/about"
     )
     |> render(:about, layout: false)
   end

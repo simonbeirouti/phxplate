@@ -178,8 +178,8 @@ defmodule Phxplate.Subscriptions do
       {:error, "Plan does not have a Stripe price ID"}
     else
       # Use the router routes for success and cancel URLs
-      success_url = "#{Application.get_env(:stripity_stripe, :base_url)}/callbacks/stripe/success?session_id={CHECKOUT_SESSION_ID}"
-      cancel_url = "#{Application.get_env(:stripity_stripe, :base_url)}/callbacks/stripe/cancel"
+      success_url = "#{Application.get_env(:phxplate, :base_url)}/callbacks/stripe/success?session_id={CHECKOUT_SESSION_ID}"
+      cancel_url = "#{Application.get_env(:phxplate, :base_url)}/callbacks/stripe/cancel"
 
       subscription = get_user_subscription(user.id)
 

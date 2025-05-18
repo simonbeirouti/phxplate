@@ -41,7 +41,7 @@ defmodule PhxplateWeb.UserForgotPasswordLive do
       |> PageMeta.assign_metadata(
         title: "Reset Password",
         description: "Request a password reset link",
-        url: ~p"/reset-password"
+        url: "/reset-password"
       )
       |> assign(form: to_form(%{}, as: "user"))
 

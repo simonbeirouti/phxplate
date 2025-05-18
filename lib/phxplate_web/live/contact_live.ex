@@ -61,7 +61,7 @@ defmodule PhxplateWeb.ContactLive do
       |> PageMeta.assign_metadata(
         title: "Contact Us",
         description: "Get in touch with our team",
-        url: "https://phxplate.com/contact"
+        url: "/contact"
       )
       |> assign(:show_success, false)
       |> assign(:current_user_email, current_user_email)

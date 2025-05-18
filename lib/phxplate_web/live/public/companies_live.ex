@@ -19,7 +19,7 @@ defmodule PhxplateWeb.Public.CompaniesLive do
      |> PageMeta.assign_metadata(
        title: "Companies",
        description: "Discover amazing companies",
-       url: "https://phxplate.com/companies"
+       url: "/companies"
      )
      |> assign(companies: companies)
     }

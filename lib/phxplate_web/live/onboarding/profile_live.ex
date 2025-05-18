@@ -79,7 +79,8 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
       socket
       |> PageMeta.assign_metadata(
         title: "Complete Your Profile",
-        description: "Set up your profile information to get started"
+        description: "Set up your profile information to get started",
+        url: "/onboarding/profile"
       )
       |> assign(:check_errors, false)
       |> assign(:show_success, false)

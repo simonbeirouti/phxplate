@@ -24,7 +24,7 @@ defmodule PhxplateWeb.PricingLive do
      |> PageMeta.assign_metadata(
        title: "Pricing",
        description: "Choose the right plan for you",
-       url: "https://phxplate.com/pricing"
+       url: "/pricing"
      )
      |> assign(
        plans: plans,

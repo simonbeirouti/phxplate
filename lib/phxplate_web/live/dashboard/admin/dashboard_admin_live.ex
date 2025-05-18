@@ -36,7 +36,7 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
      |> PageMeta.assign_metadata(
        title: "Admin Dashboard",
        description: "View your dashboard and companies that you've created",
-       url: ~p"/dashboard/admin"
+       url: "/dashboard/admin"
      )
      |> assign(
        companies: companies,

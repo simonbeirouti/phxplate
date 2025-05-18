@@ -18,7 +18,7 @@ defmodule PhxplateWeb.Dashboard.Basic.BookmarksLive do
      |> PageMeta.assign_metadata(
        title: "My Bookmarks",
        description: "Companies you've bookmarked for quick access",
-       url: ~p"/dashboard/basic/bookmarks"
+       url: "/dashboard/basic/bookmarks"
      )
      |> assign(bookmarks: bookmarks)}
   end

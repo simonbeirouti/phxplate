@@ -9,7 +9,7 @@ defmodule PhxplateWeb.DashboardLive do
      |> PageMeta.assign_metadata(
        title: "Dashboard",
        description: "Just the dashboard",
-       url: "https://phxplate.com/dashboard"
+       url: "/dashboard"
      )}
   end
 

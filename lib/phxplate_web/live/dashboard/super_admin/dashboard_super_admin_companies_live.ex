@@ -19,7 +19,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
       |> assign(:confirming_delete_company, false)
       |> PageMeta.assign_metadata(
         title: "Companies Management",
-        description: "Manage companies across the application"
+        description: "Manage companies across the application",
+        url: "/dashboard/super_admin/companies"
       )
 
     {:ok, load_companies(socket, 1)}

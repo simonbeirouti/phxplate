@@ -53,7 +53,7 @@ defmodule PhxplateWeb.UserRegistrationLive do
       |> PageMeta.assign_metadata(
         title: "Register",
         description: "Create a new account",
-        url: ~p"/register"
+        url: "/register"
       )
       |> assign(trigger_submit: false, check_errors: false)
       |> assign_form(changeset)
