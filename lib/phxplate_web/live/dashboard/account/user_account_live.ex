@@ -1,4 +1,11 @@
 defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
+  @moduledoc """
+  LiveView for managing all aspects of a user's account.
+
+  This view provides a tabbed interface for users to manage their profile information,
+  subscription details, account settings, and view their activity history. It serves
+  as a container for more specialized components that handle each area of functionality.
+  """
   use PhxplateWeb, :live_view
   alias PhxplateWeb.Dashboard.Account.{SettingsLive, BillingLive, ActivitiesLive}
   alias PhxplateWeb.Components.UI.TabsNew
@@ -28,6 +35,12 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
     }
   }
 
+  @doc """
+  Initializes the LiveView with user data and available tabs.
+
+  Loads the user's profile, subscription and activity data, and
+  sets up the default tab.
+  """
   @impl true
   def mount(_params, _session, socket) do
     user = socket.assigns.current_user |> Repo.preload([:profile, :subscription])
@@ -48,7 +61,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
       |> PageMeta.assign_metadata(
         title: initial_title,
         description: initial_subtitle,
-        url: ~p"/dashboard/account"
+        url: "/dashboard/account"
       )
       |> assign(:user, user)
       |> assign(:activities, activities)
@@ -56,18 +69,25 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
       |> assign(:form, to_form(changeset))
       |> assign(:social_links, social_links)
       |> assign(:social_networks, @social_networks)
-      |> assign(:selected_tab, "profile") # Default selected tab
+      # Default selected tab
+      |> assign(:selected_tab, "profile")
 
     {:ok, socket}
   end
 
+  @doc """
+  Handles URL parameters to determine the active tab.
+
+  Updates the page metadata and subtitle based on the selected tab.
+  """
   @impl true
   def handle_params(params, _url, socket) do
     # Get the tab from params or default to "profile"
     tab = Map.get(params, "tab", "profile")
 
     # Ensure that the tab is valid or fallback to "profile"
-    tab = if tab in ["profile", "subscription", "settings", "activities"], do: tab, else: "profile"
+    tab =
+      if tab in ["profile", "subscription", "settings", "activities"], do: tab, else: "profile"
 
     %{title: title, subtitle: subtitle} = get_tab_titles(tab)
 
@@ -103,10 +123,10 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
   @impl true
   def handle_event("save", params, socket) do
     if Map.has_key?(params, "profile") do
-        handle_profile_save(socket, params["profile"])
-      else
-    {:noreply, socket}
-  end
+      handle_profile_save(socket, params["profile"])
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
@@ -119,10 +139,10 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
         user = %{socket.assigns.user | profile: updated_profile}
 
         {:noreply,
-        socket
-        |> assign(:user, user)
-        |> assign(:form, to_form(Accounts.change_profile(updated_profile)))
-        |> put_flash(:info, "Avatar uploaded successfully")}
+         socket
+         |> assign(:user, user)
+         |> assign(:form, to_form(Accounts.change_profile(updated_profile)))
+         |> put_flash(:info, "Avatar uploaded successfully")}
 
       {:error, _changeset} ->
         # If the profile update failed, try to delete the new image to avoid orphaned files
@@ -131,8 +151,8 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
         end
 
         {:noreply,
-        socket
-        |> put_flash(:error, "Failed to update profile with new avatar")}
+         socket
+         |> put_flash(:error, "Failed to update profile with new avatar")}
     end
   end
 
@@ -153,10 +173,10 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
         user = %{socket.assigns.user | profile: updated_profile}
 
         {:noreply,
-        socket
-        |> assign(:user, user)
-        |> assign(:social_links, social_links)
-        |> assign(:form, to_form(Accounts.change_profile(updated_profile)))
+         socket
+         |> assign(:user, user)
+         |> assign(:social_links, social_links)
+         |> assign(:form, to_form(Accounts.change_profile(updated_profile)))
          |> put_flash(:info, "Profile updated successfully!")}
 
       {:error, changeset} ->
@@ -174,20 +194,18 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
           end
 
         {:noreply,
-        socket
-        |> assign(:form, to_form(changeset))
+         socket
+         |> assign(:form, to_form(changeset))
          |> put_flash(:error, error_message)}
     end
   end
 
-  # Clean params by removing _unused_ fields
   defp clean_params(params) do
     params
     |> Enum.reject(fn {key, _value} -> String.starts_with?(key, "_unused_") end)
     |> Map.new()
   end
 
-  # Extract social links from params and validate URLs
   defp extract_social_links(params) do
     @social_networks
     |> Enum.reduce(%{}, fn network, acc ->
@@ -201,7 +219,6 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
     end)
   end
 
-  # Get the title and subtitle for a specific tab
   defp get_tab_titles(tab) do
     Map.get(@tab_titles, tab, %{
       title: "User Profile",
@@ -209,13 +226,19 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
     })
   end
 
+  @doc """
+  Renders the user account page with tabbed interface.
+
+  Displays tabs for profile, subscription, settings, and activities,
+  and renders the appropriate component for the selected tab.
+  """
   @impl true
   def render(assigns) do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">
       <.header>
-        {@page_title}
-        <:subtitle>{@page_subtitle}</:subtitle>
+        <%= get_tab_titles(@selected_tab).title %>
+        <:subtitle><%= @page_subtitle %></:subtitle>
       </.header>
 
       <div class="mt-4">
@@ -245,7 +268,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
           </TabsNew.tabs_list>
 
           <TabsNew.tabs_content value="profile">
-              <div class="flex flex-col items-center gap-4">
+            <div class="flex flex-col items-center gap-4">
               <.live_component
                 module={ImageUploadComponent}
                 id="profile-avatar"
@@ -254,8 +277,8 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
                 entity_type={:user}
                 entity_id={@user.id}
                 on_upload_complete="image_uploaded"
-                        />
-                      </div>
+              />
+            </div>
             <.simple_form for={@form} id="profile-form" phx-change="validate" phx-submit="save">
               <div class="grid grid-cols-2 gap-4">
                 <div>

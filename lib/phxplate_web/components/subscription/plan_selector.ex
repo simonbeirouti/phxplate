@@ -1,10 +1,21 @@
 defmodule PhxplateWeb.Components.Subscription.PlanSelector do
+  @moduledoc """
+  Provides components for subscription plan selection and display.
+
+  This module contains components for displaying subscription plans with different
+  pricing intervals (monthly/yearly), highlighting popular plans, and showing
+  plan features. It handles the display logic for current subscriptions and
+  enables users to select new plans.
+  """
   use PhxplateWeb, :html
 
   alias Phxplate.Subscriptions.Plan
 
   @doc """
-  Renders a reusable plan selector component.
+  Renders a reusable plan selector component with interval tabs.
+
+  Displays a tabbed interface for selecting between monthly and yearly billing
+  intervals, showing appropriate plan cards for each interval.
 
   ## Examples
 
@@ -62,7 +73,11 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
   end
 
   @doc """
-  Renders a single plan card.
+  Renders a single plan card with details and selection button.
+
+  Displays plan information including name, price, features, and a button to
+  select the plan. Highlights the card if it's marked as popular and shows
+  a "Current Plan" indicator if applicable.
   """
   attr :plan, Plan, required: true
   attr :is_popular, :boolean, default: false

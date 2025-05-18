@@ -1,9 +1,23 @@
 defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
+  @moduledoc """
+  LiveView for super admin company management.
+
+  This view provides comprehensive functionality for super admins to manage companies,
+  including viewing company details, employees, and activity timelines. It features
+  real-time updates via PubSub subscriptions, pagination, and company deletion capabilities.
+  """
   use PhxplateWeb, :live_view
   alias Phxplate.{Companies, Repo}
   alias PhxplateWeb.{PageMeta, Components.ActivityTimelineComponent}
   alias Phxplate.PubSub.DataSync
 
+  @doc """
+  Initializes the LiveView with paginated companies list and PubSub subscriptions.
+
+  Sets up subscriptions for company, employee, and profile updates,
+  and initializes the socket assigns with empty values for the
+  selected company and activities.
+  """
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
@@ -19,7 +33,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
       |> assign(:confirming_delete_company, false)
       |> PageMeta.assign_metadata(
         title: "Companies Management",
-        description: "Manage companies across the application"
+        description: "Manage companies across the application",
+        url: "/dashboard/super_admin/companies"
       )
 
     {:ok, load_companies(socket, 1)}
@@ -228,6 +243,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
     |> assign(:per_page, per_page)
   end
 
+  @doc """
+  Renders the companies management view with companies list and detail panels.
+
+  Displays a paginated list of companies and a tabbed interface for viewing
+  company details, employees, and activity timeline when a company is selected.
+  """
   @impl true
   def render(assigns) do
     ~H"""

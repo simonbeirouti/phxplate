@@ -1,4 +1,12 @@
 defmodule Phxplate.Companies.Company do
+  @moduledoc """
+  Schema for companies.
+
+  This schema represents a company in the system, storing basic information like
+  name, description, contact details, and subscription plan level. Companies are
+  owned by admin users and can have multiple employees. The schema establishes
+  these associations and enforces validation rules for company data.
+  """
   use Ecto.Schema
   import Ecto.Changeset
   alias Phxplate.Accounts.User
@@ -19,7 +27,17 @@ defmodule Phxplate.Companies.Company do
     timestamps()
   end
 
-  @doc false
+  @doc """
+  Changeset function for creating or updating a company.
+
+  Validates required fields, format constraints, and uniqueness constraints.
+  Ensures that the owner is an admin user.
+
+  ## Parameters
+    - company: The company struct to change
+    - attrs: Map of attributes to apply to the company
+    - actor: (Optional) The user performing the action
+  """
   def changeset(company, attrs, _actor \\ nil) do
     company
     |> cast(attrs, [:name, :description, :address, :phone, :email, :plan, :logo, :website, :owner_id])
@@ -31,6 +49,8 @@ defmodule Phxplate.Companies.Company do
 
   @doc """
   Validates that the owner is an admin user.
+
+  Adds an error to the changeset if the owner is not an admin.
   """
   def validate_owner(changeset) do
     case get_field(changeset, :owner_id) do

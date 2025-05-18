@@ -1,4 +1,12 @@
 defmodule PhxplateWeb.Dashboard.User.InvitesLive do
+  @moduledoc """
+  LiveView for managing user invitations to companies.
+
+  This view displays all pending invitations for the current user and
+  provides functionality to accept invitations. It handles both the
+  listing of invitations and the acceptance action, subscribing to
+  real-time updates for invitations via PubSub.
+  """
   use PhxplateWeb, :live_view
 
   alias Phxplate.Companies
@@ -6,7 +14,12 @@ defmodule PhxplateWeb.Dashboard.User.InvitesLive do
   alias Phxplate.Repo
   alias PhxplateWeb.PageMeta
 
-  # Mount for the accept action when token is present
+  @doc """
+  Initializes the LiveView for the accept action when a token is present.
+
+  Validates the invitation token, accepts the invitation if valid,
+  and redirects with an appropriate success or error message.
+  """
   @impl true
   def mount(%{"token" => token} = _params, _session, socket) do
     case Companies.get_invitation_by_token(token) do
@@ -46,7 +59,7 @@ defmodule PhxplateWeb.Dashboard.User.InvitesLive do
      |> PageMeta.assign_metadata(
        title: "My Invites",
        description: "View and manage your company invitations",
-       url: ~p"/dashboard/invites"
+       url: "/dashboard/invites"
      )
      |> assign(:pending_invites, pending_invites)}
   end
@@ -114,6 +127,13 @@ defmodule PhxplateWeb.Dashboard.User.InvitesLive do
     end
   end
 
+  @doc """
+  Renders the invitations view showing pending invitations.
+
+  Displays a list of pending company invitations with information about
+  the company, inviter, and date sent. Provides buttons to accept each
+  invitation. Shows a message if no invitations exist.
+  """
   @impl true
   def render(assigns) do
     ~H"""

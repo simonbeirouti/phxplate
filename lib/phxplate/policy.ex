@@ -1,4 +1,13 @@
 defmodule Phxplate.Policy do
+  @moduledoc """
+  Authorization policy definitions for the application.
+
+  This module uses the LetMe library to define access control policies for various
+  resources in the application. It specifies which roles (basic, admin, super_admin)
+  have permission to perform specific actions on different objects like companies,
+  employees, and subscriptions. These policies are used throughout the application
+  to enforce authorization rules.
+  """
   use LetMe.Policy
 
   object :company do

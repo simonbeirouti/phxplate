@@ -1,4 +1,12 @@
 defmodule PhxplateWeb.StripeController do
+  @moduledoc """
+  Controller for handling Stripe payment and subscription related functionality.
+
+  This controller implements the Stripe.WebhookHandler behaviour to process
+  Stripe webhook events such as successful charges, subscription updates,
+  payment failures, etc. It also handles success and cancel callbacks for
+  the Stripe Checkout flow.
+  """
   use PhxplateWeb, :controller
   require Logger
 
@@ -11,6 +19,12 @@ defmodule PhxplateWeb.StripeController do
 
   @metadata_version "1.0"
 
+  @doc """
+  Implements the Stripe.WebhookHandler callback to process Stripe events.
+
+  Handles various Stripe events like subscription changes, payment failures,
+  and successful charges. Logs results and sends alerts as needed.
+  """
   @impl true
   def handle_event(%Stripe.Event{} = event) do
     result =
@@ -326,7 +340,16 @@ defmodule PhxplateWeb.StripeController do
     Logger.error("Stripe event: #{event.type} #{event.id} Error: #{inspect(error)}")
   end
 
-  # Controller actions for success/failure callbacks
+  @doc """
+  Handles successful Stripe Checkout sessions.
+
+  Retrieves the checkout session details from Stripe, processes the subscription,
+  and redirects the user to their account page with a success message.
+
+  ## Parameters
+
+  * `session_id` - The ID of the Stripe checkout session
+  """
   def success(conn, %{"session_id" => session_id}) do
     # Retrieve the checkout session to get subscription details
     case Stripe.Session.retrieve(session_id) do
@@ -375,6 +398,12 @@ defmodule PhxplateWeb.StripeController do
     end
   end
 
+  @doc """
+  Handles canceled Stripe Checkout sessions.
+
+  Redirects the user to their account page with a message indicating
+  that the subscription change was canceled.
+  """
   def cancel(conn, _params) do
     # Redirect to billing page after canceled checkout with subscription tab selected
     conn
@@ -382,23 +411,28 @@ defmodule PhxplateWeb.StripeController do
     |> Phoenix.Controller.redirect(to: "/dashboard/account?tab=subscription")
   end
 
-  # Controller action for webhook
-  def webhook(conn, _params) do
-    {:ok, body, _conn} = Plug.Conn.read_body(conn)
-    signature = Plug.Conn.get_req_header(conn, "stripe-signature") |> List.first()
+  @doc """
+  Handles Stripe webhook events.
 
-    secret = Application.get_env(:phxplate, :stripe)[:webhook_secret]
-    Logger.info("Processing Stripe webhook with signature: #{signature}")
+  Verifies the Stripe signature, processes the event, and returns
+  an appropriate response. Currently commented out.
+  """
+  # def webhook(conn, _params) do
+  #   {:ok, body, _conn} = Plug.Conn.read_body(conn)
+  #   signature = Plug.Conn.get_req_header(conn, "stripe-signature") |> List.first()
 
-    case Stripe.Webhook.construct_event(body, signature, secret) do
-      {:ok, event} ->
-        Logger.info("Successfully verified Stripe webhook: #{event.type}")
-        handle_event(event)
-        Plug.Conn.send_resp(conn, 200, "")
+  #   secret = Application.get_env(:stripity_stripe, :webhook_secret)
+  #   Logger.info("Processing Stripe webhook with signature: #{signature}")
 
-      {:error, reason} ->
-        Logger.error("Failed to verify webhook: #{inspect(reason)}")
-        Plug.Conn.send_resp(conn, 400, "")
-    end
-  end
+  #   case Stripe.Webhook.construct_event(body, signature, secret) do
+  #     {:ok, event} ->
+  #       Logger.info("Successfully verified Stripe webhook: #{event.type}")
+  #       handle_event(event)
+  #       Plug.Conn.send_resp(conn, 200, "")
+
+  #     {:error, reason} ->
+  #       Logger.error("Failed to verify webhook: #{inspect(reason)}")
+  #       Plug.Conn.send_resp(conn, 400, "")
+  #   end
+  # end
 end

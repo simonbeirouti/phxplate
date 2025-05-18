@@ -340,4 +340,54 @@ defmodule PhxplateWeb.ComponentHelpers do
       nil -> nil
     end
   end
+
+  @doc """
+  Humanizes an action string by replacing underscores with spaces and capitalizing.
+
+  Used primarily for displaying activity actions in a user-friendly format.
+
+  ## Examples
+
+      iex> humanize_action("role_update")
+      "Role Updated"
+
+      iex> humanize_action("company_create")
+      "Company Created"
+  """
+  def humanize_action("role_update"), do: "Role Updated"
+  def humanize_action("subscription_status_update"), do: "Subscription Status Updated"
+  def humanize_action("subscription_tier_update"), do: "Subscription Tier Updated"
+  def humanize_action("company_create"), do: "Company Created"
+  def humanize_action("company_update"), do: "Company Updated"
+  def humanize_action("profile_create"), do: "Profile Created"
+  def humanize_action("profile_update"), do: "Profile Updated"
+  def humanize_action("employee_delete"), do: "Employee Deleted"
+  def humanize_action("login"), do: "User Logged In"
+  def humanize_action("logout"), do: "User Logged Out"
+  def humanize_action(action) when is_binary(action) do
+    action
+    |> String.replace("_", " ")
+    |> String.capitalize()
+  end
+  def humanize_action(action), do: Phoenix.Naming.humanize(action)
+
+  @doc """
+  Humanizes a key by replacing underscores with spaces and capitalizing.
+
+  Used primarily for displaying activity change keys in a user-friendly format.
+
+  ## Examples
+
+      iex> humanize_key("first_name")
+      "First name"
+
+      iex> humanize_key("email_address")
+      "Email address"
+  """
+  def humanize_key(key) when is_binary(key) do
+    key
+    |> String.replace("_", " ")
+    |> String.capitalize()
+  end
+  def humanize_key(key), do: Phoenix.Naming.humanize(key)
 end

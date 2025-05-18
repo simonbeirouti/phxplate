@@ -1,18 +1,33 @@
 defmodule PhxplateWeb.DashboardLive do
+  @moduledoc """
+  LiveView for the central dashboard.
+
+  This view provides a centralized entry point to various dashboards based on the user's
+  role (basic, admin, or super admin). It displays dashboard cards that link to the
+  appropriate role-specific dashboards that the current user has access to.
+  """
   use PhxplateWeb, :live_view
   alias Phxplate.Accounts.User
   alias PhxplateWeb.PageMeta
 
+  @doc """
+  Initializes the LiveView with page metadata.
+
+  Sets up the page title, description, and URL for the central dashboard.
+  """
   def mount(_params, _session, socket) do
     {:ok,
      socket
      |> PageMeta.assign_metadata(
        title: "Dashboard",
        description: "Just the dashboard",
-       url: "https://phxplate.com/dashboard"
+       url: "/dashboard"
      )}
   end
 
+  @doc """
+  Handles URL parameters and updates the layout data with current path.
+  """
   def handle_params(_params, url, socket) do
     uri = URI.parse(url)
     socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
@@ -20,6 +35,12 @@ defmodule PhxplateWeb.DashboardLive do
     {:noreply, socket}
   end
 
+  @doc """
+  Renders the central dashboard view with role-specific dashboard cards.
+
+  Displays dashboard cards for basic, admin, and super admin dashboards
+  based on the user's role, with each card linking to the appropriate dashboard.
+  """
   def render(assigns) do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">

@@ -1,4 +1,12 @@
 defmodule Phxplate.Companies do
+  @moduledoc """
+  The Companies context.
+
+  This context handles all company-related operations including company management,
+  employee management, and company invitations. It provides functions for CRUD operations
+  on companies and employees, as well as managing the invitation flow for adding new
+  employees to companies. It also handles data synchronization through PubSub broadcasts.
+  """
   import Ecto.Query, warn: false
   alias Phxplate.Repo
   alias Phxplate.Companies.Company
@@ -6,12 +14,29 @@ defmodule Phxplate.Companies do
   alias Phxplate.Companies.Invitation
   alias Phxplate.PubSub.DataSync
 
+  @doc """
+  Returns a list of all companies with their associations preloaded.
+
+  Preloads owner and employees with their profiles.
+
+  ## Options
+    - Any options passed are reserved for future use
+  """
   def list_companies(_opts \\ []) do
     Company
     |> preload([:owner, employees: [:profile]])
     |> Repo.all()
   end
 
+  @doc """
+  Returns a list of companies owned by a specific user.
+
+  ## Parameters
+    - user_id: The ID of the user who owns the companies
+
+  ## Options
+    - Any options passed are reserved for future use
+  """
   def list_companies_by_owner(user_id, _opts \\ []) do
     Company
     |> where(owner_id: ^user_id)
@@ -19,6 +44,14 @@ defmodule Phxplate.Companies do
     |> Repo.all()
   end
 
+  @doc """
+  Gets a single company by ID with employees preloaded.
+
+  Returns nil if the company doesn't exist.
+
+  ## Parameters
+    - id: The ID of the company to retrieve
+  """
   def get_company(id) do
     Company
     |> where(id: ^id)
@@ -26,6 +59,14 @@ defmodule Phxplate.Companies do
     |> Repo.one()
   end
 
+  @doc """
+  Gets a single company by ID with employees preloaded.
+
+  Raises Ecto.NoResultsError if the company doesn't exist.
+
+  ## Parameters
+    - id: The ID of the company to retrieve
+  """
   def get_company!(id) do
     Company
     |> where(id: ^id)
@@ -33,6 +74,22 @@ defmodule Phxplate.Companies do
     |> Repo.one!()
   end
 
+  @doc """
+  Creates a company with the given attributes.
+
+  Also handles tracking the activity and broadcasting the creation event.
+
+  ## Parameters
+    - attrs: Map of attributes for creating the company
+
+  ## Examples
+
+      iex> create_company(%{name: "ACME Corp", owner_id: 1})
+      {:ok, %Company{}}
+
+      iex> create_company(%{name: ""})
+      {:error, %Ecto.Changeset{}}
+  """
   def create_company(attrs \\ %{}) do
     %Company{}
     |> Company.changeset(attrs)
@@ -51,6 +108,24 @@ defmodule Phxplate.Companies do
     end
   end
 
+  @doc """
+  Updates a company with the given attributes.
+
+  Also handles tracking changed fields and broadcasting the update event.
+
+  ## Parameters
+    - company: The company struct to update
+    - attrs: Map of attributes to update
+    - actor: The user performing the update (defaults to company owner if nil)
+
+  ## Examples
+
+      iex> update_company(company, %{name: "Updated Corp"})
+      {:ok, %Company{}}
+
+      iex> update_company(company, %{name: ""})
+      {:error, %Ecto.Changeset{}}
+  """
   def update_company(%Company{} = company, attrs, actor \\ nil) do
     company
     |> Company.changeset(attrs)
@@ -80,6 +155,19 @@ defmodule Phxplate.Companies do
     end
   end
 
+  @doc """
+  Deletes a company.
+
+  Also broadcasts the deletion event.
+
+  ## Parameters
+    - company: The company struct to delete
+
+  ## Examples
+
+      iex> delete_company(company)
+      {:ok, %Company{}}
+  """
   def delete_company(%Company{} = company) do
     Repo.delete(company)
     |> case do
@@ -92,12 +180,39 @@ defmodule Phxplate.Companies do
     end
   end
 
+  @doc """
+  Returns a list of all employees.
+  """
   def list_employees do
     Repo.all(Employee)
   end
 
+  @doc """
+  Gets a single employee by ID.
+
+  Raises Ecto.NoResultsError if the employee doesn't exist.
+
+  ## Parameters
+    - id: The ID of the employee to retrieve
+  """
   def get_employee!(id), do: Repo.get!(Employee, id)
 
+  @doc """
+  Creates an employee with the given attributes.
+
+  Also broadcasts the creation event.
+
+  ## Parameters
+    - attrs: Map of attributes for creating the employee
+
+  ## Examples
+
+      iex> create_employee(%{email: "user@example.com", company_id: 1})
+      {:ok, %Employee{}}
+
+      iex> create_employee(%{email: ""})
+      {:error, %Ecto.Changeset{}}
+  """
   def create_employee(attrs \\ %{}) do
     %Employee{}
     |> Employee.changeset(attrs)
@@ -112,6 +227,23 @@ defmodule Phxplate.Companies do
     end
   end
 
+  @doc """
+  Updates an employee with the given attributes.
+
+  Also broadcasts the update event.
+
+  ## Parameters
+    - employee: The employee struct to update
+    - attrs: Map of attributes to update
+
+  ## Examples
+
+      iex> update_employee(employee, %{position: "Manager"})
+      {:ok, %Employee{}}
+
+      iex> update_employee(employee, %{email: ""})
+      {:error, %Ecto.Changeset{}}
+  """
   def update_employee(%Employee{} = employee, attrs) do
     employee
     |> Employee.changeset(attrs)
@@ -127,6 +259,20 @@ defmodule Phxplate.Companies do
     end
   end
 
+  @doc """
+  Deletes an employee.
+
+  Also tracks the activity and broadcasts the deletion event.
+
+  ## Parameters
+    - employee: The employee struct to delete
+    - actor: The user performing the deletion (optional)
+
+  ## Examples
+
+      iex> delete_employee(employee)
+      {:ok, %Employee{}}
+  """
   def delete_employee(%Employee{} = employee, actor \\ nil) do
     # Preload the employee with its profile before deletion
     employee = Repo.preload(employee, [:profile])
@@ -154,6 +300,12 @@ defmodule Phxplate.Companies do
     end
   end
 
+  @doc """
+  Gets all employees for a specific company.
+
+  ## Parameters
+    - company: The company struct whose employees to retrieve
+  """
   def get_company_employees(%Company{} = company) do
     company
     |> Ecto.assoc(:employees)
@@ -161,10 +313,16 @@ defmodule Phxplate.Companies do
     |> Repo.all()
   end
 
+  @doc """
+  Returns the total number of companies in the system.
+  """
   def count_companies do
     Repo.aggregate(Company, :count, :id)
   end
 
+  @doc """
+  Returns the total number of employees in the system.
+  """
   def count_employees do
     Repo.aggregate(Employee, :count, :id)
   end
@@ -172,10 +330,18 @@ defmodule Phxplate.Companies do
   @doc """
   Sends an invitation to join a company.
 
+  Creates or replaces an invitation record, sends an email invitation,
+  tracks the activity, and broadcasts the invitation events.
+
   ## Parameters
     - company: The company struct
     - email: The email address to send the invitation to
     - inviter: The user sending the invitation
+
+  ## Returns
+    - `{:ok, invitation}` on success
+    - `{:error, changeset}` on validation failure
+    - Other error tuples on other failures
   """
   def invite_to_company(%Company{} = company, email, inviter) do
     token = Phoenix.Token.sign(PhxplateWeb.Endpoint, "company_invitation", %{
@@ -228,6 +394,13 @@ defmodule Phxplate.Companies do
 
   @doc """
   Creates a company invitation.
+
+  ## Parameters
+    - attrs: Map of attributes for creating the invitation
+
+  ## Returns
+    - `{:ok, invitation}` on success
+    - `{:error, changeset}` on validation failure
   """
   def create_invitation(attrs) do
     %Invitation{}
@@ -237,6 +410,11 @@ defmodule Phxplate.Companies do
 
   @doc """
   Gets a pending invitation by token.
+
+  Returns nil if no matching invitation is found or if the invitation has been accepted.
+
+  ## Parameters
+    - token: The invitation token
   """
   def get_invitation_by_token(token) do
     Invitation
@@ -247,6 +425,9 @@ defmodule Phxplate.Companies do
 
   @doc """
   Lists all pending invitations for a company.
+
+  ## Parameters
+    - company: The company struct
   """
   def list_pending_invitations(%Company{} = company) do
     Invitation
@@ -257,6 +438,11 @@ defmodule Phxplate.Companies do
 
   @doc """
   Deletes a company invitation.
+
+  Also broadcasts the deletion event.
+
+  ## Parameters
+    - invitation: The invitation struct to delete
   """
   def delete_invitation(%Invitation{} = invitation) do
     Repo.delete(invitation)
@@ -276,6 +462,13 @@ defmodule Phxplate.Companies do
 
   @doc """
   Accepts a company invitation.
+
+  Creates an employee record for the user, deletes the invitation,
+  and broadcasts the relevant events.
+
+  ## Parameters
+    - invitation: The invitation struct to accept
+    - user: The user accepting the invitation
   """
   def accept_invitation(%Invitation{} = invitation, user) do
     user = Phxplate.Repo.preload(user, :profile)
@@ -352,6 +545,13 @@ defmodule Phxplate.Companies do
 
   @doc """
   Verifies and processes a company invitation token.
+
+  ## Parameters
+    - token: The invitation token to verify
+
+  ## Returns
+    - `{:ok, %{company_id: id, email: email}}` if token is valid
+    - `{:error, reason}` if token is invalid or expired
   """
   def verify_invitation_token(token) do
     case Phoenix.Token.verify(PhxplateWeb.Endpoint, "company_invitation", token, max_age: 24 * 3600) do
@@ -363,6 +563,9 @@ defmodule Phxplate.Companies do
 
   @doc """
   Lists all pending invitations for a user by email.
+
+  ## Parameters
+    - email: The email address to look up invitations for
   """
   def list_user_pending_invitations(email) do
     Invitation
@@ -373,6 +576,12 @@ defmodule Phxplate.Companies do
 
   @doc """
   Lists all companies where the user is an employee.
+
+  ## Parameters
+    - email: The email address of the user
+    - opts: Additional options for pagination
+      - `:page` - The page number (default: 1)
+      - `:per_page` - Items per page (default: 10)
   """
   def list_companies_by_employee(email, opts \\ []) do
     page = Keyword.get(opts, :page, 1)
@@ -388,6 +597,10 @@ defmodule Phxplate.Companies do
 
   @doc """
   Gets an employee by company ID and email.
+
+  ## Parameters
+    - company_id: The ID of the company
+    - email: The email address of the employee
   """
   def get_employee_by_company_and_email(company_id, email) do
     Employee
@@ -395,6 +608,12 @@ defmodule Phxplate.Companies do
     |> Repo.one()
   end
 
+  @doc """
+  Gets an employee by user ID by looking up through the profile.
+
+  ## Parameters
+    - user_id: The ID of the user
+  """
   def get_employee_by_user_id(user_id) do
     Employee
     |> join(:inner, [e], p in assoc(e, :profile))

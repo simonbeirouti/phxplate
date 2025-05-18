@@ -1,4 +1,12 @@
 defmodule Phxplate.Companies.Invitation do
+  @moduledoc """
+  Schema for company invitations.
+
+  This schema represents an invitation to join a company. It stores the recipient's
+  email, the token used for verification, and the acceptance status. Invitations are
+  associated with a company and an inviter (the user who sent the invitation).
+  The schema enforces validation rules for invitation data and uniqueness constraints.
+  """
   use Ecto.Schema
   import Ecto.Changeset
 
@@ -13,7 +21,16 @@ defmodule Phxplate.Companies.Invitation do
     timestamps(type: :utc_datetime)
   end
 
-  @doc false
+  @doc """
+  Changeset function for creating or updating an invitation.
+
+  Validates required fields, format constraints, and uniqueness constraints.
+  Ensures that only one pending invitation exists per email for each company.
+
+  ## Parameters
+    - invitation: The invitation struct to change
+    - attrs: Map of attributes to apply to the invitation
+  """
   def changeset(invitation, attrs) do
     invitation
     |> cast(attrs, [:email, :token, :accepted_at, :company_id, :inviter_id])

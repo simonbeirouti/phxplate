@@ -1,8 +1,21 @@
 defmodule PhxplateWeb.UserConfirmationInstructionsLive do
+  @moduledoc """
+  LiveView for requesting new account confirmation instructions.
+
+  This view allows users who haven't received or have lost their confirmation email
+  to request a new confirmation link. It provides a form for users to enter their
+  email address and handles sending a new confirmation email if the account exists.
+  """
   use PhxplateWeb, :live_view
 
   alias Phxplate.Accounts
 
+  @doc """
+  Renders the form for requesting confirmation instructions.
+
+  Displays a form with an email field and submission button,
+  along with links to register or log in.
+  """
   def render(assigns) do
     ~H"""
     <div class="flex items-center justify-center h-full">
@@ -29,10 +42,23 @@ defmodule PhxplateWeb.UserConfirmationInstructionsLive do
     """
   end
 
+  @doc """
+  Initializes the LiveView with an empty form.
+
+  Sets up the initial form state for the email input field.
+  """
   def mount(_params, _session, socket) do
     {:ok, assign(socket, form: to_form(%{}, as: "user"))}
   end
 
+  @doc """
+  Handles the form submission to send confirmation instructions.
+
+  Processes the email submission, looks up the user by email,
+  and sends new confirmation instructions if the account exists.
+  For security, always shows the same success message regardless of
+  whether the email exists in the system.
+  """
   def handle_event("send_instructions", %{"user" => %{"email" => email}}, socket) do
     if user = Accounts.get_user_by_email(email) do
       Accounts.deliver_user_confirmation_instructions(

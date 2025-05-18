@@ -1,6 +1,13 @@
 defmodule PhxplateWeb.Components.ActivityTimelineComponent do
+  @moduledoc """
+  A live component that displays an activity timeline with pagination support.
+
+  This component shows a chronological list of activities with details about each
+  action, including timestamps, changes made, and the actor who performed the action.
+  It supports loading more activities through pagination.
+  """
   use PhxplateWeb, :live_component
-  alias PhxplateWeb.Helpers.ActivityHelpers
+  alias PhxplateWeb.ComponentHelpers
 
   @impl true
   def update(assigns, socket) do
@@ -36,6 +43,12 @@ defmodule PhxplateWeb.Components.ActivityTimelineComponent do
      |> update(:activities, &(&1 ++ new_activities))}
   end
 
+  @doc """
+  Renders the activity timeline with pagination support.
+
+  Displays a list of activities with their details and a "Load More" button
+  if there are more activities to load.
+  """
   @impl true
   def render(assigns) do
     ~H"""
@@ -72,14 +85,14 @@ defmodule PhxplateWeb.Components.ActivityTimelineComponent do
               <div class="flex items-start justify-between">
                 <div>
                   <p class="font-medium">
-                    {ActivityHelpers.humanize_action(activity.action)}
+                    {ComponentHelpers.humanize_action(activity.action)}
                   </p>
                   <%= if map_size(activity.changes) > 0 do %>
                     <div class="mt-2 text-sm text-gray-600">
                       <p class="font-medium">Changes:</p>
                       <ul class="list-disc list-inside">
                         <%= for {key, value} <- activity.changes do %>
-                          <li>{ActivityHelpers.humanize_key(key)}: {inspect(value)}</li>
+                          <li>{ComponentHelpers.humanize_key(key)}: {inspect(value)}</li>
                         <% end %>
                       </ul>
                     </div>

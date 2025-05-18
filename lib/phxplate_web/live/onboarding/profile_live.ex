@@ -1,10 +1,25 @@
 defmodule PhxplateWeb.Onboarding.ProfileLive do
+  @moduledoc """
+  LiveView for the user profile onboarding process.
+
+  This view allows new users to complete their profile information as part of the
+  onboarding flow. It provides a form for entering personal details like name,
+  contact information, and bio, and handles saving this information to the database.
+  Upon successful completion, users are redirected to the dashboard.
+  """
   use PhxplateWeb, :live_view
 
   alias Phxplate.Accounts
   alias Phxplate.Accounts.Profile
   alias PhxplateWeb.PageMeta
 
+  @doc """
+  Renders the profile onboarding form with success modal when applicable.
+
+  Displays a form for collecting the user's profile information, along with
+  appropriate validation and submission handling. Shows a success modal after
+  successful completion of the onboarding process.
+  """
   def render(assigns) do
     ~H"""
     <div class="max-w-2xl mx-auto py-16 px-4">
@@ -64,6 +79,13 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
     """
   end
 
+  @doc """
+  Initializes the LiveView with either an existing or new profile form.
+
+  Checks if the user already has a profile and loads that data if available,
+  or initializes a new profile form if not. Sets up page metadata and initializes
+  state for error checking and success modal.
+  """
   def mount(_params, _session, socket) do
     user = socket.assigns.current_user
 
@@ -79,7 +101,8 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
       socket
       |> PageMeta.assign_metadata(
         title: "Complete Your Profile",
-        description: "Set up your profile information to get started"
+        description: "Set up your profile information to get started",
+        url: "/onboarding/profile"
       )
       |> assign(:check_errors, false)
       |> assign(:show_success, false)

@@ -1,9 +1,22 @@
 defmodule PhxplateWeb.Dashboard.Account.BillingLive do
+  @moduledoc """
+  LiveComponent for managing user subscription and billing information.
+
+  This component provides UI for viewing current subscription details,
+  changing plans, updating payment methods, and cancelling subscriptions.
+  It integrates with Stripe for checkout and payment processing.
+  """
   use PhxplateWeb, :live_component
 
   alias Phxplate.Subscriptions
   import PhxplateWeb.Components.Subscription.PlanSelector
 
+  @doc """
+  Updates the component with the user's subscription information.
+
+  Retrieves the user's current subscription and available plans,
+  and initializes the component state.
+  """
   @impl true
   def update(%{user: user} = assigns, socket) do
     subscription = Subscriptions.get_user_subscription(user.id)
@@ -133,6 +146,12 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
     end
   end
 
+  @doc """
+  Renders the subscription management UI.
+
+  Displays the current subscription details, options to change plans,
+  update payment methods, and cancel or reactivate subscriptions.
+  """
   @impl true
   def render(assigns) do
     ~H"""

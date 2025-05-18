@@ -1,9 +1,22 @@
 defmodule PhxplateWeb.Components.NavComponent do
+  @moduledoc """
+  Provides the main navigation component for the application.
+
+  This component renders the application's navigation bar with links to public pages,
+  sign in/sign up buttons for unauthenticated users, and a dashboard link for
+  authenticated users. It also includes a responsive mobile menu.
+  """
   use PhxplateWeb, :html
 
-  attr :current_user, :any
-  attr :current_path, :string
+  attr :current_user, :any, doc: "The current user (if authenticated)"
+  attr :current_path, :string, doc: "The current path to determine active state"
 
+  @doc """
+  Renders the navigation bar with appropriate links based on authentication state.
+
+  Displays public links and authentication controls. The nav is not shown on dashboard pages.
+  Includes a responsive mobile menu for smaller screens.
+  """
   def nav(assigns) do
     public_links = [
       %{href: ~p"/about", label: "About"},

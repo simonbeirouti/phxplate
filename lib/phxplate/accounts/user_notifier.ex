@@ -8,7 +8,7 @@ defmodule Phxplate.Accounts.UserNotifier do
     email =
       new()
       |> to(recipient)
-      |> from({"Phxplate", "contact@example.com"})
+      |> from({Phxplate.config([:title]), Phxplate.config([:email])})
       |> subject(subject)
       |> text_body(body)
 
