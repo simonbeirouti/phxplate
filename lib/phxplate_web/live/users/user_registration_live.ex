@@ -1,10 +1,24 @@
 defmodule PhxplateWeb.UserRegistrationLive do
+  @moduledoc """
+  LiveView for user registration and account creation.
+
+  This view provides a registration form for new users to create accounts with
+  email and password. It handles form validation, account creation, and sending
+  confirmation emails. After successful registration, users are redirected to the
+  login page with a success message.
+  """
   use PhxplateWeb, :live_view
 
   alias Phxplate.Accounts
   alias Phxplate.Accounts.User
   alias PhxplateWeb.PageMeta
 
+  @doc """
+  Renders the registration form.
+
+  Displays a form with email and password fields for account creation,
+  along with a link to the login page for existing users.
+  """
   def render(assigns) do
     ~H"""
     <div class="flex items-center justify-center h-full">
@@ -45,6 +59,12 @@ defmodule PhxplateWeb.UserRegistrationLive do
     """
   end
 
+  @doc """
+  Initializes the LiveView with an empty registration form and page metadata.
+
+  Sets up the initial changeset for user registration, configures page metadata
+  with appropriate title and description, and initializes form state variables.
+  """
   def mount(_params, _session, socket) do
     changeset = Accounts.change_user_registration(%User{})
 
@@ -61,6 +81,13 @@ defmodule PhxplateWeb.UserRegistrationLive do
     {:ok, socket, temporary_assigns: [form: nil]}
   end
 
+  @doc """
+  Handles form submission for user registration.
+
+  Processes the registration data, attempts to create a new user account,
+  sends a confirmation email, and redirects to the login page on success.
+  If there are validation errors, redisplays the form with error messages.
+  """
   def handle_event("save", %{"user" => user_params}, socket) do
     case Accounts.register_user(user_params) do
       {:ok, user} ->

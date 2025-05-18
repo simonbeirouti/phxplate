@@ -1,4 +1,12 @@
 defmodule PhxplateWeb.Public.CompanyShowLive do
+  @moduledoc """
+  LiveView for displaying detailed information about a single company.
+
+  This view shows comprehensive information about a specific company, including
+  its name, description, logo, contact information, and address. It also provides
+  functionality for authenticated users to bookmark companies for later reference.
+  The view subscribes to real-time updates for the specific company being viewed.
+  """
   use PhxplateWeb, :live_view
   use SaladUI
 
@@ -7,6 +15,13 @@ defmodule PhxplateWeb.Public.CompanyShowLive do
   alias Phxplate.PubSub.DataSync
   alias PhxplateWeb.PageMeta
 
+  @doc """
+  Initializes the LiveView with company details and bookmark status.
+
+  Fetches the company by ID and checks if the current user has bookmarked it.
+  Sets up a PubSub subscription for real-time updates to the specific company.
+  Sets page metadata based on the company's information.
+  """
   @impl true
   def mount(%{"id" => id}, _session, socket) do
     if connected?(socket) do
@@ -46,6 +61,12 @@ defmodule PhxplateWeb.Public.CompanyShowLive do
      |> redirect(to: ~p"/companies")}
   end
 
+  @doc """
+  Renders the company detail view with comprehensive information.
+
+  Displays the company logo, name, description, and contact information.
+  For authenticated users, provides options to bookmark or unbookmark the company.
+  """
   @impl true
   def render(assigns) do
     ~H"""

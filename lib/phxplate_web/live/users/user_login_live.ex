@@ -1,7 +1,21 @@
 defmodule PhxplateWeb.UserLoginLive do
+  @moduledoc """
+  LiveView for user authentication login.
+
+  This view provides a login form for users to authenticate with email and password.
+  It includes a "remember me" option and links to registration and password reset.
+  The form submission is processed by the standard Phoenix controller action,
+  not within the LiveView.
+  """
   use PhxplateWeb, :live_view
   alias PhxplateWeb.PageMeta
 
+  @doc """
+  Renders the login form.
+
+  Displays a form with email and password fields, "remember me" checkbox,
+  and links to registration and password reset pages.
+  """
   def render(assigns) do
     ~H"""
     <div class="flex items-center justify-center h-full">
@@ -38,6 +52,13 @@ defmodule PhxplateWeb.UserLoginLive do
     """
   end
 
+  @doc """
+  Initializes the LiveView with a form pre-filled with flash data.
+
+  Sets up the initial form state, potentially pre-filling the email field
+  from flash data, and configures page metadata with appropriate title
+  and description.
+  """
   def mount(_params, _session, socket) do
     email = Phoenix.Flash.get(socket.assigns.flash, :email)
     form = to_form(%{"email" => email}, as: "user")

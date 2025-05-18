@@ -1,4 +1,12 @@
 defmodule Phxplate.Subscriptions.Subscription do
+  @moduledoc """
+  Schema for user subscriptions.
+
+  This schema represents a subscription in the system, tracking the relationship
+  between users and subscription plans. It stores details such as Stripe customer and
+  subscription IDs, subscription status, and the paid tier level. The schema
+  establishes associations with both users and plans.
+  """
   use Ecto.Schema
   @derive {Jason.Encoder, only: [:id, :stripe_customer_id, :stripe_subscription_id, :paid_tier, :subscription_status, :subscription_period_end, :user_id, :plan_id]}
   import Ecto.Changeset
@@ -23,6 +31,13 @@ defmodule Phxplate.Subscriptions.Subscription do
 
   @doc """
   Changeset for creating or updating a subscription.
+
+  Validates required fields and ensures foreign key constraints are respected.
+  Enforces unique constraint on the Stripe subscription ID.
+
+  ## Parameters
+    - subscription: The subscription struct to change
+    - attrs: Map of attributes to apply to the subscription
   """
   def changeset(subscription, attrs) do
     subscription

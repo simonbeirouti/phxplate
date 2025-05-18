@@ -1,4 +1,12 @@
 defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
+  @moduledoc """
+  LiveView for detailed company management.
+
+  This view provides comprehensive functionality to manage a specific company,
+  including editing company details, managing employees, viewing activity timeline,
+  handling employee invitations, and uploading company logos. It establishes
+  various PubSub subscriptions to enable real-time updates.
+  """
   use PhxplateWeb, :live_view
 
   alias Phxplate.Companies
@@ -8,6 +16,12 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
   alias Phxplate.PubSub.DataSync
   alias Phxplate.Repo
 
+  @doc """
+  Mount hook to authorize access to company pages.
+
+  Validates that the current user is authorized to access the requested company
+  before allowing the LiveView to mount. Redirects unauthorized users.
+  """
   def on_mount(:default, %{"id" => company_id}, _session, socket) do
     case authorize_company(company_id, socket.assigns.current_user) do
       {:ok, _company} -> {:cont, socket}
@@ -21,6 +35,13 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
 
   def on_mount(:default, _params, _session, socket), do: {:cont, socket}
 
+  @doc """
+  Initializes the LiveView with company details and sets up PubSub subscriptions.
+
+  Loads the company, its employees, activities, and pending invitations.
+  Sets up subscriptions for real-time updates to companies, employees,
+  invitations, users, and profiles.
+  """
   @impl true
   def mount(%{"id" => company_id}, _session, socket) do
     if connected?(socket) do

@@ -1,4 +1,11 @@
 defmodule PhxplateWeb.Dashboard.Admin.CompanyLive do
+  @moduledoc """
+  LiveView for company management within the admin dashboard.
+
+  This view displays a grid of companies owned by the current user and
+  provides functionality to create new companies. It subscribes to
+  real-time updates for companies via PubSub.
+  """
   use PhxplateWeb, :live_view
 
   alias Phxplate.{Companies, Subscriptions, Repo}
@@ -7,6 +14,13 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyLive do
   import PhxplateWeb.Components.CompaniesGrid
   import PhxplateWeb.Dashboard.Admin.CompanyHelpers
 
+  @doc """
+  Initializes the LiveView with companies data and subscriptions.
+
+  Loads companies owned by the current user, sets up PubSub subscriptions
+  for real-time updates, and determines the company creation limit based
+  on the user's subscription plan.
+  """
   @impl true
   def mount(_params, _session, socket) do
     current_user = socket.assigns.current_user

@@ -1,4 +1,11 @@
 defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
+  @moduledoc """
+  LiveView for managing all aspects of a user's account.
+
+  This view provides a tabbed interface for users to manage their profile information,
+  subscription details, account settings, and view their activity history. It serves
+  as a container for more specialized components that handle each area of functionality.
+  """
   use PhxplateWeb, :live_view
   alias PhxplateWeb.Dashboard.Account.{SettingsLive, BillingLive, ActivitiesLive}
   alias PhxplateWeb.Components.UI.TabsNew
@@ -28,6 +35,12 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
     }
   }
 
+  @doc """
+  Initializes the LiveView with user data and available tabs.
+
+  Loads the user's profile, subscription and activity data, and
+  sets up the default tab.
+  """
   @impl true
   def mount(_params, _session, socket) do
     user = socket.assigns.current_user |> Repo.preload([:profile, :subscription])
@@ -62,6 +75,11 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
     {:ok, socket}
   end
 
+  @doc """
+  Handles URL parameters to determine the active tab.
+
+  Updates the page metadata and subtitle based on the selected tab.
+  """
   @impl true
   def handle_params(params, _url, socket) do
     # Get the tab from params or default to "profile"
@@ -182,14 +200,12 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
     end
   end
 
-  # Clean params by removing _unused_ fields
   defp clean_params(params) do
     params
     |> Enum.reject(fn {key, _value} -> String.starts_with?(key, "_unused_") end)
     |> Map.new()
   end
 
-  # Extract social links from params and validate URLs
   defp extract_social_links(params) do
     @social_networks
     |> Enum.reduce(%{}, fn network, acc ->
@@ -203,7 +219,6 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
     end)
   end
 
-  # Get the title and subtitle for a specific tab
   defp get_tab_titles(tab) do
     Map.get(@tab_titles, tab, %{
       title: "User Profile",
@@ -211,6 +226,12 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
     })
   end
 
+  @doc """
+  Renders the user account page with tabbed interface.
+
+  Displays tabs for profile, subscription, settings, and activities,
+  and renders the appropriate component for the selected tab.
+  """
   @impl true
   def render(assigns) do
     ~H"""

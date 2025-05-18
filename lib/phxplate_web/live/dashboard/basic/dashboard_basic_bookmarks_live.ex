@@ -1,10 +1,24 @@
 defmodule PhxplateWeb.Dashboard.Basic.BookmarksLive do
+  @moduledoc """
+  LiveView for displaying and managing user bookmarks.
+
+  This view shows a list of companies that the user has bookmarked
+  for quick access. It subscribes to real-time updates for bookmarks
+  via PubSub, allowing for immediate UI updates when bookmarks are
+  created or deleted.
+  """
   use PhxplateWeb, :live_view
   use SaladUI
 
   alias Phxplate.{Bookmarks, PubSub.DataSync}
   alias PhxplateWeb.PageMeta
 
+  @doc """
+  Initializes the LiveView with the user's bookmarks.
+
+  Sets up PubSub subscription for bookmark updates and assigns
+  the initial list of bookmarks to the socket.
+  """
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
@@ -51,6 +65,12 @@ defmodule PhxplateWeb.Dashboard.Basic.BookmarksLive do
      end)}
   end
 
+  @doc """
+  Renders the bookmarks view showing a grid of bookmarked companies.
+
+  For each bookmark, displays a card with the company logo, name, and description.
+  If no bookmarks exist, shows a message with a link to browse companies.
+  """
   @impl true
   def render(assigns) do
     ~H"""

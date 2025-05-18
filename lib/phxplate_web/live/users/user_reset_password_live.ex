@@ -1,8 +1,22 @@
 defmodule PhxplateWeb.UserResetPasswordLive do
+  @moduledoc """
+  LiveView for resetting user passwords via email tokens.
+
+  This view allows users who have requested a password reset to set a new password.
+  It validates the reset token from the URL, provides a form for entering a new
+  password with confirmation, and processes the password change. It includes
+  real-time validation as the user types.
+  """
   use PhxplateWeb, :live_view
 
   alias Phxplate.Accounts
 
+  @doc """
+  Renders the password reset form.
+
+  Displays a form with password and password confirmation fields,
+  along with links to register or log in.
+  """
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-sm">
@@ -38,6 +52,13 @@ defmodule PhxplateWeb.UserResetPasswordLive do
     """
   end
 
+  @doc """
+  Initializes the LiveView with the token and user information.
+
+  Validates the token from URL parameters, retrieves the associated user,
+  and sets up the password change form. If the token is invalid, redirects
+  with an error message.
+  """
   def mount(params, _session, socket) do
     socket = assign_user_and_token(socket, params)
 

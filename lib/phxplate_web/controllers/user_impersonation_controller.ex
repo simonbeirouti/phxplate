@@ -1,6 +1,24 @@
 defmodule PhxplateWeb.UserImpersonationController do
+  @moduledoc """
+  Controller for user impersonation functionality.
+
+  Allows super admin users to temporarily assume the identity of another user
+  for debugging and support purposes. This controller provides actions
+  to start and stop impersonation sessions.
+  """
   use PhxplateWeb, :controller
 
+  @doc """
+  Starts an impersonation session for a super admin user.
+
+  Only super admin users can impersonate other users. The impersonated user's
+  ID is stored in the session so that the application can distinguish between
+  the real user and the impersonated user.
+
+  ## Parameters
+
+  * `id` - The ID of the user to impersonate
+  """
   def impersonate(conn, %{"id" => user_id}) do
     current_user = conn.assigns.current_user
 
@@ -27,6 +45,12 @@ defmodule PhxplateWeb.UserImpersonationController do
     end
   end
 
+  @doc """
+  Ends an active impersonation session.
+
+  Removes the impersonated user ID from the session and redirects
+  the admin back to the users list.
+  """
   def stop_impersonating(conn, _params) do
     conn
     |> delete_session(:impersonated_user_id)

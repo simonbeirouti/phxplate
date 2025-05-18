@@ -1,8 +1,22 @@
 defmodule PhxplateWeb.ContactLive do
+  @moduledoc """
+  LiveView for the contact form page.
+
+  This view provides a contact form that allows users (both authenticated and guests)
+  to send messages to the site administrators. The form includes fields for name,
+  email, subject, and message content. If a user is authenticated, their email is
+  pre-filled. The form submission results in an email notification being sent.
+  """
   use PhxplateWeb, :live_view
   alias Phxplate.Accounts.UserNotifier
   alias PhxplateWeb.PageMeta
 
+  @doc """
+  Renders the contact form with success message when applicable.
+
+  Displays a form with name, email, subject, and message fields, along with
+  a success message that appears briefly after successful form submission.
+  """
   def render(assigns) do
     ~H"""
     <div class="max-w-3xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
@@ -50,6 +64,12 @@ defmodule PhxplateWeb.ContactLive do
     """
   end
 
+  @doc """
+  Initializes the LiveView with the contact form and metadata.
+
+  Sets up the form with empty fields (pre-filling email for authenticated users)
+  and configures page metadata with appropriate title and description.
+  """
   def mount(_params, _session, socket) do
     # Get current user if available
     current_user = socket.assigns[:current_user]
@@ -76,6 +96,13 @@ defmodule PhxplateWeb.ContactLive do
     {:ok, socket}
   end
 
+  @doc """
+  Handles contact form submission.
+
+  Processes the form data, sends an email notification via UserNotifier,
+  resets the form, and displays a success message to the user.
+  Schedules hiding the success message after a short delay.
+  """
   def handle_event("submit", %{"contact" => contact_params, "user_id" => user_id}, socket) do
     user_id = if user_id == "", do: nil, else: user_id
 
@@ -105,6 +132,11 @@ defmodule PhxplateWeb.ContactLive do
     {:noreply, socket}
   end
 
+  @doc """
+  Hides the success message after a delay.
+
+  Called by a timer to hide the success message after the user has had time to read it.
+  """
   def handle_info(:hide_success, socket) do
     {:noreply, assign(socket, :show_success, false)}
   end

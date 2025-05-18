@@ -1,4 +1,11 @@
 defmodule PhxplateWeb.Public.CompaniesLive do
+  @moduledoc """
+  LiveView for displaying a list of companies.
+
+  This view fetches and displays all companies in a grid layout with basic information
+  and thumbnails. It subscribes to real-time updates for company creation, updates,
+  and deletions through PubSub, allowing the list to stay current without page refresh.
+  """
   use PhxplateWeb, :live_view
   use SaladUI
 
@@ -6,6 +13,12 @@ defmodule PhxplateWeb.Public.CompaniesLive do
   alias Phxplate.PubSub.DataSync
   alias PhxplateWeb.PageMeta
 
+  @doc """
+  Initializes the LiveView with a list of companies and sets up PubSub subscription.
+
+  Subscribes to company updates if the socket is connected and fetches the initial
+  company list. Sets page metadata with appropriate title and description.
+  """
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
@@ -44,6 +57,12 @@ defmodule PhxplateWeb.Public.CompaniesLive do
      end)}
   end
 
+  @doc """
+  Renders the companies list view with a grid of company cards.
+
+  Each company card displays a logo (or initial if no logo), name, and description.
+  Cards link to individual company pages.
+  """
   @impl true
   def render(assigns) do
     ~H"""

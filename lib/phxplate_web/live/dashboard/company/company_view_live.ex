@@ -1,9 +1,24 @@
 defmodule PhxplateWeb.Dashboard.Company.CompanyViewLive do
+  @moduledoc """
+  LiveView for detailed company information display.
+
+  This view provides a detailed view of a company for users who have access
+  to it (either as an owner, employee, or super admin). It displays company
+  information, employee details, and allows for bookmarking functionality.
+  It subscribes to real-time updates for companies, employees, and bookmarks.
+  """
   use PhxplateWeb, :live_view
   alias Phxplate.{Companies, Bookmarks}
   alias Phxplate.PubSub.DataSync
   alias PhxplateWeb.PageMeta
 
+  @doc """
+  Initializes the LiveView with company data and subscription setup.
+
+  Sets up PubSub subscriptions for the company, its employees, and the
+  user's bookmarks. Loads the company data if the user has access rights,
+  otherwise redirects to the dashboard.
+  """
   @impl true
   def mount(%{"id" => id}, _session, socket) do
     if connected?(socket) do
@@ -146,6 +161,12 @@ defmodule PhxplateWeb.Dashboard.Company.CompanyViewLive do
     end
   end
 
+  @doc """
+  Renders the company view with company details and employee information.
+
+  Displays company metadata, contact information, and a list of employees.
+  Includes a bookmark button for quickly saving the company for future access.
+  """
   @impl true
   def render(assigns) do
     ~H"""

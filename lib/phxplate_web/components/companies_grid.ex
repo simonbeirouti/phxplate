@@ -1,14 +1,27 @@
 defmodule PhxplateWeb.Components.CompaniesGrid do
+  @moduledoc """
+  Provides a grid component for displaying companies with creation capabilities.
+
+  This component renders a grid of company cards with company information and
+  a card to create new companies if the user has not reached their subscription limit.
+  It includes a modal dialog for creating new companies.
+  """
   use Phoenix.Component
   use PhxplateWeb, :verified_routes
   alias Phxplate.Companies
   alias Phoenix.LiveView.JS
   alias SaladUI.{Button, Dialog, Input, Label}
 
-  attr :companies, :list, required: true
-  attr :subscription, :map, required: true
-  attr :on_create, :any, required: true
+  attr :companies, :list, required: true, doc: "List of companies to display"
+  attr :subscription, :map, required: true, doc: "The user's subscription to determine company limits"
+  attr :on_create, :any, required: true, doc: "The event to trigger when creating a new company"
 
+  @doc """
+  Renders a grid of company cards with a create option if allowed by subscription.
+
+  Calculates whether the user can create more companies based on their subscription plan
+  and renders a grid with existing companies and optionally a card to create a new one.
+  """
   def companies_grid(assigns) do
     company_limit = get_company_limit(assigns.subscription)
     can_create_company = length(assigns.companies) < company_limit

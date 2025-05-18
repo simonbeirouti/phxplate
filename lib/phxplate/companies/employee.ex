@@ -1,4 +1,12 @@
 defmodule Phxplate.Companies.Employee do
+  @moduledoc """
+  Schema for company employees.
+
+  This schema represents an employee of a company in the system. It stores basic
+  employee information such as email, position, department, and salary. Employees
+  are associated with both a company and a user profile. The schema enforces
+  validation rules for employee data and tracks changes for activity logging.
+  """
   use Ecto.Schema
   import Ecto.Changeset
 
@@ -14,6 +22,17 @@ defmodule Phxplate.Companies.Employee do
     timestamps()
   end
 
+  @doc """
+  Changeset function for creating or updating an employee.
+
+  Validates required fields, format constraints, and foreign key constraints.
+  Logs employee creation or update activity if an actor is provided.
+
+  ## Parameters
+    - employee: The employee struct to change
+    - attrs: Map of attributes to apply to the employee
+    - actor: (Optional) The user performing the action
+  """
   def changeset(employee, attrs, actor \\ nil) do
     changeset = employee
     |> cast(attrs, [:email, :position, :department, :salary, :company_id, :profile_id])

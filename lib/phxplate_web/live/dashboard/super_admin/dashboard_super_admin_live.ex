@@ -1,9 +1,23 @@
 defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
+  @moduledoc """
+  LiveView for the super admin dashboard.
+
+  This view provides an overview of application-wide statistics for super admins,
+  including total user count, company count, employee count, subscription metrics,
+  and revenue data. It subscribes to real-time updates for users, companies,
+  employees, and subscriptions via PubSub to ensure statistics stay current.
+  """
   use PhxplateWeb, :live_view
   alias Phxplate.{Accounts, Companies, Subscriptions}
   alias PhxplateWeb.PageMeta
   alias Phxplate.PubSub.DataSync
 
+  @doc """
+  Initializes the LiveView with application statistics and PubSub subscriptions.
+
+  Collects summary statistics about users, companies, employees, subscriptions,
+  and revenue. Sets up PubSub subscriptions for real-time updates to these metrics.
+  """
   def mount(_params, _session, socket) do
     if connected?(socket) do
       # Subscribe to all relevant topics for real-time updates
@@ -121,6 +135,13 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
   # Catch-all for any other events
   def handle_info(_message, socket), do: {:noreply, socket}
 
+  @doc """
+  Renders the super admin dashboard with statistics cards.
+
+  Displays a summary of application statistics including users, companies,
+  employees, subscriptions, and revenue in card format, with appropriate icons
+  and links to detailed views.
+  """
   def render(assigns) do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">

@@ -1,9 +1,23 @@
 defmodule PhxplateWeb.UserConfirmationLive do
+  @moduledoc """
+  LiveView for confirming user accounts via email confirmation tokens.
+
+  This view handles the confirmation of user accounts through tokens sent via email.
+  It provides a simple form with a hidden field for the token and processes the
+  confirmation when submitted. After successful confirmation, users are redirected
+  to the homepage with a success message.
+  """
   use PhxplateWeb, :live_view
 
   alias Phxplate.Accounts
   alias PhxplateWeb.PageMeta
 
+  @doc """
+  Renders the account confirmation form.
+
+  Displays a form with a hidden token field and submission button.
+  Also provides links to register or log in.
+  """
   def render(%{live_action: :edit} = assigns) do
     ~H"""
     <div class="flex items-center justify-center h-full">
@@ -25,6 +39,11 @@ defmodule PhxplateWeb.UserConfirmationLive do
     """
   end
 
+  @doc """
+  Initializes the LiveView with the token from URL parameters.
+
+  Sets up the form with the token from the URL and configures page metadata.
+  """
   def mount(%{"token" => token}, _session, socket) do
     form = to_form(%{"token" => token}, as: "user")
 
@@ -39,8 +58,13 @@ defmodule PhxplateWeb.UserConfirmationLive do
     {:ok, socket, temporary_assigns: [form: nil]}
   end
 
-  # Do not log in the user after confirmation to avoid a
-  # leaked token giving the user access to the account.
+  @doc """
+  Handles account confirmation submission.
+
+  Processes the token submission, attempts to confirm the user account,
+  and provides appropriate feedback. Does not automatically log in the user
+  after confirmation for security purposes.
+  """
   def handle_event("confirm_account", %{"user" => %{"token" => token}}, socket) do
     case Accounts.confirm_user(token) do
       {:ok, _} ->
