@@ -4,6 +4,7 @@ defmodule PhxplateWeb.Public.CompaniesLive do
 
   alias Phxplate.Companies
   alias Phxplate.PubSub.DataSync
+  alias PhxplateWeb.PageMeta
 
   @impl true
   def mount(_params, _session, socket) do
@@ -12,7 +13,16 @@ defmodule PhxplateWeb.Public.CompaniesLive do
     end
 
     companies = Companies.list_companies()
-    {:ok, assign(socket, companies: companies)}
+
+    {:ok,
+     socket
+     |> PageMeta.assign_metadata(
+       title: "Companies",
+       description: "Discover amazing companies",
+       url: "https://phxplate.com/companies"
+     )
+     |> assign(companies: companies)
+    }
   end
 
   @impl true

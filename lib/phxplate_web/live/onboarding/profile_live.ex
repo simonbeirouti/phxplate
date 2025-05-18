@@ -3,6 +3,7 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
 
   alias Phxplate.Accounts
   alias Phxplate.Accounts.Profile
+  alias PhxplateWeb.PageMeta
 
   def render(assigns) do
     ~H"""
@@ -76,6 +77,10 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
 
     socket =
       socket
+      |> PageMeta.assign_metadata(
+        title: "Complete Your Profile",
+        description: "Set up your profile information to get started"
+      )
       |> assign(:check_errors, false)
       |> assign(:show_success, false)
       |> assign_form(changeset)

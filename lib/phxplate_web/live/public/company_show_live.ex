@@ -5,6 +5,7 @@ defmodule PhxplateWeb.Public.CompanyShowLive do
   alias Phxplate.Companies
   alias Phxplate.Bookmarks
   alias Phxplate.PubSub.DataSync
+  alias PhxplateWeb.PageMeta
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -21,7 +22,16 @@ defmodule PhxplateWeb.Public.CompanyShowLive do
         false
       end
 
-    {:ok, assign(socket, company: company, bookmarked: bookmarked)}
+    {:ok,
+     socket
+     |> PageMeta.assign_metadata(
+       title: company.name,
+       description: company.description,
+       image: company.logo,
+       url: ~p"/companies/#{company.id}"
+     )
+     |> assign(company: company, bookmarked: bookmarked)
+    }
   end
 
   @impl true

@@ -3,6 +3,7 @@ defmodule PhxplateWeb.Dashboard.Basic.BookmarksLive do
   use SaladUI
 
   alias Phxplate.{Bookmarks, PubSub.DataSync}
+  alias PhxplateWeb.PageMeta
 
   @impl true
   def mount(_params, _session, socket) do
@@ -13,11 +14,13 @@ defmodule PhxplateWeb.Dashboard.Basic.BookmarksLive do
     bookmarks = Bookmarks.list_user_bookmarks(socket.assigns.current_user.id)
 
     {:ok,
-     assign(socket,
-       page_title: "My Bookmarks",
-       page_description: "Companies you've bookmarked for quick access",
-       bookmarks: bookmarks
-     )}
+     socket
+     |> PageMeta.assign_metadata(
+       title: "My Bookmarks",
+       description: "Companies you've bookmarked for quick access",
+       url: ~p"/dashboard/basic/bookmarks"
+     )
+     |> assign(bookmarks: bookmarks)}
   end
 
   @impl true

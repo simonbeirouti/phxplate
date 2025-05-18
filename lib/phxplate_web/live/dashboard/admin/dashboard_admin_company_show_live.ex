@@ -3,8 +3,8 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
 
   alias Phxplate.Companies
   alias PhxplateWeb.Components.ActivityTimelineComponent
-  alias PhxplateWeb.Components.ImageUploadComponent
-  alias PhxplateWeb.Authorization
+  alias PhxplateWeb.Components.Upload.ImageUploadComponent
+  alias PhxplateWeb.{Authorization, PageMeta}
   alias Phxplate.PubSub.DataSync
   alias Phxplate.Repo
 
@@ -39,9 +39,12 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
 
         socket =
           socket
+          |> PageMeta.assign_metadata(
+            title: "#{company.name} Details",
+            description: "Company details and employee management",
+            url: ~p"/dashboard/admin/company/#{company.id}"
+          )
           |> assign(
-            page_title: "#{company.name} Details",
-            page_description: "Company details and employee management",
             company: company,
             form:
               to_form(%{
@@ -267,7 +270,8 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     {:noreply, assign(socket, :employees, updated_employees)}
   end
 
-  def handle_info({:image_uploaded, %{type: :logo, url: url}}, socket) do
+  @impl true
+  def handle_info({:image_uploaded, %{type: :logo, url: url, old_url: _old_url}}, socket) do
     case Companies.update_company(
            socket.assigns.company,
            %{"logo" => url},
@@ -296,10 +300,21 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
          |> put_flash(:info, "Company logo updated successfully.")}
 
       {:error, _changeset} ->
+        # If the company update failed, try to delete the new image to avoid orphaned files
+        if url do
+          Task.start(fn -> Phxplate.AWS.S3.delete_file(url) end)
+        end
+
         {:noreply,
          socket
          |> put_flash(:error, "Failed to update company logo.")}
     end
+  end
+
+  def handle_info({:image_uploaded_error, %{error: error_msg}}, socket) do
+    {:noreply,
+     socket
+     |> put_flash(:error, error_msg)}
   end
 
   defp authorize_company(company_id, user) do
@@ -545,6 +560,9 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                 id="company-logo"
                 type={:logo}
                 image_url={@form[:logo].value}
+                entity_type={:company}
+                entity_id={@company.id}
+                on_upload_complete="image_uploaded"
               />
             </div>
             <.form
@@ -612,172 +630,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
         </.tabs_content>
 
         <.tabs_content value="employees" class="h-[calc(100vh-250px)]">
-          <div class="space-y-4">
-            <div class="hidden lg:block overflow-x-auto">
-              <.table>
-                <.table_header>
-                  <.table_row>
-                    <.table_head>Photo</.table_head>
-                    <.table_head>Name</.table_head>
-                    <.table_head>Email</.table_head>
-                    <.table_head>Phone</.table_head>
-                    <.table_head>Position</.table_head>
-                    <.table_head>Department</.table_head>
-                    <.table_head class="text-right">Actions</.table_head>
-                  </.table_row>
-                </.table_header>
-                <.table_body>
-                  <%= for employee <- @employees do %>
-                    <.table_row>
-                      <.table_cell>
-                        <div class="flex items-center gap-2">
-                          <img
-                            src={if employee.profile, do: employee.profile.avatar_url || "/images/default-avatar.svg", else: "/images/default-avatar.svg"}
-                            alt="Employee avatar"
-                            class="w-12 h-12 rounded-full bg-gray-200"
-                          />
-                        </div>
-                      </.table_cell>
-                      <.table_cell class="font-medium">
-                        {if employee.profile do
-                          "#{employee.profile.first_name} #{employee.profile.last_name}"
-                        else
-                          "Profile Deleted"
-                        end}
-                      </.table_cell>
-                      <.table_cell>{employee.email}</.table_cell>
-                      <.table_cell>{if employee.profile, do: employee.profile.phone || "N/A", else: "N/A"}</.table_cell>
-                      <.table_cell>{employee.position || "N/A"}</.table_cell>
-                      <.table_cell>{employee.department || "N/A"}</.table_cell>
-                      <.table_cell class="text-right">
-                        <.button
-                          variant="destructive"
-                          phx-click="delete_employee"
-                          phx-value-id={employee.id}
-                        >
-                          <%= if MapSet.member?(@confirming_delete, employee.id) do %>
-                            <Lucideicons.check class="h-4 w-4" />
-                          <% else %>
-                            <Lucideicons.trash class="h-4 w-4" />
-                          <% end %>
-                        </.button>
-                      </.table_cell>
-                    </.table_row>
-                  <% end %>
-                  <%= for invitation <- @pending_invitations do %>
-                    <.table_row class="bg-black/10">
-                      <.table_cell class="font-medium">
-                        <div class="flex items-center gap-2">
-                          <span class="text-sm text-gray-700">Pending Invite</span>
-                        </div>
-                      </.table_cell>
-                      <.table_cell>{invitation.email}</.table_cell>
-                      <.table_cell>N/A</.table_cell>
-                      <.table_cell>N/A</.table_cell>
-                      <.table_cell>N/A</.table_cell>
-                      <.table_cell class="text-right">
-                        <.button
-                          variant="destructive"
-                          phx-click="cancel_invitation"
-                          phx-value-id={invitation.id}
-                        >
-                          Cancel Invitation
-                        </.button>
-                      </.table_cell>
-                    </.table_row>
-                  <% end %>
-                </.table_body>
-              </.table>
-              <div class="w-1/4">
-                <.invite_user_dialog invite_email={@invite_email} />
-              </div>
-            </div>
-
-            <div class="lg:hidden space-y-4" class="h-[calc(100vh-250px)]">
-              <.invite_user_dialog invite_email={@invite_email} />
-              <%= for invitation <- @pending_invitations do %>
-                <div class="bg-gray-100/80 rounded-lg p-4 relative">
-                  <div class="flex justify-between items-center">
-                    <div>
-                      <span class="text-sm font-medium text-gray-700">Pending Invitation:</span>
-                      <span class="text-sm text-gray-600">{invitation.email}</span>
-                    </div>
-                    <div
-                      class="group relative"
-                      phx-click="cancel_invitation"
-                      phx-value-id={invitation.id}
-                    >
-                      <.button
-                        variant="destructive"
-                        class="opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        Cancel Invitation
-                      </.button>
-                    </div>
-                  </div>
-                </div>
-              <% end %>
-              <%= for employee <- @employees do %>
-                <div class="bg-white shadow rounded-lg p-4">
-                  <div class="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 class="text-lg font-medium">
-                        {if employee.profile do
-                          "#{employee.profile.first_name} #{employee.profile.last_name}"
-                        else
-                          "Profile Deleted"
-                        end}
-                      </h3>
-                      <p class="text-sm text-gray-500">{employee.position || "No position"}</p>
-                    </div>
-
-                    <div>
-                      <div class="relative inline-block text-left">
-                        <.button
-                          variant="outline"
-                          size="sm"
-                          class="mb-2"
-                          phx-click={JS.toggle(to: "#dropdown-#{employee.id}-card")}
-                        >
-                          <Lucideicons.ellipsis class="w-5 h-5" />
-                        </.button>
-                        <div
-                          id={"dropdown-#{employee.id}-card"}
-                          class="hidden absolute right-0 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100"
-                        >
-                          <button
-                            class="group flex w-full items-center px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
-                            phx-click="delete_employee"
-                            phx-value-id={employee.id}
-                          >
-                            <%= if MapSet.member?(@confirming_delete, employee.id) do %>
-                              <Lucideicons.check class="mr-2 h-4 w-4" /> Confirm Delete
-                            <% else %>
-                              <Lucideicons.trash class="mr-2 h-4 w-4" /> Delete Employee
-                            <% end %>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <dl class="grid grid-cols-1 gap-2 text-sm">
-                    <div>
-                      <dt class="text-gray-500">Email</dt>
-                      <dd>{employee.email}</dd>
-                    </div>
-                    <div>
-                      <dt class="text-gray-500">Phone</dt>
-                      <dd>{if employee.profile, do: employee.profile.phone || "N/A", else: "N/A"}</dd>
-                    </div>
-                    <div>
-                      <dt class="text-gray-500">Department</dt>
-                      <dd>{employee.department || "N/A"}</dd>
-                    </div>
-                  </dl>
-                </div>
-              <% end %>
-            </div>
-          </div>
+          <%= render_employees_tab(assigns) %>
         </.tabs_content>
 
         <.tabs_content value="timeline">
@@ -845,6 +698,178 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
           </form>
         </div>
       </.dialog>
+    </div>
+    """
+  end
+
+  # Helper to render the employees tab
+  defp render_employees_tab(assigns) do
+    ~H"""
+    <div class="space-y-4">
+      <div class="hidden lg:block overflow-x-auto">
+        <.table>
+          <.table_header>
+            <.table_row>
+              <.table_head>Photo</.table_head>
+              <.table_head>Name</.table_head>
+              <.table_head>Email</.table_head>
+              <.table_head>Phone</.table_head>
+              <.table_head>Position</.table_head>
+              <.table_head>Department</.table_head>
+              <.table_head class="text-right">Actions</.table_head>
+            </.table_row>
+          </.table_header>
+          <.table_body>
+            <%= for employee <- @employees do %>
+              <.table_row>
+                <.table_cell>
+                  <div class="flex items-center gap-2">
+                    <img
+                      src={if employee.profile, do: employee.profile.avatar_url || "/images/default-avatar.svg", else: "/images/default-avatar.svg"}
+                      alt="Employee avatar"
+                      class="w-12 h-12 rounded-full bg-gray-200"
+                    />
+                  </div>
+                </.table_cell>
+                <.table_cell class="font-medium">
+                  {if employee.profile do
+                    "#{employee.profile.first_name} #{employee.profile.last_name}"
+                  else
+                    "Profile Deleted"
+                  end}
+                </.table_cell>
+                <.table_cell>{employee.email}</.table_cell>
+                <.table_cell>{if employee.profile, do: employee.profile.phone || "N/A", else: "N/A"}</.table_cell>
+                <.table_cell>{employee.position || "N/A"}</.table_cell>
+                <.table_cell>{employee.department || "N/A"}</.table_cell>
+                <.table_cell class="text-right">
+                  <.button
+                    variant="destructive"
+                    phx-click="delete_employee"
+                    phx-value-id={employee.id}
+                  >
+                    <%= if MapSet.member?(@confirming_delete, employee.id) do %>
+                      <Lucideicons.check class="h-4 w-4" />
+                    <% else %>
+                      <Lucideicons.trash class="h-4 w-4" />
+                    <% end %>
+                  </.button>
+                </.table_cell>
+              </.table_row>
+            <% end %>
+            <%= for invitation <- @pending_invitations do %>
+              <.table_row class="bg-black/10">
+                <.table_cell class="font-medium">
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm text-gray-700">Pending Invite</span>
+                  </div>
+                </.table_cell>
+                <.table_cell>{invitation.email}</.table_cell>
+                <.table_cell>N/A</.table_cell>
+                <.table_cell>N/A</.table_cell>
+                <.table_cell>N/A</.table_cell>
+                <.table_cell class="text-right">
+                  <.button
+                    variant="destructive"
+                    phx-click="cancel_invitation"
+                    phx-value-id={invitation.id}
+                  >
+                    Cancel Invitation
+                  </.button>
+                </.table_cell>
+              </.table_row>
+            <% end %>
+          </.table_body>
+        </.table>
+        <div class="w-1/4">
+          <.invite_user_dialog invite_email={@invite_email} />
+        </div>
+      </div>
+
+      <div class="lg:hidden space-y-4" class="h-[calc(100vh-250px)]">
+        <.invite_user_dialog invite_email={@invite_email} />
+        <%= for invitation <- @pending_invitations do %>
+          <div class="bg-gray-100/80 rounded-lg p-4 relative">
+            <div class="flex justify-between items-center">
+              <div>
+                <span class="text-sm font-medium text-gray-700">Pending Invitation:</span>
+                <span class="text-sm text-gray-600">{invitation.email}</span>
+              </div>
+              <div
+                class="group relative"
+                phx-click="cancel_invitation"
+                phx-value-id={invitation.id}
+              >
+                <.button
+                  variant="destructive"
+                  class="opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  Cancel Invitation
+                </.button>
+              </div>
+            </div>
+          </div>
+        <% end %>
+        <%= for employee <- @employees do %>
+          <div class="bg-white shadow rounded-lg p-4">
+            <div class="flex justify-between items-start mb-4">
+              <div>
+                <h3 class="text-lg font-medium">
+                  {if employee.profile do
+                    "#{employee.profile.first_name} #{employee.profile.last_name}"
+                  else
+                    "Profile Deleted"
+                  end}
+                </h3>
+                <p class="text-sm text-gray-500">{employee.position || "No position"}</p>
+              </div>
+
+              <div>
+                <div class="relative inline-block text-left">
+                  <.button
+                    variant="outline"
+                    size="sm"
+                    class="mb-2"
+                    phx-click={JS.toggle(to: "#dropdown-#{employee.id}-card")}
+                  >
+                    <Lucideicons.ellipsis class="w-5 h-5" />
+                  </.button>
+                  <div
+                    id={"dropdown-#{employee.id}-card"}
+                    class="hidden absolute right-0 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100"
+                  >
+                    <button
+                      class="group flex w-full items-center px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                      phx-click="delete_employee"
+                      phx-value-id={employee.id}
+                    >
+                      <%= if MapSet.member?(@confirming_delete, employee.id) do %>
+                        <Lucideicons.check class="mr-2 h-4 w-4" /> Confirm Delete
+                      <% else %>
+                        <Lucideicons.trash class="mr-2 h-4 w-4" /> Delete Employee
+                      <% end %>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <dl class="grid grid-cols-1 gap-2 text-sm">
+              <div>
+                <dt class="text-gray-500">Email</dt>
+                <dd>{employee.email}</dd>
+              </div>
+              <div>
+                <dt class="text-gray-500">Phone</dt>
+                <dd>{if employee.profile, do: employee.profile.phone || "N/A", else: "N/A"}</dd>
+              </div>
+              <div>
+                <dt class="text-gray-500">Department</dt>
+                <dd>{employee.department || "N/A"}</dd>
+              </div>
+            </dl>
+          </div>
+        <% end %>
+      </div>
     </div>
     """
   end

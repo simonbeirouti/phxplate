@@ -4,6 +4,7 @@ defmodule PhxplateWeb.Dashboard.User.InvitesLive do
   alias Phxplate.Companies
   alias Phxplate.PubSub.DataSync
   alias Phxplate.Repo
+  alias PhxplateWeb.PageMeta
 
   # Mount for the accept action when token is present
   @impl true
@@ -42,7 +43,11 @@ defmodule PhxplateWeb.Dashboard.User.InvitesLive do
 
     {:ok,
      socket
-     |> assign(:page_title, "My Invites")
+     |> PageMeta.assign_metadata(
+       title: "My Invites",
+       description: "View and manage your company invitations",
+       url: ~p"/dashboard/invites"
+     )
      |> assign(:pending_invites, pending_invites)}
   end
 
@@ -87,6 +92,7 @@ defmodule PhxplateWeb.Dashboard.User.InvitesLive do
 
   @impl true
   def handle_event("accept_invitation", %{"id" => invitation_id}, socket) do
+    # Convert invitation_id to integer since it comes as string from the template
     invitation_id = String.to_integer(invitation_id)
     invitation = Enum.find(socket.assigns.pending_invites, &(&1.id == invitation_id))
 

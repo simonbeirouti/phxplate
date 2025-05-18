@@ -31,7 +31,7 @@ defmodule PhxplateWeb.Layouts do
     assigns = Map.put_new(assigns, :current_path, current_path)
 
     ~H"""
-    <div class="flex flex-col lg:flex-row h-[calc(100vh-4rem)]">
+    <div class="flex flex-col lg:flex-row h-[calc(100vh-4.3rem)]">
       <div class="w-full lg:w-1/2 p-4">
         {@inner_content}
       </div>
