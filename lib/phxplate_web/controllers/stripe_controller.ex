@@ -383,22 +383,22 @@ defmodule PhxplateWeb.StripeController do
   end
 
   # Controller action for webhook
-  def webhook(conn, _params) do
-    {:ok, body, _conn} = Plug.Conn.read_body(conn)
-    signature = Plug.Conn.get_req_header(conn, "stripe-signature") |> List.first()
+  # def webhook(conn, _params) do
+  #   {:ok, body, _conn} = Plug.Conn.read_body(conn)
+  #   signature = Plug.Conn.get_req_header(conn, "stripe-signature") |> List.first()
 
-    secret = Application.get_env(:phxplate, :stripe)[:webhook_secret]
-    Logger.info("Processing Stripe webhook with signature: #{signature}")
+  #   secret = Application.get_env(:stripity_stripe, :webhook_secret)
+  #   Logger.info("Processing Stripe webhook with signature: #{signature}")
 
-    case Stripe.Webhook.construct_event(body, signature, secret) do
-      {:ok, event} ->
-        Logger.info("Successfully verified Stripe webhook: #{event.type}")
-        handle_event(event)
-        Plug.Conn.send_resp(conn, 200, "")
+  #   case Stripe.Webhook.construct_event(body, signature, secret) do
+  #     {:ok, event} ->
+  #       Logger.info("Successfully verified Stripe webhook: #{event.type}")
+  #       handle_event(event)
+  #       Plug.Conn.send_resp(conn, 200, "")
 
-      {:error, reason} ->
-        Logger.error("Failed to verify webhook: #{inspect(reason)}")
-        Plug.Conn.send_resp(conn, 400, "")
-    end
-  end
+  #     {:error, reason} ->
+  #       Logger.error("Failed to verify webhook: #{inspect(reason)}")
+  #       Plug.Conn.send_resp(conn, 400, "")
+  #   end
+  # end
 end

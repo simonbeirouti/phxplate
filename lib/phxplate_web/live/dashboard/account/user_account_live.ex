@@ -56,7 +56,8 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
       |> assign(:form, to_form(changeset))
       |> assign(:social_links, social_links)
       |> assign(:social_networks, @social_networks)
-      |> assign(:selected_tab, "profile") # Default selected tab
+      # Default selected tab
+      |> assign(:selected_tab, "profile")
 
     {:ok, socket}
   end
@@ -67,7 +68,8 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
     tab = Map.get(params, "tab", "profile")
 
     # Ensure that the tab is valid or fallback to "profile"
-    tab = if tab in ["profile", "subscription", "settings", "activities"], do: tab, else: "profile"
+    tab =
+      if tab in ["profile", "subscription", "settings", "activities"], do: tab, else: "profile"
 
     %{title: title, subtitle: subtitle} = get_tab_titles(tab)
 
@@ -103,10 +105,10 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
   @impl true
   def handle_event("save", params, socket) do
     if Map.has_key?(params, "profile") do
-        handle_profile_save(socket, params["profile"])
-      else
-    {:noreply, socket}
-  end
+      handle_profile_save(socket, params["profile"])
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
@@ -119,10 +121,10 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
         user = %{socket.assigns.user | profile: updated_profile}
 
         {:noreply,
-        socket
-        |> assign(:user, user)
-        |> assign(:form, to_form(Accounts.change_profile(updated_profile)))
-        |> put_flash(:info, "Avatar uploaded successfully")}
+         socket
+         |> assign(:user, user)
+         |> assign(:form, to_form(Accounts.change_profile(updated_profile)))
+         |> put_flash(:info, "Avatar uploaded successfully")}
 
       {:error, _changeset} ->
         # If the profile update failed, try to delete the new image to avoid orphaned files
@@ -131,8 +133,8 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
         end
 
         {:noreply,
-        socket
-        |> put_flash(:error, "Failed to update profile with new avatar")}
+         socket
+         |> put_flash(:error, "Failed to update profile with new avatar")}
     end
   end
 
@@ -153,10 +155,10 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
         user = %{socket.assigns.user | profile: updated_profile}
 
         {:noreply,
-        socket
-        |> assign(:user, user)
-        |> assign(:social_links, social_links)
-        |> assign(:form, to_form(Accounts.change_profile(updated_profile)))
+         socket
+         |> assign(:user, user)
+         |> assign(:social_links, social_links)
+         |> assign(:form, to_form(Accounts.change_profile(updated_profile)))
          |> put_flash(:info, "Profile updated successfully!")}
 
       {:error, changeset} ->
@@ -174,8 +176,8 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
           end
 
         {:noreply,
-        socket
-        |> assign(:form, to_form(changeset))
+         socket
+         |> assign(:form, to_form(changeset))
          |> put_flash(:error, error_message)}
     end
   end
@@ -214,8 +216,8 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">
       <.header>
-        {@page_title}
-        <:subtitle>{@page_subtitle}</:subtitle>
+        <%= get_tab_titles(@selected_tab).title %>
+        <:subtitle><%= @page_subtitle %></:subtitle>
       </.header>
 
       <div class="mt-4">
@@ -245,7 +247,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
           </TabsNew.tabs_list>
 
           <TabsNew.tabs_content value="profile">
-              <div class="flex flex-col items-center gap-4">
+            <div class="flex flex-col items-center gap-4">
               <.live_component
                 module={ImageUploadComponent}
                 id="profile-avatar"
@@ -254,8 +256,8 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
                 entity_type={:user}
                 entity_id={@user.id}
                 on_upload_complete="image_uploaded"
-                        />
-                      </div>
+              />
+            </div>
             <.simple_form for={@form} id="profile-form" phx-change="validate" phx-submit="save">
               <div class="grid grid-cols-2 gap-4">
                 <div>

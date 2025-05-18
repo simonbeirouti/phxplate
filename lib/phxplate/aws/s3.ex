@@ -231,7 +231,7 @@ defmodule Phxplate.AWS.S3 do
   # Private helpers
 
   defp get_bucket do
-    Application.get_env(:phxplate, :aws_s3_bucket) || "phxplated"
+    Application.get_env(:ex_aws, :bucket) || "phxplated"
   end
 
   defp get_content_type(filename) do
@@ -259,7 +259,7 @@ defmodule Phxplate.AWS.S3 do
   end
 
   defp get_file_url(bucket, path) do
-    region = Application.get_env(:ex_aws, :region, "us-east-1")
+    region = Application.get_env(:ex_aws, :region, "us-east-2")
     "https://#{bucket}.s3.#{region}.amazonaws.com/#{path}"
   end
 
