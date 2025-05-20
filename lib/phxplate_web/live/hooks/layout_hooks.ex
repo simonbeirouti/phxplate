@@ -111,7 +111,6 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
       %{
         id: company.id,
         name: company.name,
-        plan: company.plan,
         logo: company.logo || "",
         is_owner: MapSet.member?(owned_company_ids, company.id)
       }

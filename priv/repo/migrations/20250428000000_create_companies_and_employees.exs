@@ -8,7 +8,6 @@ defmodule Phxplate.Repo.Migrations.CreateCompaniesAndEmployees do
       add :address, :string
       add :phone, :string
       add :email, :string
-      add :plan, :string, null: false, default: "basic"
       add :logo, :string
       add :website, :string
       add :owner_id, references(:users, on_delete: :delete_all), null: false

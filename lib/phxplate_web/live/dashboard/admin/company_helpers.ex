@@ -36,8 +36,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyHelpers do
       email: params["email"],
       address: params["address"],
       description: params["description"],
-      owner_id: current_user.id,
-      plan: socket.assigns.subscription.plan.name
+      owner_id: current_user.id
     }
 
     case Companies.create_company(company_params) do
