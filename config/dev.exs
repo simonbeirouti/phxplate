@@ -85,5 +85,21 @@ config :phoenix_live_view,
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
 
+# Configure Resend API key for development
+config :phxplate, Phxplate.Mailer,
+  api_key: System.get_env("RESEND_API_KEY")
+
+# Stripe configuration
+config :stripity_stripe,
+  api_key: System.get_env("STRIPE_SECRET_KEY"),
+  publishable_key: System.get_env("STRIPE_PUBLISHABLE_KEY")
+
+# S3 integration
+config :ex_aws,
+  bucket: System.get_env("S3_BUCKET"),
+  access_key_id: System.get_env("S3_ACCESS_KEY_ID"),
+  secret_access_key: System.get_env("S3_SECRET_ACCESS_KEY"),
+  region: System.get_env("S3_REGION")
+
 # Path to install SaladUI components
 config :salad_ui, components_path: Path.join(File.cwd!(), "lib/phxplate_web/components")

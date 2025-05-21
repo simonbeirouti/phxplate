@@ -81,6 +81,22 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
   Updates the page metadata and subtitle based on the selected tab.
   """
   @impl true
+  def handle_params(%{"token" => token}, _url, socket) do
+    case Accounts.update_user_email(socket.assigns.current_user, token) do
+      :ok ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Email changed successfully.")
+         |> push_navigate(to: ~p"/dashboard/account?tab=settings")}
+
+      :error ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Email change link is invalid or it has expired.")
+         |> push_navigate(to: ~p"/dashboard/account?tab=settings")}
+    end
+  end
+
   def handle_params(params, _url, socket) do
     # Get the tab from params or default to "profile"
     tab = Map.get(params, "tab", "profile")
@@ -127,6 +143,11 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
     else
       {:noreply, socket}
     end
+  end
+
+  @impl true
+  def handle_info({:flash_msg, type, message}, socket) do
+    {:noreply, put_flash(socket, type, message)}
   end
 
   @impl true

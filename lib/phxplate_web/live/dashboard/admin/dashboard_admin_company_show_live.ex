@@ -73,7 +73,6 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                 "email" => company.email,
                 "phone" => company.phone,
                 "website" => company.website,
-                "plan" => company.plan,
                 "address" => company.address,
                 "description" => company.description,
                 "logo" => company.logo
@@ -173,7 +172,6 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
          "email" => company.email,
          "phone" => company.phone,
          "website" => company.website,
-         "plan" => company.plan,
          "address" => company.address,
          "description" => company.description,
          "logo" => company.logo
@@ -312,7 +310,6 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
              "email" => company.email,
              "phone" => company.phone,
              "website" => company.website,
-             "plan" => company.plan,
              "address" => company.address,
              "description" => company.description,
              "logo" => company.logo
@@ -362,7 +359,6 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
       "email" => socket.assigns.company.email,
       "phone" => socket.assigns.company.phone,
       "website" => socket.assigns.company.website,
-      "plan" => socket.assigns.company.plan,
       "address" => socket.assigns.company.address,
       "description" => socket.assigns.company.description,
       "logo" => socket.assigns.company.logo
@@ -392,7 +388,6 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
              "email" => company.email,
              "phone" => company.phone,
              "website" => company.website,
-             "plan" => company.plan,
              "address" => company.address,
              "description" => company.description,
              "logo" => company.logo
@@ -419,7 +414,6 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
          "email" => socket.assigns.company.email,
          "phone" => socket.assigns.company.phone,
          "website" => socket.assigns.company.website,
-         "plan" => socket.assigns.company.plan,
          "address" => socket.assigns.company.address,
          "description" => socket.assigns.company.description,
          "logo" => socket.assigns.company.logo
@@ -608,10 +602,6 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                 <div class="col-span-2 sm:col-span-1 space-y-2">
                   <.label for="company_website">Website</.label>
                   <.input field={@form[:website]} type="url" />
-                </div>
-                <div class="col-span-2 sm:col-span-1 space-y-2">
-                  <.label for="company_plan">Plan</.label>
-                  <.input field={@form[:plan]} type="text" />
                 </div>
                 <div class="col-span-2 sm:col-span-1 space-y-2">
                   <.label for="company_address">Address</.label>

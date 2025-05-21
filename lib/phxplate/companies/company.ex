@@ -17,7 +17,6 @@ defmodule Phxplate.Companies.Company do
     field :address, :string
     field :phone, :string
     field :email, :string
-    field :plan, :string, default: "basic"
     field :logo, :string
     field :website, :string
 
@@ -40,7 +39,7 @@ defmodule Phxplate.Companies.Company do
   """
   def changeset(company, attrs, _actor \\ nil) do
     company
-    |> cast(attrs, [:name, :description, :address, :phone, :email, :plan, :logo, :website, :owner_id])
+    |> cast(attrs, [:name, :description, :address, :phone, :email, :logo, :website, :owner_id])
     |> validate_required([:name, :owner_id])
     |> validate_owner()
     |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/, message: "must have the @ sign and no spaces")
