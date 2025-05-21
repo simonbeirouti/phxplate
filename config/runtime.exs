@@ -65,6 +65,64 @@ if config_env() == :prod do
     ],
     secret_key_base: secret_key_base
 
+  # Stripe configuration
+  stripe_secret_key =
+    System.get_env("STRIPE_SECRET_KEY") ||
+      raise """
+      environment variable STRIPE_SECRET_KEY is missing.
+      """
+
+  stripe_publishable_key =
+    System.get_env("STRIPE_PUBLISHABLE_KEY") ||
+      raise """
+      environment variable STRIPE_PUBLISHABLE_KEY is missing.
+      """
+
+  config :stripity_stripe,
+    api_key: stripe_secret_key,
+    publishable_key: stripe_publishable_key
+
+  # Resend (Email) configuration
+  resend_api_key =
+    System.get_env("RESEND_API_KEY") ||
+      raise """
+      environment variable RESEND_API_KEY is missing.
+      """
+
+  config :phxplate, Phxplate.Mailer,
+    api_key: resend_api_key
+
+  # S3 configuration
+  s3_bucket =
+    System.get_env("S3_BUCKET") ||
+      raise """
+      environment variable S3_BUCKET is missing.
+      """
+
+  s3_access_key_id =
+    System.get_env("S3_ACCESS_KEY_ID") ||
+      raise """
+      environment variable S3_ACCESS_KEY_ID is missing.
+      """
+
+  s3_secret_access_key =
+    System.get_env("S3_SECRET_ACCESS_KEY") ||
+      raise """
+      environment variable S3_SECRET_ACCESS_KEY is missing.
+      """
+
+  s3_region =
+    System.get_env("S3_REGION") ||
+      raise """
+      environment variable S3_REGION is missing.
+      """
+
+  config :ex_aws,
+    bucket: s3_bucket,
+    access_key_id: s3_access_key_id,
+    secret_access_key: s3_secret_access_key,
+    region: s3_region
+
   # ## SSL Support
   #
   # To get SSL working, you will need to add the `https` key

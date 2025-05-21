@@ -21,7 +21,6 @@ created_data = %{
   admins: [],
   basic_users: [],
   companies: [],
-  employees: [],
   profiles: [],
   subscriptions: [],
   plans: []
@@ -449,7 +448,6 @@ created_data = Enum.reduce(Enum.with_index(created_data.admins), created_data, f
     email: Faker.Internet.email(),
     logo: Faker.Avatar.image_url(),
     website: Faker.Internet.url(),
-    plan: "basic",
     owner_id: admin.id
   })
 
@@ -462,7 +460,6 @@ created_data = Enum.reduce(Enum.with_index(created_data.admins), created_data, f
     address: company.address,
     phone: company.phone,
     email: company.email,
-    plan: company.plan,
     logo: company.logo,
     website: company.website,
     owner_id: company.owner_id

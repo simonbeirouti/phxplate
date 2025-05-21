@@ -105,14 +105,14 @@ defmodule PhxplateWeb.Dashboard.Account.SettingsLive do
 
     case Accounts.update_user_password(user, password, user_params) do
       {:ok, user} ->
-        send(self(), {:flash_msg, :info, "Password updated successfully. Please log in again."})
-
         {:noreply,
          socket
          |> assign(:loading_password, false)
          |> assign(:password_form, to_form(%{}, as: :user))
          |> assign(:password_form_current_password, nil)
-         |> assign(:user, user)}
+         |> assign(:user, user)
+         |> put_flash(:info, "Password updated successfully. You will be signed out.")
+         |> push_navigate(to: ~p"/login")}
 
       {:error, changeset} ->
         message = if changeset.errors[:current_password] do
