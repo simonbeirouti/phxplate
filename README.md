@@ -27,7 +27,6 @@
    config :phxplate,
      title: "Your Site Title",
      description: "Your site description",
-     base_url: "http://localhost:4000",
      email: "your-email@example.com"
    ```
 
