@@ -145,8 +145,8 @@ Application.put_env(:phxplate, :subscriptions, %{
 
 # Create super admin
 # Uses environment variables if available, otherwise falls back to defaults
-super_admin_email = System.get_env("SUPER_ADMIN_EMAIL") || "admin@example.com"
-super_admin_password = System.get_env("SUPER_ADMIN_PASSWORD") || "changeme1234"
+super_admin_email = "admin@example.com"
+super_admin_password = "changeme1234"
 
 {:ok, super_admin} = %User{}
 |> User.registration_changeset(%{
@@ -175,7 +175,6 @@ Production seed completed successfully!
 
 Super Admin created:
 Email: #{super_admin.email}
-Password: #{super_admin_password}
 
 Please make sure to change the super admin password after first login!
 """)
