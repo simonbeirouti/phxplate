@@ -7,9 +7,8 @@ const path = require("path")
 
 module.exports = {
   content: [
-"../deps/salad_ui/lib/**/*.ex",
+    "../deps/salad_ui/lib/**/*.ex",
     "./js/**/*.js",
-    "./svelte/**/*.svelte",
     "../lib/phxplate_web.ex",
     "../lib/phxplate_web/**/*.*ex"
   ],
