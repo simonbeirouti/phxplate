@@ -59,7 +59,6 @@ defmodule Phxplate.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
-      {:live_svelte, "~> 0.16.0"},
       {:let_me, "~> 1.2.5"},
       {:salad_ui, "~> 0.14.9"},
       {:lucide_icons, "~> 2.0"},
@@ -81,7 +80,7 @@ defmodule Phxplate.MixProject do
   # See the documentation for `Mix` for more info on aliases.
   defp aliases do
     [
-      setup: ["deps.get", "ecto.setup", "cmd --cd assets npm install"],
+      setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
@@ -89,7 +88,8 @@ defmodule Phxplate.MixProject do
       "assets.build": ["tailwind phxplate", "esbuild phxplate"],
       "assets.deploy": [
         "tailwind phxplate --minify",
-        "cmd --cd assets node build.js --deploy",
+        "esbuild newnew --minify",
+        # "cmd --cd assets node build.js --deploy",
         "phx.digest"
       ]
     ]
