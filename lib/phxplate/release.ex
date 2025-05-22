@@ -22,15 +22,9 @@ defmodule Phxplate.Release do
     Application.load(@app)
   end
 
+  # For backward compatibility - just run migrations
   def setup do
-    load_app()
-
-    # Run migrations
-    for repo <- repos() do
-      {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))
-    end
-
-    # Run production seeds
-    Code.eval_file("priv/repo/prod_seeds.exs")
+    migrate()
+    IO.puts("Database migrations completed. Seeding will be handled by the application on startup.")
   end
 end

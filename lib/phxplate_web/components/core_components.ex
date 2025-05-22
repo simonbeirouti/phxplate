@@ -18,6 +18,8 @@ defmodule PhxplateWeb.CoreComponents do
   use Gettext, backend: PhxplateWeb.Gettext
 
   alias Phoenix.LiveView.JS
+  import SaladUI.Button, only: [button: 1]
+
 
   @doc """
   Renders a modal.
@@ -565,6 +567,55 @@ defmodule PhxplateWeb.CoreComponents do
   def icon(%{name: "hero-" <> _} = assigns) do
     ~H"""
     <span class={[@name, @class]} />
+    """
+  end
+
+  @doc """
+  Renders a header section with title and subtitle.
+
+  ## Examples
+
+      <.header_section title="About Us" subtitle="Learn more about our company" />
+  """
+  attr :title, :string, required: true
+  attr :subtitle, :string, default: nil
+  attr :class, :string, default: nil
+
+  def header_section(assigns) do
+    ~H"""
+    <div class={["bg-black text-white py-16", @class]}>
+      <div class="max-w-7xl mx-auto px-4 sm:px-6">
+        <div class="text-center my-12">
+          <h1 class="text-4xl md:text-5xl font-bold mb-4">{@title}</h1>
+          <p :if={@subtitle} class="text-xl md:text-2xl max-w-3xl mx-auto">{@subtitle}</p>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders the CTA with fixed data for consistency across pages
+
+  ## Examples
+
+      <.cta />
+  """
+  def cta(assigns) do
+    ~H"""
+    <div class="bg-black text-white py-16">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 text-center">
+        <h2 class="text-3xl md:text-4xl font-bold mb-4">Want to check it out?</h2>
+        <p class="text-xl mb-8 max-w-3xl mx-auto">
+          Create an account and test it out for yourself.
+        </p>
+        <.link navigate="/register">
+          <.button variant="outline" class="text-primary">
+            Create an account
+          </.button>
+        </.link>
+      </div>
+    </div>
     """
   end
 

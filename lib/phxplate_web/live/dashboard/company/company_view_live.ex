@@ -222,11 +222,6 @@ defmodule PhxplateWeb.Dashboard.Company.CompanyViewLive do
             </.link>
           </div>
         </div>
-
-        <div class="space-y-2">
-          <label class="text-sm font-medium">Plan</label>
-          <div class="text-gray-700"><%= String.capitalize(@company.plan) %></div>
-        </div>
       </div>
 
       <.header class="mt-8">

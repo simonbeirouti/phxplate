@@ -88,8 +88,7 @@ defmodule Phxplate.MixProject do
       "assets.build": ["tailwind phxplate", "esbuild phxplate"],
       "assets.deploy": [
         "tailwind phxplate --minify",
-        "esbuild newnew --minify",
-        # "cmd --cd assets node build.js --deploy",
+        "esbuild phxplate --minify",
         "phx.digest"
       ]
     ]
