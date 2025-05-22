@@ -170,7 +170,7 @@ defmodule PhxplateWeb.Components.Upload.ImageUploadComponent do
                 <.live_img_preview entry={hd(@uploads.image.entries)} class="w-full h-full object-cover" />
               <% else %>
                 <img
-                  src={@image_url || "/images/default-avatar.png"}
+                  src={@image_url || "/images/avatar.jpg"}
                   alt="Image"
                   class="w-full h-full object-cover"
                 />
