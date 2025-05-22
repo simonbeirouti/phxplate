@@ -66,12 +66,8 @@ defmodule PhxplateWeb.Public.CompaniesLive do
   @impl true
   def render(assigns) do
     ~H"""
+    <.header_section title="Companies" subtitle="Discover amazing companies" />
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div class="text-center mb-12">
-        <h1 class="text-4xl font-bold text-gray-900">Companies</h1>
-        <p class="mt-4 text-lg text-gray-500">Discover amazing companies</p>
-      </div>
-
       <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <%= for company <- @companies do %>
           <.link navigate={~p"/companies/#{company.id}"} class="block">

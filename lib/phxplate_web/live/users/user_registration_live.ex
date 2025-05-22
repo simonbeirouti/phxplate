@@ -40,7 +40,7 @@ defmodule PhxplateWeb.UserRegistrationLive do
           phx-submit="save"
           phx-change="validate"
           phx-trigger-action={@trigger_submit}
-          action={~p"/login?_action=registered"}
+          action={@login_path}
           method="post"
         >
           <.error :if={@check_errors}>
@@ -65,8 +65,19 @@ defmodule PhxplateWeb.UserRegistrationLive do
   Sets up the initial changeset for user registration, configures page metadata
   with appropriate title and description, and initializes form state variables.
   """
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
     changeset = Accounts.change_user_registration(%User{})
+
+    # Store the plan_id from URL parameters
+    selected_plan_id = params["plan_id"]
+
+    # Set the default login path based on whether we have a plan_id
+    login_path =
+      if selected_plan_id do
+        ~p"/login?_action=registered&plan_id=#{selected_plan_id}"
+      else
+        ~p"/login?_action=registered"
+      end
 
     socket =
       socket
@@ -76,6 +87,8 @@ defmodule PhxplateWeb.UserRegistrationLive do
         url: "/register"
       )
       |> assign(trigger_submit: false, check_errors: false)
+      |> assign(selected_plan_id: selected_plan_id)
+      |> assign(login_path: login_path)
       |> assign_form(changeset)
 
     {:ok, socket, temporary_assigns: [form: nil]}
@@ -97,8 +110,17 @@ defmodule PhxplateWeb.UserRegistrationLive do
             &url(~p"/confirm/#{&1}")
           )
 
+        # Add the selected plan ID as a URL parameter when redirecting to login
+        # instead of trying to modify the session directly from LiveView
+        login_path =
+          if socket.assigns[:selected_plan_id] do
+            ~p"/login?_action=registered&plan_id=#{socket.assigns.selected_plan_id}"
+          else
+            ~p"/login?_action=registered"
+          end
+
         changeset = Accounts.change_user_registration(user)
-        {:noreply, socket |> assign(trigger_submit: true) |> assign_form(changeset)}
+        {:noreply, socket |> assign(trigger_submit: true) |> assign(login_path: login_path) |> assign_form(changeset)}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, socket |> assign(check_errors: true) |> assign_form(changeset)}

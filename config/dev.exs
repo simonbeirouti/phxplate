@@ -95,10 +95,10 @@ config :stripity_stripe,
 
 # S3 integration
 config :ex_aws,
-  bucket: System.get_env("S3_BUCKET"),
-  access_key_id: System.get_env("S3_ACCESS_KEY_ID"),
-  secret_access_key: System.get_env("S3_SECRET_ACCESS_KEY"),
-  region: System.get_env("S3_REGION")
+  bucket: System.get_env("BUCKET_NAME"),
+  access_key_id: System.get_env("AWS_ACCESS_KEY_ID"),
+  secret_access_key: System.get_env("AWS_SECRET_ACCESS_KEY"),
+  region: System.get_env("AWS_REGION")
 
 # Path to install SaladUI components
 config :salad_ui, components_path: Path.join(File.cwd!(), "lib/phxplate_web/components")

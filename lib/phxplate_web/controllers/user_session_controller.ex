@@ -18,8 +18,13 @@ defmodule PhxplateWeb.UserSessionController do
     create(conn, params, "Welcome back!")
   end
 
-  defp create(conn, %{"user" => user_params}, info) do
+  defp create(conn, %{"user" => user_params} = params, info) do
     %{"email" => email, "password" => password} = user_params
+
+    # Check if plan_id was passed from URL parameters or session
+    plan_id_from_params = params["plan_id"]
+    plan_id_from_session = get_session(conn, :selected_plan_id)
+    selected_plan_id = plan_id_from_params || plan_id_from_session
 
     if user = Accounts.get_user_by_email_and_password(email, password) do
       # Track login activity
@@ -27,6 +32,14 @@ defmodule PhxplateWeb.UserSessionController do
         "ip" => conn.remote_ip |> :inet.ntoa() |> to_string(),
         "user_agent" => get_req_header(conn, "user-agent") |> List.first()
       })
+
+      conn =
+        if selected_plan_id do
+          # If we have a selected plan, preserve it for the onboarding flow
+          put_session(conn, :selected_plan_id, selected_plan_id)
+        else
+          conn
+        end
 
       conn
       |> put_flash(:info, info)

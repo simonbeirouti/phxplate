@@ -79,13 +79,15 @@ defmodule PhxplateWeb.DashboardLive do
 
   defp dashboard_card(assigns) do
     ~H"""
-    <div class="bg-white shadow rounded-lg p-6 hover:shadow-lg transition-shadow duration-300">
-      <h2 class="text-xl font-semibold text-gray-900 mb-2">{@title}</h2>
-      <p class="text-gray-600 mb-4">{@description}</p>
-      <.link navigate={@link} class="text-blue-600 hover:text-blue-800 font-medium">
-        Access Dashboard →
-      </.link>
-    </div>
+    <.link navigate={@link}>
+      <div class="bg-white shadow rounded-lg p-6 hover:shadow-lg transition-shadow duration-300">
+        <h2 class="text-xl font-semibold text-gray-900 mb-2">{@title}</h2>
+        <p class="text-gray-600 mb-4">{@description}</p>
+        <p class="text-blue-600 hover:text-blue-800 font-medium">
+          Access Dashboard →
+        </p>
+      </div>
+    </.link>
     """
   end
 end

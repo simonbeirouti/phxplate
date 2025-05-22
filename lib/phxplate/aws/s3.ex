@@ -15,16 +15,16 @@ defmodule Phxplate.AWS.S3 do
 
     cond do
       is_nil(bucket) or bucket == "" ->
-        raise "AWS S3 bucket not configured. Please set :phxplate, :aws_s3_bucket in your config."
+        raise "Bucket not configured. Please set BUCKET_NAME environment variable."
 
       is_nil(access_key) or access_key == "" ->
-        raise "AWS access key not configured. Please set :ex_aws, :access_key_id in your config."
+        raise "Access key not configured. Please set AWS_ACCESS_KEY_ID environment variable."
 
       is_nil(secret_key) or secret_key == "" ->
-        raise "AWS secret key not configured. Please set :ex_aws, :secret_access_key in your config."
+        raise "Secret key not configured. Please set AWS_SECRET_ACCESS_KEY environment variable."
 
-      is_nil(region) ->
-        {:error, "AWS region not configured. Defaulting to 'us-east-1'"}
+      is_nil(region) or region == "" ->
+        raise "Region not configured. Please set AWS_REGION environment variable."
 
       true ->
         :ok
@@ -63,6 +63,7 @@ defmodule Phxplate.AWS.S3 do
     else
       {:error, %File.Error{reason: reason}} ->
         {:error, "Could not read file: #{inspect(reason)}"}
+
       {:error, reason} ->
         {:error, "Upload failed: #{inspect(reason)}"}
     end
@@ -85,9 +86,10 @@ defmodule Phxplate.AWS.S3 do
   """
   def replace_file(%{path: path, filename: filename}, type, old_url \\ nil, opts \\ []) do
     # Don't delete default images or non-S3 URLs
-    should_delete_old = old_url &&
-                       !is_default_image?(old_url) &&
-                       is_s3_url?(old_url)
+    should_delete_old =
+      old_url &&
+        !is_default_image?(old_url) &&
+        is_s3_url?(old_url)
 
     # First upload the new file
     case upload_file(%{path: path, filename: filename}, type, opts) do
@@ -102,6 +104,7 @@ defmodule Phxplate.AWS.S3 do
             case delete_file(old_url) do
               :ok ->
                 Logger.info("Successfully deleted old file: #{old_url}")
+
               {:error, reason} ->
                 Logger.warning("Failed to delete old file: #{old_url}. Reason: #{reason}")
             end
@@ -112,7 +115,8 @@ defmodule Phxplate.AWS.S3 do
         {:ok, new_url}
 
       # Return any upload errors
-      error -> error
+      error ->
+        error
     end
   rescue
     e ->
@@ -191,7 +195,7 @@ defmodule Phxplate.AWS.S3 do
   """
   def presigned_url(path, expires_in \\ 3600) do
     bucket = get_bucket()
-    bucket |> S3.presigned_url(:get, path, [expires_in: expires_in])
+    bucket |> S3.presigned_url(:get, path, expires_in: expires_in)
   end
 
   @doc """
@@ -208,30 +212,28 @@ defmodule Phxplate.AWS.S3 do
     cond do
       # Empty URL
       url == "" -> true
-
       # Default avatar patterns
       String.contains?(url, "default-avatar") -> true
       String.contains?(url, "robohash.org") -> true
       String.contains?(url, "dicebear.com") -> true
       String.contains?(url, "ui-avatars.com") -> true
       String.contains?(url, "gravatar.com") -> true
-
       # Default logo patterns
       String.contains?(url, "default-logo") -> true
       String.contains?(url, "placeholder.com") -> true
-
       # Not a default image
       true -> false
     end
   end
 
   def is_default_image?(nil), do: true
-  def is_default_image?(_), do: true  # Consider anything non-string as default for safety
+  # Consider anything non-string as default for safety
+  def is_default_image?(_), do: true
 
   # Private helpers
 
   defp get_bucket do
-    Application.get_env(:ex_aws, :bucket) || "phxplated"
+    Application.get_env(:ex_aws, :bucket)
   end
 
   defp get_content_type(filename) do
@@ -276,6 +278,7 @@ defmodule Phxplate.AWS.S3 do
 
     # If we're using virtual host style URLs, the bucket name won't be in the path
     bucket = get_bucket()
+
     if String.starts_with?(path, "#{bucket}/") do
       String.replace_prefix(path, "#{bucket}/", "")
     else
@@ -284,9 +287,10 @@ defmodule Phxplate.AWS.S3 do
   end
 
   defp do_upload(bucket, s3_path, file_binary, content_type) do
-    operation = S3.put_object(bucket, s3_path, file_binary, [
-      {:content_type, content_type}
-    ])
+    operation =
+      S3.put_object(bucket, s3_path, file_binary, [
+        {:content_type, content_type}
+      ])
 
     ExAws.request(operation)
   end

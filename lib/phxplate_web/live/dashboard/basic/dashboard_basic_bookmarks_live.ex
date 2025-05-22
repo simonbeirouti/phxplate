@@ -25,7 +25,12 @@ defmodule PhxplateWeb.Dashboard.Basic.BookmarksLive do
       DataSync.subscribe("bookmarks", socket.assigns.current_user.id)
     end
 
-    bookmarks = Bookmarks.list_user_bookmarks(socket.assigns.current_user.id)
+    # Fetch bookmarks with company and employees preloaded
+    bookmarks =
+      Bookmarks.list_user_bookmarks(socket.assigns.current_user.id)
+      |> Enum.map(fn bookmark ->
+        %{bookmark | company: Phxplate.Repo.preload(bookmark.company, :employees)}
+      end)
 
     {:ok,
      socket
@@ -42,10 +47,10 @@ defmodule PhxplateWeb.Dashboard.Basic.BookmarksLive do
     # Only add the bookmark if it doesn't already exist in the list
     case Enum.find(socket.assigns.bookmarks, &(&1.id == bookmark.id)) do
       nil ->
-        # Reload the bookmark with company association
+        # Reload the bookmark with company association and employees
         bookmark =
           Bookmarks.get_bookmark(bookmark.user_id, bookmark.company_id)
-          |> Phxplate.Repo.preload(:company)
+          |> Phxplate.Repo.preload(company: :employees)
 
         # Update the list, ensuring no duplicates
         {:noreply,
@@ -65,6 +70,16 @@ defmodule PhxplateWeb.Dashboard.Basic.BookmarksLive do
      end)}
   end
 
+  # Helper function to check if a user is the owner of a company
+  defp is_owner?(company, user_id) do
+    company.owner_id == user_id
+  end
+
+  # Helper function to check if a user is an employee of a company
+  defp is_employee?(company, user_email) do
+    Enum.any?(company.employees, &(&1.email == user_email))
+  end
+
   @doc """
   Renders the bookmarks view showing a grid of bookmarked companies.
 
@@ -82,7 +97,16 @@ defmodule PhxplateWeb.Dashboard.Basic.BookmarksLive do
 
       <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 mt-4">
         <%= for bookmark <- @bookmarks do %>
-          <.link navigate={~p"/companies/#{bookmark.company.id}"} class="block">
+          <.link
+            navigate={
+              cond do
+                is_owner?(bookmark.company, @current_user.id) -> ~p"/dashboard/admin/company/#{bookmark.company.id}"
+                is_employee?(bookmark.company, @current_user.email) -> ~p"/dashboard/company/#{bookmark.company.id}"
+                true -> ~p"/companies/#{bookmark.company.id}"
+              end
+            }
+            class="block"
+          >
             <div class="bg-white overflow-hidden shadow rounded-lg hover:shadow-lg transition-shadow duration-200">
               <div class="h-48 bg-gray-200 flex items-center justify-center">
                 <%= if bookmark.company.logo do %>

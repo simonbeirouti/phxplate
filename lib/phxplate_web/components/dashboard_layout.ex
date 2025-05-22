@@ -64,7 +64,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
       </.sidebar_header>
       <.sidebar_content>
         <.nav_main items={@data.navMain} />
-        <.nav_projects :if={length(@data.projects) >= 1} label="Companies" projects={@data.projects} />
+        <.nav_projects :if={length(@data.companies) >= 1} label="Companies" projects={@data.companies} />
         <.nav_projects
           :if={length(@data.bookmarked) >= 1}
           label="Bookmarked"
@@ -185,9 +185,11 @@ defmodule PhxplateWeb.Components.DashboardLayout do
         <.sidebar_menu_item :for={project <- @projects}>
           <a
             href={
-              if project[:is_owner],
-                do: ~p"/dashboard/admin/company/#{project.id}",
-                else: ~p"/dashboard/company/#{project.id}"
+              cond do
+                project[:is_owner] -> ~p"/dashboard/admin/company/#{project.id}"
+                project[:is_employee] -> ~p"/dashboard/company/#{project.id}"
+                true -> ~p"/companies/#{project.id}"
+              end
             }
             class="truncate"
           >
@@ -242,7 +244,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             <.menu>
               <%= if @user.role == :basic do %>
                 <dropdownmenugroup>
-                  <.link href={~p"/dashboard/account"}>
+                  <.link href={~p"/dashboard/account?tab=subscription"}>
                     <.menu_item>
                       <.sparkles class="w-4 h-4 mr-2" /> Upgrade to Pro
                     </.menu_item>
@@ -313,9 +315,9 @@ defmodule PhxplateWeb.Components.DashboardLayout do
 
   def mobile_nav_projects(assigns) do
     ~H"""
-    <div class="space-y-1">
-      <div class="px-3 py-2 text-sm font-medium text-gray-500">Projects</div>
-      <%= for item <- @projects do %>
+    <div :if={length(@companies) >= 1} class="space-y-1">
+      <div class="px-3 py-2 text-sm font-medium text-gray-500">Companies</div>
+      <%= for item <- @companies do %>
         <.link
           href={
             if item[:is_owner],
@@ -339,14 +341,16 @@ defmodule PhxplateWeb.Components.DashboardLayout do
 
   def mobile_nav_bookmarked(assigns) do
     ~H"""
-    <div :if={length(@projects) >= 1} class="space-y-1">
+    <div :if={length(@bookmarked) >= 1} class="space-y-1">
       <div class="px-3 py-2 text-sm font-medium text-gray-500">Bookmarked</div>
-      <%= for item <- @projects do %>
+      <%= for item <- @bookmarked do %>
         <.link
           href={
-            if item[:is_owner],
-              do: ~p"/dashboard/admin/company/#{item.id}",
-              else: ~p"/dashboard/company/#{item.id}"
+            cond do
+              item[:is_owner] -> ~p"/dashboard/admin/company/#{item.id}"
+              item[:is_employee] -> ~p"/dashboard/company/#{item.id}"
+              true -> ~p"/companies/#{item.id}"
+            end
           }
           class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
         >
@@ -367,6 +371,20 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     ~H"""
     <div class="space-y-1">
       <div class="px-3 py-2 text-sm font-medium text-gray-500">Account</div>
+      <.link
+        href={~p"/dashboard/invites"}
+        class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+      >
+        <Lucideicons.mail class="mr-2 h-4 w-4" />
+        <span>Invites</span>
+      </.link>
+      <.link
+        href={~p"/dashboard/account"}
+        class="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+      >
+        <Lucideicons.settings class="mr-2 h-4 w-4" />
+        <span>Account</span>
+      </.link>
       <.link
         href={~p"/logout"}
         method="delete"

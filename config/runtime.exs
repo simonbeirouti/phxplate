@@ -94,27 +94,27 @@ if config_env() == :prod do
 
   # S3 configuration
   s3_bucket =
-    System.get_env("S3_BUCKET") ||
+    System.get_env("BUCKET_NAME") ||
       raise """
-      environment variable S3_BUCKET is missing.
+      environment variable BUCKET_NAME is missing.
       """
 
   s3_access_key_id =
-    System.get_env("S3_ACCESS_KEY_ID") ||
+    System.get_env("AWS_ACCESS_KEY_ID") ||
       raise """
-      environment variable S3_ACCESS_KEY_ID is missing.
+      environment variable AWS_ACCESS_KEY_ID is missing.
       """
 
   s3_secret_access_key =
-    System.get_env("S3_SECRET_ACCESS_KEY") ||
+    System.get_env("AWS_SECRET_ACCESS_KEY") ||
       raise """
-      environment variable S3_SECRET_ACCESS_KEY is missing.
+      environment variable AWS_SECRET_ACCESS_KEY is missing.
       """
 
   s3_region =
-    System.get_env("S3_REGION") ||
+    System.get_env("AWS_REGION") ||
       raise """
-      environment variable S3_REGION is missing.
+      environment variable AWS_REGION is missing.
       """
 
   config :ex_aws,

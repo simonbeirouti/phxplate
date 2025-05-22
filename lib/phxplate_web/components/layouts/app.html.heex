@@ -9,7 +9,7 @@
       />
     <% end %>
 
-    <header class="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+    <header class="flex h-16 shrink-0 items-center border-b gap-2 pl-2">
       <button
         type="button"
         id="mobile-menu-button"
@@ -21,7 +21,7 @@
         <Lucideicons.x class="h-6 w-6 hidden" id="close-icon" />
       </button>
 
-      <.sidebar_trigger target="main-sidebar" class="pl-1 hidden md:block">
+      <.sidebar_trigger target="main-sidebar" class="pl-2 hidden md:block">
         <Lucideicons.panel_left class="w-4 h-4" />
       </.sidebar_trigger>
 
@@ -46,8 +46,8 @@
     <div id="mobile-menu" class="hidden md:hidden">
       <div class="space-y-1 px-2 pb-3 pt-2">
         <.mobile_nav_main items={@layout_data.navMain} />
-        <.mobile_nav_projects projects={@layout_data.projects} />
-        <.mobile_nav_bookmarked projects={@layout_data.bookmarked} />
+        <.mobile_nav_projects companies={@layout_data.companies} />
+        <.mobile_nav_bookmarked bookmarked={@layout_data.bookmarked} />
         <.mobile_nav_user user={@layout_data.user} />
       </div>
     </div>

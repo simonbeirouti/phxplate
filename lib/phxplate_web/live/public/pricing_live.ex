@@ -57,21 +57,16 @@ defmodule PhxplateWeb.PricingLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="py-24 sm:py-32">
-      <div class="mx-auto max-w-7xl px-6 lg:px-8">
-        <div class="text-center mb-12">
-          <h1 class="text-4xl font-bold text-gray-900">Pricing</h1>
-          <p class="mt-4 text-lg text-gray-500">Choose the right plan for you</p>
-        </div>
-
-        <.plan_selector
-          plans={@plans}
-          current_user={@current_user}
-          current_subscription={@current_subscription}
-          loading={@loading}
-        />
-      </div>
+    <.header_section title="Pricing" subtitle="Choose the right plan for you" />
+    <div class="mx-auto max-w-7xl mt-12 mb-24">
+      <.plan_selector
+        plans={@plans}
+        current_user={@current_user}
+        current_subscription={@current_subscription}
+        loading={@loading}
+      />
     </div>
+    <.cta />
     """
   end
 
