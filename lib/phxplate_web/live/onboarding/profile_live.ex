@@ -12,6 +12,7 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
   alias Phxplate.Accounts
   alias Phxplate.Accounts.Profile
   alias PhxplateWeb.PageMeta
+  alias Phxplate.Subscriptions
 
   @doc """
   Renders the profile onboarding form with success modal when applicable.
@@ -31,7 +32,7 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
           <.header>
             Onboarding Complete!
             <:subtitle>
-              Thank you for setting up your profile. Redirecting to dashboard...
+              Thank you for setting up your profile. <%= if @has_selected_plan do %>Redirecting to complete your subscription...<% else %>Redirecting to dashboard...<% end %>
             </:subtitle>
           </.header>
         </div>
@@ -86,7 +87,7 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
   or initializes a new profile form if not. Sets up page metadata and initializes
   state for error checking and success modal.
   """
-  def mount(_params, _session, socket) do
+  def mount(params, session, socket) do
     user = socket.assigns.current_user
 
     # Check if user already has a profile
@@ -97,6 +98,9 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
 
     changeset = Accounts.change_profile(profile)
 
+    # Check if there's a selected plan in the session or URL params
+    selected_plan_id = params["plan_id"] || Map.get(session, "selected_plan_id")
+
     socket =
       socket
       |> PageMeta.assign_metadata(
@@ -106,13 +110,38 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
       )
       |> assign(:check_errors, false)
       |> assign(:show_success, false)
+      |> assign(:selected_plan_id, selected_plan_id)
+      |> assign(:has_selected_plan, not is_nil(selected_plan_id))
       |> assign_form(changeset)
 
     {:ok, socket}
   end
 
-  def handle_info(:redirect_to_dashboard, socket) do
-    {:noreply, push_navigate(socket, to: ~p"/dashboard")}
+  def handle_info(:redirect_after_onboarding, socket) do
+    # Check if user selected a plan during registration
+    case socket.assigns.selected_plan_id do
+      nil ->
+        # No plan selected, redirect to dashboard
+        {:noreply, push_navigate(socket, to: ~p"/dashboard")}
+
+      plan_id ->
+        # Plan selected, initiate Stripe checkout
+        user = socket.assigns.current_user
+        plan = Subscriptions.get_plan!(plan_id)
+
+        case Subscriptions.change_subscription_plan(user, plan) do
+          {:ok, %Stripe.Session{url: checkout_url}} ->
+            # Redirect to Stripe checkout
+            {:noreply, redirect(socket, external: checkout_url)}
+
+          {:error, _error} ->
+            # On error, redirect to dashboard with error message
+            {:noreply,
+              socket
+              |> put_flash(:error, "Failed to process subscription. Please try again later.")
+              |> push_navigate(to: ~p"/dashboard/account?tab=subscription")}
+        end
+    end
   end
 
   def handle_event("validate", %{"profile" => profile_params}, socket) do
@@ -148,7 +177,7 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
             {:ok, _updated_user} = Accounts.complete_onboarding(user)
 
             # Show success modal and schedule redirect
-            Process.send_after(self(), :redirect_to_dashboard, 2000)
+            Process.send_after(self(), :redirect_after_onboarding, 2000)
             {:noreply, assign(socket, show_success: true)}
 
           {:error, %Ecto.Changeset{} = changeset} ->
@@ -163,7 +192,7 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
             {:ok, _updated_user} = Accounts.complete_onboarding(user)
 
             # Show success modal and schedule redirect
-            Process.send_after(self(), :redirect_to_dashboard, 2000)
+            Process.send_after(self(), :redirect_after_onboarding, 2000)
             {:noreply, assign(socket, show_success: true)}
 
           {:error, %Ecto.Changeset{} = changeset} ->

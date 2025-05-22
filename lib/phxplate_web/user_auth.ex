@@ -67,10 +67,17 @@ defmodule PhxplateWeb.UserAuth do
   defp renew_session(conn) do
     delete_csrf_token()
 
+    # Preserve selected plan ID across session renewal
+    selected_plan_id = get_session(conn, :selected_plan_id)
+
     conn
     |> configure_session(renew: true)
     |> clear_session()
+    |> maybe_put_selected_plan_id(selected_plan_id)
   end
+
+  defp maybe_put_selected_plan_id(conn, nil), do: conn
+  defp maybe_put_selected_plan_id(conn, plan_id), do: put_session(conn, :selected_plan_id, plan_id)
 
   @doc """
   Logs the user out.
@@ -215,8 +222,20 @@ defmodule PhxplateWeb.UserAuth do
       # Check if user has completed onboarding
       if !Accounts.onboarding_completed?(socket.assigns.current_user) &&
            !onboarding_path?(socket) do
-        {:halt, Phoenix.LiveView.redirect(socket, to: ~p"/onboarding")}
+        # Pass selected_plan_id to onboarding if available
+        selected_plan_id = session["selected_plan_id"]
+        query_params = if selected_plan_id, do: %{plan_id: selected_plan_id}, else: %{}
+
+        {:halt, Phoenix.LiveView.redirect(socket, to: ~p"/onboarding#{query_params}")}
       else
+        # Pass the selected_plan_id to the socket if it exists
+        selected_plan_id = session["selected_plan_id"]
+        socket = if selected_plan_id do
+          Phoenix.Component.assign(socket, :selected_plan_id, selected_plan_id)
+        else
+          socket
+        end
+
         {:cont, socket}
       end
     else
@@ -276,9 +295,18 @@ defmodule PhxplateWeb.UserAuth do
       # Check if user has completed onboarding
       if !Accounts.onboarding_completed?(conn.assigns.current_user) &&
            !String.starts_with?(conn.request_path, "/onboarding") do
-        conn
-        |> redirect(to: ~p"/onboarding")
-        |> halt()
+        # Pass selected_plan_id to onboarding if available
+        selected_plan_id = get_session(conn, :selected_plan_id)
+
+        if selected_plan_id do
+          conn
+          |> redirect(to: ~p"/onboarding?plan_id=#{selected_plan_id}")
+          |> halt()
+        else
+          conn
+          |> redirect(to: ~p"/onboarding")
+          |> halt()
+        end
       else
         conn
       end
