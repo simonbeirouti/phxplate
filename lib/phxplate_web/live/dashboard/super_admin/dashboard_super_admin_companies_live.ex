@@ -77,11 +77,14 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
   end
 
   def handle_info({:deleted, %{type: :employee, employee: employee}}, socket) do
-    if socket.assigns.selected_company && employee.company_id == socket.assigns.selected_company.id do
+    if socket.assigns.selected_company &&
+         employee.company_id == socket.assigns.selected_company.id do
       # Update the selected company's employees list by removing the deleted employee
-      socket = update(socket, :selected_company, fn company ->
-        %{company | employees: Enum.reject(company.employees, &(&1.id == employee.id))}
-      end)
+      socket =
+        update(socket, :selected_company, fn company ->
+          %{company | employees: Enum.reject(company.employees, &(&1.id == employee.id))}
+        end)
+
       {:noreply, socket}
     else
       {:noreply, socket}
@@ -91,9 +94,11 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
   def handle_info({:deleted, %{type: :employee, id: employee_id}}, socket) do
     if socket.assigns.selected_company do
       # Update the selected company's employees list by removing the deleted employee
-      socket = update(socket, :selected_company, fn company ->
-        %{company | employees: Enum.reject(company.employees, &(&1.id == employee_id))}
-      end)
+      socket =
+        update(socket, :selected_company, fn company ->
+          %{company | employees: Enum.reject(company.employees, &(&1.id == employee_id))}
+        end)
+
       {:noreply, socket}
     else
       {:noreply, socket}
@@ -105,9 +110,10 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
 
     if selected_company && new_employee.company_id == selected_company.id do
       # Check if the employee already exists in the selected company's list
-      is_present = Enum.any?(selected_company.employees, fn existing_employee ->
-        existing_employee.id == new_employee.id
-      end)
+      is_present =
+        Enum.any?(selected_company.employees, fn existing_employee ->
+          existing_employee.id == new_employee.id
+        end)
 
       if is_present do
         # Employee already in the list for the selected company, do nothing.
@@ -118,15 +124,20 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
           %{selected_company | employees: [new_employee | selected_company.employees]}
 
         # Also update the main companies list if the selected company is in it
-        updated_companies_list = Enum.map(socket.assigns.companies, fn company_in_list ->
-          if company_in_list.id == updated_selected_company.id do
-            updated_selected_company
-          else
-            company_in_list
-          end
-        end)
+        updated_companies_list =
+          Enum.map(socket.assigns.companies, fn company_in_list ->
+            if company_in_list.id == updated_selected_company.id do
+              updated_selected_company
+            else
+              company_in_list
+            end
+          end)
 
-        {:noreply, assign(socket, selected_company: updated_selected_company, companies: updated_companies_list)}
+        {:noreply,
+         assign(socket,
+           selected_company: updated_selected_company,
+           companies: updated_companies_list
+         )}
       end
     else
       # Event is not for the currently selected company, or no company selected.
@@ -137,16 +148,20 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
   def handle_info({:deleted, %{type: :profile, profile: profile}}, socket) do
     if socket.assigns.selected_company do
       # Update the employee's profile in the selected company's employees list
-      socket = update(socket, :selected_company, fn company ->
-        updated_employees = Enum.map(company.employees, fn employee ->
-          if employee.profile && employee.profile.id == profile.id do
-            %{employee | profile: nil}
-          else
-            employee
-          end
+      socket =
+        update(socket, :selected_company, fn company ->
+          updated_employees =
+            Enum.map(company.employees, fn employee ->
+              if employee.profile && employee.profile.id == profile.id do
+                %{employee | profile: nil}
+              else
+                employee
+              end
+            end)
+
+          %{company | employees: updated_employees}
         end)
-        %{company | employees: updated_employees}
-      end)
+
       {:noreply, socket}
     else
       {:noreply, socket}
@@ -258,8 +273,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
         <:subtitle>Manage companies across the application</:subtitle>
       </.header>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-4 h-[calc(100vh-200px)]">
-        <div class="h-[calc(100vh-200px)] col-span-3 md:col-span-1">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-4 h-[calc(100vh-200px)]">
+        <div class="h-[calc(100vh-200px)] col-span-1">
           <h2 class="text-xl font-semibold mb-4">Company List</h2>
           <div class="divide-y">
             <%= for company <- @companies do %>
@@ -315,7 +330,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
           <% end %>
         </div>
 
-        <div class="col-span-3 md:col-span-2">
+        <div class="col-span-1">
           <h2 class="text-xl font-semibold mb-4">Company Details</h2>
           <%= if @selected_company do %>
             <.tabs :let={builder} default="details" id="company-details">
@@ -327,41 +342,43 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
 
               <.tabs_content value="details">
                 <div class="space-y-4 p-4">
-                  <div>
-                    <h4 class="text-sm font-medium text-gray-500">Company Name</h4>
-                    <p class="mt-1">{@selected_company.name}</p>
-                  </div>
-                  <div>
-                    <h4 class="text-sm font-medium text-gray-500">Description</h4>
-                    <p class="mt-1">{@selected_company.description || "No description provided"}</p>
-                  </div>
-                  <div>
-                    <h4 class="text-sm font-medium text-gray-500">Contact Email</h4>
-                    <p class="mt-1">{@selected_company.email || "No email provided"}</p>
-                  </div>
-                  <div>
-                    <h4 class="text-sm font-medium text-gray-500">Phone</h4>
-                    <p class="mt-1">{@selected_company.phone || "No phone provided"}</p>
-                  </div>
-                  <div>
-                    <h4 class="text-sm font-medium text-gray-500">Address</h4>
-                    <p class="mt-1">{@selected_company.address || "No address provided"}</p>
-                  </div>
-                  <div>
-                    <h4 class="text-sm font-medium text-gray-500">Website</h4>
-                    <p class="mt-1">
-                      <%= if @selected_company.website do %>
-                        <a
-                          href={@selected_company.website}
-                          target="_blank"
-                          class="text-primary-600 hover:text-primary-700"
-                        >
-                          {@selected_company.website}
-                        </a>
-                      <% else %>
-                        No website provided
-                      <% end %>
-                    </p>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <h4 class="text-sm font-medium text-gray-500">Company Name</h4>
+                      <p class="mt-1">{@selected_company.name}</p>
+                    </div>
+                    <div>
+                      <h4 class="text-sm font-medium text-gray-500">Description</h4>
+                      <p class="mt-1">{@selected_company.description || "No description provided"}</p>
+                    </div>
+                    <div>
+                      <h4 class="text-sm font-medium text-gray-500">Contact Email</h4>
+                      <p class="mt-1">{@selected_company.email || "No email provided"}</p>
+                    </div>
+                    <div>
+                      <h4 class="text-sm font-medium text-gray-500">Phone</h4>
+                      <p class="mt-1">{@selected_company.phone || "No phone provided"}</p>
+                    </div>
+                    <div>
+                      <h4 class="text-sm font-medium text-gray-500">Address</h4>
+                      <p class="mt-1">{@selected_company.address || "No address provided"}</p>
+                    </div>
+                    <div>
+                      <h4 class="text-sm font-medium text-gray-500">Website</h4>
+                      <p class="mt-1">
+                        <%= if @selected_company.website do %>
+                          <a
+                            href={@selected_company.website}
+                            target="_blank"
+                            class="text-primary-600 hover:text-primary-700"
+                          >
+                            {@selected_company.website}
+                          </a>
+                        <% else %>
+                          No website provided
+                        <% end %>
+                      </p>
+                    </div>
                   </div>
                   <div class="pt-4 border-t">
                     <.button
@@ -392,7 +409,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
                         <div class="py-4">
                           <div class="flex items-center justify-between">
                             <div>
-                              <p class="font-medium">{employee.profile.first_name} {employee.profile.last_name}</p>
+                              <p class="font-medium">
+                                {employee.profile.first_name} {employee.profile.last_name}
+                              </p>
                               <p class="text-sm text-gray-500">{employee.email}</p>
                               <p class="text-sm text-gray-500">Position: {employee.position}</p>
                               <p class="text-sm text-gray-500">Department: {employee.department}</p>
@@ -415,10 +434,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
                     activities={@activities}
                     company_id={@selected_company.id}
                     show_timestamps={true}
-                    timestamps={%{
-                      inserted_at: @selected_company.inserted_at,
-                      updated_at: @selected_company.updated_at
-                    }}
+                    timestamps={
+                      %{
+                        inserted_at: @selected_company.inserted_at,
+                        updated_at: @selected_company.updated_at
+                      }
+                    }
                   />
                 <% end %>
               </.tabs_content>

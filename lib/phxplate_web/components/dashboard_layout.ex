@@ -244,7 +244,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             <.menu>
               <%= if @user.role == :basic do %>
                 <dropdownmenugroup>
-                  <.link href={~p"/dashboard/account"}>
+                  <.link href={~p"/dashboard/account?tab=subscription"}>
                     <.menu_item>
                       <.sparkles class="w-4 h-4 mr-2" /> Upgrade to Pro
                     </.menu_item>
