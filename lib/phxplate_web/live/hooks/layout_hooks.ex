@@ -106,13 +106,15 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
 
     # Combine and format all companies
     owned_company_ids = MapSet.new(owned_companies, & &1.id)
+    employee_company_ids = MapSet.new(employee_companies, & &1.id)
 
     format_company = fn company ->
       %{
         id: company.id,
         name: company.name,
         logo: company.logo || "",
-        is_owner: MapSet.member?(owned_company_ids, company.id)
+        is_owner: MapSet.member?(owned_company_ids, company.id),
+        is_employee: MapSet.member?(employee_company_ids, company.id)
       }
     end
 
@@ -213,25 +215,8 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
     layout_data = %{
       current_path: current_path,
       user: user_data,
-      teams: [
-        %{
-          name: "Acme Inc",
-          logo: &Lucideicons.gallery_vertical/1,
-          plan: "Enterprise"
-        },
-        %{
-          name: "Acme Corp.",
-          logo: &Lucideicons.audio_waveform/1,
-          plan: "Startup"
-        },
-        %{
-          name: "Evil Corp.",
-          logo: &Lucideicons.command/1,
-          plan: "Free"
-        }
-      ],
       navMain: nav_main,
-      projects: all_companies,
+      companies: all_companies,
       bookmarked: bookmarked
     }
 

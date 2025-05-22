@@ -271,7 +271,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
                 <div class="flex items-center justify-between">
                   <div>
                     <p class="font-medium">{company.name}</p>
-                    <p class="text-sm text-gray-500">Plan: {company.plan}</p>
                   </div>
                   <Lucideicons.arrow_right class="w-5 h-5 mr-2" />
                 </div>
