@@ -226,7 +226,7 @@ defmodule PhxplateWeb.UserAuth do
         selected_plan_id = session["selected_plan_id"]
         query_params = if selected_plan_id, do: %{plan_id: selected_plan_id}, else: %{}
 
-        {:halt, Phoenix.LiveView.redirect(socket, to: ~p"/onboarding#{query_params}")}
+        {:halt, Phoenix.LiveView.redirect(socket, to: ~p"/onboarding?#{query_params}")}
       else
         # Pass the selected_plan_id to the socket if it exists
         selected_plan_id = session["selected_plan_id"]
