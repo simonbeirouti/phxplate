@@ -33,6 +33,7 @@ defmodule PhxplateWeb.UserSessionController do
         "user_agent" => get_req_header(conn, "user-agent") |> List.first()
       })
 
+      # Always preserve plan_id in session if it exists
       conn =
         if selected_plan_id do
           # If we have a selected plan, preserve it for the onboarding flow
@@ -40,6 +41,15 @@ defmodule PhxplateWeb.UserSessionController do
         else
           conn
         end
+
+      # For users needing onboarding, we need to check if they need to be redirected
+      # with plan_id as a query parameter
+      if !Phxplate.Accounts.onboarding_completed?(user) do
+        if selected_plan_id do
+          # Explicitly set the return path with plan_id if user needs onboarding
+          conn = put_session(conn, :user_return_to, ~p"/onboarding?plan_id=#{selected_plan_id}")
+        end
+      end
 
       conn
       |> put_flash(:info, info)
