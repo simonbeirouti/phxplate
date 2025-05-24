@@ -21,6 +21,7 @@ defmodule PhxplateWeb.Components.NavComponent do
     public_links = [
       %{href: ~p"/about", label: "About"},
       %{href: ~p"/companies", label: "Companies"},
+      %{href: ~p"/blog", label: "Blog"},
       %{href: ~p"/pricing", label: "Pricing"},
       %{href: ~p"/contact", label: "Contact"}
     ]

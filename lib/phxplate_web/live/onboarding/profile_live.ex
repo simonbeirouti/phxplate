@@ -98,8 +98,11 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
 
     changeset = Accounts.change_profile(profile)
 
-    # Check if there's a selected plan in the session or URL params
-    selected_plan_id = params["plan_id"] || Map.get(session, "selected_plan_id")
+    # Check if there's a selected plan in the URL params first, then fall back to session
+    # This ensures we prioritize the plan_id in the URL over session
+    plan_id_from_params = params["plan_id"]
+    plan_id_from_session = session["selected_plan_id"]
+    selected_plan_id = plan_id_from_params || plan_id_from_session
 
     socket =
       socket

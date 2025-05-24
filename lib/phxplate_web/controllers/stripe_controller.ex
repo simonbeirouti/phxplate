@@ -407,7 +407,7 @@ defmodule PhxplateWeb.StripeController do
   def cancel(conn, _params) do
     # Redirect to billing page after canceled checkout with subscription tab selected
     conn
-    |> put_flash(:info, "Your subscription change was canceled.")
+    |> put_flash(:error, "Your subscription was not updated.")
     |> Phoenix.Controller.redirect(to: "/dashboard/account?tab=subscription")
   end
 

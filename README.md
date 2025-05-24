@@ -205,14 +205,11 @@ When deploying to production for the first time:
    - Not create new super admin or plans
    - Preserve all existing data
 
-Next steps
+Next steps to implement
 - [] Toggle side-menu better
    - [] Display sub-items on-hover and or on-click when menu closed
-- [] Style outgoing emails
-- To implemenent
-  - [] WYSIWYG Editor (Quill or TipTap)
-  - [] Proration charge and custom checkout
-- OTP for admin + super admin 
+- [] OTP for admin + super admin 
+- [] Proration charge and custom checkout
 
 Research
 - [] PWA
