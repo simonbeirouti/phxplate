@@ -232,6 +232,10 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
     {:noreply, load_users(socket, page)}
   end
 
+  def handle_event("close_drawer", _params, socket) do
+    {:noreply, assign(socket, show_drawer: false)}
+  end
+
   @impl true
   def handle_params(params, _uri, socket) do
     page =
@@ -295,10 +299,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
   def handle_info({:deleted, %{type: :company}}, socket) do
     # Just ignore company deletion events in the users view
     {:noreply, socket}
-  end
-
-  def handle_event("close_drawer", _params, socket) do
-    {:noreply, assign(socket, show_drawer: false)}
   end
 
   @impl true

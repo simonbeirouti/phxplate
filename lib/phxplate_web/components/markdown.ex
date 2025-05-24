@@ -96,7 +96,8 @@ defmodule PhxplateWeb.Components.Markdown do
       "Hello World This is..."
 
   """
-  def excerpt(content, max_length \\ 160) when is_binary(content) and is_integer(max_length) do
+  def excerpt(content, max_length \\ 160)
+  def excerpt(content, max_length) when is_binary(content) and is_integer(max_length) do
     text = to_text(content)
 
     if String.length(text) <= max_length do
