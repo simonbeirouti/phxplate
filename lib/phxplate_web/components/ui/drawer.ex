@@ -90,7 +90,7 @@ defmodule PhxplateWeb.Components.UI.Drawer do
 
   def drawer_title(assigns) do
     ~H"""
-    <div class={classes(["text-2xl font-semibold text-white", @class])} {@rest}>
+    <div class={classes(["text-2xl font-semibold text-primary", @class])} {@rest}>
       {render_slot(@inner_block)}
     </div>
     """

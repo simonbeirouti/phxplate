@@ -168,6 +168,10 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
             url: "/dashboard/super_admin"
           },
           %{
+            title: "Platform Blogs",
+            url: "/dashboard/super_admin/blogs"
+          },
+          %{
             title: "Platform Users",
             url: "/dashboard/super_admin/users"
           },

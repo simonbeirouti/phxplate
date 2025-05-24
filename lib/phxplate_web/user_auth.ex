@@ -67,8 +67,12 @@ defmodule PhxplateWeb.UserAuth do
   defp renew_session(conn) do
     delete_csrf_token()
 
-    # Preserve selected plan ID across session renewal
-    selected_plan_id = get_session(conn, :selected_plan_id)
+    # Only preserve selected plan ID if user is coming from pricing page
+    selected_plan_id = if is_pricing_referer?(conn) do
+      get_session(conn, :selected_plan_id)
+    else
+      nil
+    end
 
     conn
     |> configure_session(renew: true)
@@ -78,6 +82,30 @@ defmodule PhxplateWeb.UserAuth do
 
   defp maybe_put_selected_plan_id(conn, nil), do: conn
   defp maybe_put_selected_plan_id(conn, plan_id), do: put_session(conn, :selected_plan_id, plan_id)
+
+  # Check if referer indicates user is coming from pricing page or registration flow
+  defp is_pricing_referer?(conn) do
+    referer = List.first(Plug.Conn.get_req_header(conn, "referer") || [])
+    current_path = conn.request_path
+
+    # Check for plan_id parameter in the login form submission
+    plan_id_in_params = conn.params["plan_id"] != nil
+
+    cond do
+      # Direct path check - user is on pricing page
+      current_path == "/pricing" -> true
+      # Check if the referer URL contains the pricing path
+      is_binary(referer) && String.contains?(referer, "/pricing") -> true
+      # Check if coming from registration with plan_id
+      is_binary(referer) && String.contains?(referer, "/register") && plan_id_in_params -> true
+      # Check if this is login with plan_id in params (from registration)
+      current_path == "/login" && plan_id_in_params -> true
+      # Check for _action=registered with plan_id in params (completing registration flow)
+      conn.params["_action"] == "registered" && plan_id_in_params -> true
+      # Otherwise not from pricing
+      true -> false
+    end
+  end
 
   @doc """
   Logs the user out.
@@ -215,21 +243,32 @@ defmodule PhxplateWeb.UserAuth do
     end
   end
 
-  def on_mount(:ensure_authenticated, _params, session, socket) do
+  def on_mount(:ensure_authenticated, params, session, socket) do
     socket = mount_current_user(socket, session)
 
     if socket.assigns.current_user do
       # Check if user has completed onboarding
       if !Accounts.onboarding_completed?(socket.assigns.current_user) &&
            !onboarding_path?(socket) do
-        # Pass selected_plan_id to onboarding if available
-        selected_plan_id = session["selected_plan_id"]
+        # Get plan_id from params first, or fall back to session if not available
+        # This ensures we prioritize plan_id directly in the URL
+        plan_id_from_params = params["plan_id"]
+        plan_id_from_session = session["selected_plan_id"]
+        selected_plan_id = plan_id_from_params || plan_id_from_session
+
+        # Always include plan_id if present - we don't need to check source path
+        # for onboarding redirects since this is the intended flow
         query_params = if selected_plan_id, do: %{plan_id: selected_plan_id}, else: %{}
 
-        {:halt, Phoenix.LiveView.redirect(socket, to: ~p"/onboarding#{query_params}")}
+        {:halt, Phoenix.LiveView.redirect(socket, to: ~p"/onboarding?#{query_params}")}
       else
-        # Pass the selected_plan_id to the socket if it exists
-        selected_plan_id = session["selected_plan_id"]
+        # Get plan_id from params first, or fall back to session if not available
+        # This ensures we prioritize plan_id directly in the URL
+        plan_id_from_params = params["plan_id"]
+        plan_id_from_session = session["selected_plan_id"]
+        selected_plan_id = plan_id_from_params || plan_id_from_session
+
+        # Always pass the selected_plan_id to the socket if it exists
         socket = if selected_plan_id do
           Phoenix.Component.assign(socket, :selected_plan_id, selected_plan_id)
         else
@@ -295,8 +334,10 @@ defmodule PhxplateWeb.UserAuth do
       # Check if user has completed onboarding
       if !Accounts.onboarding_completed?(conn.assigns.current_user) &&
            !String.starts_with?(conn.request_path, "/onboarding") do
-        # Pass selected_plan_id to onboarding if available
-        selected_plan_id = get_session(conn, :selected_plan_id)
+        # Pass selected_plan_id to onboarding if available from session or params
+        plan_id_from_params = conn.params["plan_id"]
+        plan_id_from_session = get_session(conn, :selected_plan_id)
+        selected_plan_id = plan_id_from_params || plan_id_from_session
 
         if selected_plan_id do
           conn
@@ -348,4 +389,24 @@ defmodule PhxplateWeb.UserAuth do
   end
 
   defp signed_in_path(_), do: ~p"/dashboard"
+
+  # Check if the LiveView is from the pricing page or registration flow
+  defp is_from_pricing?(socket) do
+    current_uri = socket.assigns[:current_uri] || ""
+    current_path = socket.assigns[:current_path] || ""
+    params = socket.assigns[:current_flash] || %{}
+    plan_id_in_params = socket.assigns[:selected_plan_id] != nil || get_in(socket, [:assigns, :flash, "plan_id"]) != nil
+
+    # Check if we're in registration/login/onboarding with plan_id
+    registration_with_plan = (
+      String.contains?(current_uri, "/register") && plan_id_in_params ||
+      String.contains?(current_uri, "/login") && plan_id_in_params ||
+      String.contains?(current_uri, "/onboarding") && plan_id_in_params
+    )
+
+    String.contains?(current_uri, "/pricing") ||
+    String.contains?(current_path, "/pricing") ||
+    socket.view == PhxplateWeb.PricingLive ||
+    registration_with_plan
+  end
 end

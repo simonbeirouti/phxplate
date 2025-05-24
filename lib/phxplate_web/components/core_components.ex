@@ -579,6 +579,7 @@ defmodule PhxplateWeb.CoreComponents do
   """
   attr :title, :string, required: true
   attr :subtitle, :string, default: nil
+  attr :date, :string, default: nil
   attr :class, :string, default: nil
 
   def header_section(assigns) do
@@ -588,10 +589,15 @@ defmodule PhxplateWeb.CoreComponents do
         <div class="text-center my-12">
           <h1 class="text-4xl md:text-5xl font-bold mb-4">{@title}</h1>
           <p :if={@subtitle} class="text-xl md:text-2xl max-w-3xl mx-auto">{@subtitle}</p>
+          <p :if={@date} class="mt-4 text-lg md:text-xl mx-auto">{format_date(@date)}</p>
         </div>
       </div>
     </div>
     """
+  end
+
+  defp format_date(datetime) do
+    Calendar.strftime(datetime, "%B %d, %Y")
   end
 
   @doc """

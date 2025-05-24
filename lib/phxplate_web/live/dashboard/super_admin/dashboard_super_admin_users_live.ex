@@ -11,6 +11,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
   alias Phxplate.{Accounts, Repo, Companies}
   alias PhxplateWeb.{PageMeta, Components.ActivityTimelineComponent}
   alias Phxplate.PubSub.DataSync
+  import PhxplateWeb.Components.UI.Drawer
 
   @impl true
   @doc """
@@ -29,6 +30,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
       |> assign(:subscription_statuses, [:active, :canceled, :past_due, :incomplete, :trialing])
       |> assign(:paid_tiers, [:none, :small, :medium, :large])
       |> assign(:delete_confirmation, false)
+      |> assign(:show_drawer, false)
 
     {:ok, load_users(socket, 1)}
   end
@@ -61,7 +63,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
   def handle_event("select_user", %{"id" => user_id}, socket) do
     user = Accounts.get_user!(user_id) |> Repo.preload([:profile, :subscription])
     activities = Phxplate.Tracking.get_user_activities(user_id, 20)
-    {:noreply, assign(socket, selected_user: user, activities: activities)}
+    {:noreply, assign(socket, selected_user: user, activities: activities, show_drawer: true)}
   end
 
   def handle_event("update_role", %{"role" => role, "user_id" => user_id}, socket) do
@@ -295,6 +297,10 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
     {:noreply, socket}
   end
 
+  def handle_event("close_drawer", _params, socket) do
+    {:noreply, assign(socket, show_drawer: false)}
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -315,7 +321,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
                 phx-value-id={user.id}
               >
                 <div class="flex items-center justify-between">
-                  <div>
+                  <div class="ml-2">
                     <p class="font-medium">{user.email}</p>
                     <p class="text-sm text-gray-500">ID: {user.id}</p>
                   </div>
@@ -362,272 +368,305 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
           <% end %>
         </div>
 
-        <div class="col-span-1">
+        <!-- Desktop Details View (hidden on mobile) -->
+        <div class="hidden lg:block col-span-1">
           <h2 class="text-xl font-semibold mb-4">User Details</h2>
           <%= if @selected_user do %>
-            <.tabs :let={builder} default="profile" id="user-details">
-              <.tabs_list class="grid w-full grid-cols-3">
-                <.tabs_trigger builder={builder} value="profile">Profile</.tabs_trigger>
-                <.tabs_trigger builder={builder} value="account">Account</.tabs_trigger>
-                <.tabs_trigger builder={builder} value="timeline">Timeline</.tabs_trigger>
-              </.tabs_list>
-
-              <.tabs_content value="profile">
-                <div class="space-y-4 p-4">
-                  <%= if @selected_user.profile do %>
-                    <div class="grid grid-cols-2 gap-4">
-                      <div class="col-span-1 flex items-center justify-center">
-                        <img
-                          class="w-48 h-48 rounded-full"
-                          src={@selected_user.profile.avatar_url || ""}
-                          alt="Avatar"
-                        />
-                      </div>
-                      <div class="col-span-1 flex flex-col gap-4">
-                        <div>
-                          <h4 class="text-sm font-medium text-gray-500">First Name</h4>
-                          <p class="mt-1">{@selected_user.profile.first_name || "Not provided"}</p>
-                        </div>
-                        <div>
-                          <h4 class="text-sm font-medium text-gray-500">Last Name</h4>
-                          <p class="mt-1">{@selected_user.profile.last_name || "Not provided"}</p>
-                        </div>
-                        <div>
-                          <h4 class="text-sm font-medium text-gray-500">Phone</h4>
-                          <p class="mt-1">{@selected_user.profile.phone || "Not provided"}</p>
-                        </div>
-                      </div>
-                      <div class="col-span-2">
-                        <h4 class="text-sm font-medium text-gray-500">Bio</h4>
-                        <p class="mt-1">{@selected_user.profile.bio || "Not provided"}</p>
-                      </div>
-                      <div class="col-span-1">
-                        <h4 class="text-sm font-medium text-gray-500">Location</h4>
-                        <p class="mt-1">{@selected_user.profile.location || "Not provided"}</p>
-                      </div>
-                      <div class="col-span-1">
-                        <h4 class="text-sm font-medium text-gray-500">Website</h4>
-                        <p class="mt-1">{@selected_user.profile.website || "Not provided"}</p>
-                      </div>
-                      <div class="col-span-2">
-                        <h4 class="text-sm font-medium text-gray-500">Social Links</h4>
-                        <div class="mt-1 w-full flex justify-between">
-                          <%= if @selected_user.profile.social_links && map_size(@selected_user.profile.social_links) > 0 do %>
-                            <%= for {platform, url} <- @selected_user.profile.social_links do %>
-                              <a
-                                href={url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="inline-flex mr-2 w-full"
-                              >
-                                <.button class="flex flex-row items-center gap-2 w-full">
-                                  <span class="capitalize">{platform}</span>
-                                  <Lucideicons.external_link class="w-3.5 h-3.5 ml-2" />
-                                </.button>
-                              </a>
-                            <% end %>
-                          <% else %>
-                            <p>Not provided</p>
-                          <% end %>
-                        </div>
-                      </div>
-                    </div>
-                  <% else %>
-                    <p class="text-gray-500">No profile information available</p>
-                  <% end %>
-                </div>
-              </.tabs_content>
-
-              <.tabs_content value="account">
-                <div class="space-y-4 p-4">
-                  <div class="grid grid-cols-2 gap-4">
-                    <div>
-                      <h4 class="text-sm font-medium text-gray-500">Email</h4>
-                      <p class="mt-1">{@selected_user.email}</p>
-                    </div>
-                    <div>
-                      <h4 class="text-sm font-medium text-gray-500">Account Status</h4>
-                      <p class="mt-1">
-                        {if @selected_user.confirmed_at, do: "Confirmed", else: "Pending Confirmation"}
-                      </p>
-                    </div>
-                  </div>
-                  <div class="grid grid-cols-2 gap-4">
-                    <div>
-                      <h4 class="text-sm font-medium text-gray-500">Role</h4>
-                      <form phx-change="update_role" class="mt-2">
-                        <.select
-                          :let={select}
-                          id="role-select"
-                          name="role"
-                          value={@selected_user.role}
-                        >
-                          <.select_trigger builder={select} class="capitalize w-[180px]" />
-                          <.select_content builder={select}>
-                            <.select_item builder={select} value="basic" label="Basic">
-                              Basic
-                            </.select_item>
-                            <.select_item builder={select} value="admin" label="Admin">
-                              Admin
-                            </.select_item>
-                            <.select_item builder={select} value="super_admin" label="Super Admin">
-                              Super Admin
-                            </.select_item>
-                          </.select_content>
-                        </.select>
-                        <input type="hidden" name="user_id" value={@selected_user.id} />
-                      </form>
-                    </div>
-                    <div>
-                      <h4 class="text-sm font-medium text-gray-500">Subscription Status</h4>
-                      <form phx-change="update_subscription_status" class="mt-2">
-                        <.select
-                          :let={select}
-                          id="status-select"
-                          name="status"
-                          value={
-                            if @selected_user.subscription,
-                              do: @selected_user.subscription.subscription_status
-                          }
-                          placeholder={if @selected_user.subscription, do: nil, else: "Select status"}
-                        >
-                          <.select_trigger builder={select} class="capitalize w-[180px]" />
-                          <.select_content builder={select}>
-                            <%= for status <- @subscription_statuses do %>
-                              <.select_item
-                                class="capitalize"
-                                builder={select}
-                                value={status}
-                                label={status}
-                              >
-                                <span>{status}</span>
-                              </.select_item>
-                            <% end %>
-                          </.select_content>
-                        </.select>
-                        <input type="hidden" name="user_id" value={@selected_user.id} />
-                      </form>
-                    </div>
-                    <div>
-                      <h4 class="text-sm font-medium text-gray-500">Current Plan</h4>
-                      <form phx-change="update_subscription_tier" class="mt-2">
-                        <.select
-                          :let={select}
-                          id="tier-select"
-                          name="tier"
-                          value={
-                            if @selected_user.subscription, do: @selected_user.subscription.paid_tier
-                          }
-                          placeholder={if @selected_user.subscription, do: nil, else: "Select plan"}
-                        >
-                          <.select_trigger builder={select} class="capitalize w-[180px]" />
-                          <.select_content builder={select}>
-                            <%= for tier <- @paid_tiers do %>
-                              <.select_item
-                                class="capitalize"
-                                builder={select}
-                                value={tier}
-                                label={tier}
-                              >
-                                <span>{tier}</span>
-                              </.select_item>
-                            <% end %>
-                          </.select_content>
-                        </.select>
-                        <input type="hidden" name="user_id" value={@selected_user.id} />
-                      </form>
-                    </div>
-                    <div>
-                      <h4 class="text-sm font-medium text-gray-500">Subscription End Date</h4>
-                      <p class="mt-1">
-                        <%= if @selected_user.subscription && @selected_user.subscription.subscription_period_end do %>
-                          {Calendar.strftime(
-                            @selected_user.subscription.subscription_period_end,
-                            "%B %d, %Y"
-                          )}
-                        <% else %>
-                          N/A
-                        <% end %>
-                      </p>
-                    </div>
-                  </div>
-                  <div class="grid grid-cols-2 gap-4">
-                    <div>
-                      <h4 class="text-sm font-medium text-gray-500">Customer ID</h4>
-                      <p class="mt-1">
-                        <%= if @selected_user.subscription do %>
-                          {@selected_user.subscription.stripe_customer_id}
-                        <% else %>
-                          No customer ID
-                        <% end %>
-                      </p>
-                    </div>
-                    <div>
-                      <h4 class="text-sm font-medium text-gray-500">Subscription ID</h4>
-                      <p class="mt-1">
-                        <%= if @selected_user.subscription do %>
-                          {@selected_user.subscription.stripe_subscription_id}
-                        <% else %>
-                          No subscription ID
-                        <% end %>
-                      </p>
-                    </div>
-                  </div>
-
-                  <div class="mt-8 border-t pt-6">
-                    <%= if @delete_confirmation do %>
-                      <div class="flex w-full justify-between space-x-4">
-                        <.button
-                          variant="destructive"
-                          phx-click="confirm_delete_user"
-                          phx-value-user_id={@selected_user.id}
-                          class="w-full"
-                        >
-                          Confirm Delete
-                        </.button>
-                        <.button phx-click="cancel_delete" class="w-full">
-                          Cancel
-                        </.button>
-                      </div>
-                    <% else %>
-                      <div class="flex w-full justify-between space-x-4">
-                        <.link class="w-full" href={~p"/dashboard/impersonate/#{@selected_user.id}"}>
-                          <.button class="w-full">
-                            <Lucideicons.user_cog class="-ml-0.5 mr-2 h-4 w-4" /> Impersonate User
-                          </.button>
-                        </.link>
-                        <.button variant="destructive" phx-click="delete_user" class="w-full">
-                          Delete User Account
-                        </.button>
-                      </div>
-                    <% end %>
-                  </div>
-                </div>
-              </.tabs_content>
-
-              <.tabs_content value="timeline">
-                <%= if @selected_user do %>
-                  <.live_component
-                    module={ActivityTimelineComponent}
-                    id={"activity-timeline-#{@selected_user.id}"}
-                    activities={@activities}
-                    user_id={@selected_user.id}
-                    show_timestamps={true}
-                    timestamps={%{
-                      confirmed_at: @selected_user.confirmed_at,
-                      inserted_at: @selected_user.inserted_at,
-                      updated_at: @selected_user.updated_at
-                    }}
-                  />
-                <% end %>
-              </.tabs_content>
-            </.tabs>
+            <%= render_user_details(assign(assigns, :context, "desktop")) %>
           <% else %>
             <p class="text-gray-500">Select a user to view details</p>
           <% end %>
         </div>
       </div>
+
+      <!-- Mobile Drawer -->
+      <div class="lg:hidden">
+        <.drawer
+          show={@show_drawer and @selected_user != nil}
+          direction="bottom"
+          on_cancel={JS.push("close_drawer")}
+        >
+          <.drawer_header>
+            <.drawer_title>User Details</.drawer_title>
+            <%= if @selected_user do %>
+              <.drawer_description>{@selected_user.email}</.drawer_description>
+            <% end %>
+          </.drawer_header>
+          <.drawer_content>
+            <%= if @selected_user do %>
+              <%= render_user_details(assign(assigns, :context, "mobile")) %>
+            <% end %>
+          </.drawer_content>
+        </.drawer>
+      </div>
     </div>
+    """
+  end
+
+  # Extract the user details rendering into a separate function for reuse
+  defp render_user_details(assigns) do
+    # Add a context to make component IDs unique
+    context = assigns[:context] || "desktop"
+    assigns = assign(assigns, :context, context)
+
+    ~H"""
+    <.tabs :let={builder} default="profile" id={"user-details-#{@context}"}>
+      <.tabs_list class="grid w-full grid-cols-3">
+        <.tabs_trigger builder={builder} value="profile">Profile</.tabs_trigger>
+        <.tabs_trigger builder={builder} value="account">Account</.tabs_trigger>
+        <.tabs_trigger builder={builder} value="timeline">Timeline</.tabs_trigger>
+      </.tabs_list>
+
+      <.tabs_content value="profile">
+        <div class="space-y-4 p-4">
+          <%= if @selected_user.profile do %>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="col-span-1 flex items-center justify-center">
+                <img
+                  class="w-48 h-48 rounded-full"
+                  src={@selected_user.profile.avatar_url || ""}
+                  alt="Avatar"
+                />
+              </div>
+              <div class="col-span-1 flex flex-col gap-4">
+                <div>
+                  <h4 class="text-sm font-medium text-gray-500">First Name</h4>
+                  <p class="mt-1">{@selected_user.profile.first_name || "Not provided"}</p>
+                </div>
+                <div>
+                  <h4 class="text-sm font-medium text-gray-500">Last Name</h4>
+                  <p class="mt-1">{@selected_user.profile.last_name || "Not provided"}</p>
+                </div>
+                <div>
+                  <h4 class="text-sm font-medium text-gray-500">Phone</h4>
+                  <p class="mt-1">{@selected_user.profile.phone || "Not provided"}</p>
+                </div>
+              </div>
+              <div class="col-span-2">
+                <h4 class="text-sm font-medium text-gray-500">Bio</h4>
+                <p class="mt-1">{@selected_user.profile.bio || "Not provided"}</p>
+              </div>
+              <div class="col-span-1">
+                <h4 class="text-sm font-medium text-gray-500">Location</h4>
+                <p class="mt-1">{@selected_user.profile.location || "Not provided"}</p>
+              </div>
+              <div class="col-span-1">
+                <h4 class="text-sm font-medium text-gray-500">Website</h4>
+                <p class="mt-1">{@selected_user.profile.website || "Not provided"}</p>
+              </div>
+              <div class="col-span-2">
+                <h4 class="text-sm font-medium text-gray-500">Social Links</h4>
+                <div class="mt-1 w-full flex justify-between">
+                  <%= if @selected_user.profile.social_links && map_size(@selected_user.profile.social_links) > 0 do %>
+                    <%= for {platform, url} <- @selected_user.profile.social_links do %>
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="inline-flex mr-2 w-full"
+                      >
+                        <.button class="flex flex-row items-center gap-2 w-full">
+                          <span class="capitalize">{platform}</span>
+                          <Lucideicons.external_link class="w-3.5 h-3.5 ml-2" />
+                        </.button>
+                      </a>
+                    <% end %>
+                  <% else %>
+                    <p>Not provided</p>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+          <% else %>
+            <p class="text-gray-500">No profile information available</p>
+          <% end %>
+        </div>
+      </.tabs_content>
+
+      <.tabs_content value="account">
+        <div class="space-y-4 p-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Email</h4>
+              <p class="mt-1">{@selected_user.email}</p>
+            </div>
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Account Status</h4>
+              <p class="mt-1">
+                {if @selected_user.confirmed_at, do: "Confirmed", else: "Pending Confirmation"}
+              </p>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Role</h4>
+              <form phx-change="update_role" class="mt-2">
+                <.select
+                  :let={select}
+                  id={"role-select-#{@context}"}
+                  name="role"
+                  value={@selected_user.role}
+                >
+                  <.select_trigger builder={select} class="capitalize w-[180px]" />
+                  <.select_content builder={select}>
+                    <.select_item builder={select} value="basic" label="Basic">
+                      Basic
+                    </.select_item>
+                    <.select_item builder={select} value="admin" label="Admin">
+                      Admin
+                    </.select_item>
+                    <.select_item builder={select} value="super_admin" label="Super Admin">
+                      Super Admin
+                    </.select_item>
+                  </.select_content>
+                </.select>
+                <input type="hidden" name="user_id" value={@selected_user.id} />
+              </form>
+            </div>
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Subscription Status</h4>
+              <form phx-change="update_subscription_status" class="mt-2">
+                <.select
+                  :let={select}
+                  id={"status-select-#{@context}"}
+                  name="status"
+                  value={
+                    if @selected_user.subscription,
+                      do: @selected_user.subscription.subscription_status
+                  }
+                  placeholder={if @selected_user.subscription, do: nil, else: "Select status"}
+                >
+                  <.select_trigger builder={select} class="capitalize w-[180px]" />
+                  <.select_content builder={select}>
+                    <%= for status <- @subscription_statuses do %>
+                      <.select_item
+                        class="capitalize"
+                        builder={select}
+                        value={status}
+                        label={status}
+                      >
+                        <span>{status}</span>
+                      </.select_item>
+                    <% end %>
+                  </.select_content>
+                </.select>
+                <input type="hidden" name="user_id" value={@selected_user.id} />
+              </form>
+            </div>
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Current Plan</h4>
+              <form phx-change="update_subscription_tier" class="mt-2">
+                <.select
+                  :let={select}
+                  id={"tier-select-#{@context}"}
+                  name="tier"
+                  value={
+                    if @selected_user.subscription, do: @selected_user.subscription.paid_tier
+                  }
+                  placeholder={if @selected_user.subscription, do: nil, else: "Select plan"}
+                >
+                  <.select_trigger builder={select} class="capitalize w-[180px]" />
+                  <.select_content builder={select}>
+                    <%= for tier <- @paid_tiers do %>
+                      <.select_item
+                        class="capitalize"
+                        builder={select}
+                        value={tier}
+                        label={tier}
+                      >
+                        <span>{tier}</span>
+                      </.select_item>
+                    <% end %>
+                  </.select_content>
+                </.select>
+                <input type="hidden" name="user_id" value={@selected_user.id} />
+              </form>
+            </div>
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Subscription End Date</h4>
+              <p class="mt-1">
+                <%= if @selected_user.subscription && @selected_user.subscription.subscription_period_end do %>
+                  {Calendar.strftime(
+                    @selected_user.subscription.subscription_period_end,
+                    "%B %d, %Y"
+                  )}
+                <% else %>
+                  N/A
+                <% end %>
+              </p>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Customer ID</h4>
+              <p class="mt-1">
+                <%= if @selected_user.subscription do %>
+                  {@selected_user.subscription.stripe_customer_id}
+                <% else %>
+                  No customer ID
+                <% end %>
+              </p>
+            </div>
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Subscription ID</h4>
+              <p class="mt-1">
+                <%= if @selected_user.subscription do %>
+                  {@selected_user.subscription.stripe_subscription_id}
+                <% else %>
+                  No subscription ID
+                <% end %>
+              </p>
+            </div>
+          </div>
+
+          <div class="mt-8 border-t pt-6">
+            <%= if @delete_confirmation do %>
+              <div class="flex w-full justify-between space-x-4">
+                <.button
+                  variant="destructive"
+                  phx-click="confirm_delete_user"
+                  phx-value-user_id={@selected_user.id}
+                  class="w-full"
+                >
+                  Confirm Delete
+                </.button>
+                <.button phx-click="cancel_delete" class="w-full">
+                  Cancel
+                </.button>
+              </div>
+            <% else %>
+              <div class="flex w-full justify-between space-x-4">
+                <.link class="w-full" href={~p"/dashboard/impersonate/#{@selected_user.id}"}>
+                  <.button class="w-full">
+                    <Lucideicons.user_cog class="-ml-0.5 mr-2 h-4 w-4" /> Impersonate User
+                  </.button>
+                </.link>
+                <.button variant="destructive" phx-click="delete_user" class="w-full">
+                  Delete User Account
+                </.button>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </.tabs_content>
+
+      <.tabs_content value="timeline">
+        <%= if @selected_user do %>
+          <.live_component
+            module={ActivityTimelineComponent}
+            id={"activity-timeline-user-#{@selected_user.id}-#{@context}"}
+            activities={@activities}
+            user_id={@selected_user.id}
+            show_timestamps={true}
+            timestamps={%{
+              confirmed_at: @selected_user.confirmed_at,
+              inserted_at: @selected_user.inserted_at,
+              updated_at: @selected_user.updated_at
+            }}
+          />
+        <% end %>
+      </.tabs_content>
+    </.tabs>
     """
   end
 end

@@ -88,6 +88,8 @@ defmodule PhxplateWeb.Router do
       live "/pricing", PricingLive, :index
       live "/companies", Public.CompaniesLive, :index
       live "/companies/:id", Public.CompanyShowLive, :show
+      live "/blog", Public.BlogLive, :index
+      live "/blog/:slug", Public.BlogShowLive, :show
     end
   end
 
@@ -206,6 +208,7 @@ defmodule PhxplateWeb.Router do
 
       pipe_through [:super_admin]
       live "/super_admin", Dashboard.SuperAdmin.SuperAdminLive, :index
+      live "/super_admin/blogs", Dashboard.SuperAdmin.BlogsLive, :index
       live "/super_admin/users", Dashboard.SuperAdmin.UsersLive, :index
       live "/super_admin/companies", Dashboard.SuperAdmin.CompaniesLive, :index
     end
