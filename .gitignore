@@ -37,3 +37,6 @@ npm-debug.log
 
 # Ignore exports.sh
 exports.sh
+
+# Seed file
+priv/repo/seeds.json

@@ -10,6 +10,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
   alias Phxplate.{Companies, Repo}
   alias PhxplateWeb.{PageMeta, Components.ActivityTimelineComponent}
   alias Phxplate.PubSub.DataSync
+  alias Phoenix.LiveView.JS
+  import PhxplateWeb.Components.UI.Drawer
 
   @doc """
   Initializes the LiveView with paginated companies list and PubSub subscriptions.
@@ -31,6 +33,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
       |> assign(:selected_company, nil)
       |> assign(:activities, [])
       |> assign(:confirming_delete_company, false)
+      |> assign(:show_drawer, false)
       |> PageMeta.assign_metadata(
         title: "Companies Management",
         description: "Manage companies across the application",
@@ -183,14 +186,15 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
         try do
           company = Companies.get_company!(id) |> Repo.preload([:employees])
           activities = Phxplate.Tracking.get_company_activities(id, 20)
-          {:noreply, assign(socket, selected_company: company, activities: activities)}
+          {:noreply, assign(socket, selected_company: company, activities: activities, show_drawer: true)}
         rescue
           Ecto.NoResultsError ->
             {:noreply,
              socket
              |> put_flash(:error, "Company not found or was deleted.")
              |> assign(:selected_company, nil)
-             |> assign(:activities, [])}
+             |> assign(:activities, [])
+             |> assign(:show_drawer, false)}
         end
 
       _ ->
@@ -198,7 +202,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
          socket
          |> put_flash(:error, "Invalid company ID format.")
          |> assign(:selected_company, nil)
-         |> assign(:activities, [])}
+         |> assign(:activities, [])
+         |> assign(:show_drawer, false)}
     end
   end
 
@@ -211,6 +216,10 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
     {:noreply, assign(socket, :confirming_delete_company, true)}
   end
 
+  def handle_event("cancel_delete", _params, socket) do
+    {:noreply, assign(socket, :confirming_delete_company, false)}
+  end
+
   def handle_event("delete_company", _params, socket) do
     case Companies.delete_company(socket.assigns.selected_company) do
       {:ok, _deleted_company} ->
@@ -218,6 +227,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
          socket
          |> assign(:selected_company, nil)
          |> assign(:confirming_delete_company, false)
+         |> assign(:show_drawer, false)
          |> put_flash(:info, "Company deleted successfully.")}
 
       {:error, _changeset} ->
@@ -226,6 +236,10 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
          |> put_flash(:error, "Failed to delete company.")
          |> assign(:confirming_delete_company, false)}
     end
+  end
+
+  def handle_event("close_drawer", _params, socket) do
+    {:noreply, assign(socket, show_drawer: false)}
   end
 
   @impl true
@@ -284,7 +298,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
                 phx-value-id={company.id}
               >
                 <div class="flex items-center justify-between">
-                  <div>
+                  <div class="ml-2">
                     <p class="font-medium">{company.name}</p>
                   </div>
                   <Lucideicons.arrow_right class="w-5 h-5 mr-2" />
@@ -330,126 +344,171 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
           <% end %>
         </div>
 
-        <div class="col-span-1">
+        <!-- Desktop Details View (hidden on mobile) -->
+        <div class="hidden lg:block col-span-1">
           <h2 class="text-xl font-semibold mb-4">Company Details</h2>
           <%= if @selected_company do %>
-            <.tabs :let={builder} default="details" id="company-details">
-              <.tabs_list class="grid w-full grid-cols-3">
-                <.tabs_trigger builder={builder} value="details">Details</.tabs_trigger>
-                <.tabs_trigger builder={builder} value="employees">Employees</.tabs_trigger>
-                <.tabs_trigger builder={builder} value="timeline">Timeline</.tabs_trigger>
-              </.tabs_list>
-
-              <.tabs_content value="details">
-                <div class="space-y-4 p-4">
-                  <div class="grid grid-cols-2 gap-4">
-                    <div>
-                      <h4 class="text-sm font-medium text-gray-500">Company Name</h4>
-                      <p class="mt-1">{@selected_company.name}</p>
-                    </div>
-                    <div>
-                      <h4 class="text-sm font-medium text-gray-500">Description</h4>
-                      <p class="mt-1">{@selected_company.description || "No description provided"}</p>
-                    </div>
-                    <div>
-                      <h4 class="text-sm font-medium text-gray-500">Contact Email</h4>
-                      <p class="mt-1">{@selected_company.email || "No email provided"}</p>
-                    </div>
-                    <div>
-                      <h4 class="text-sm font-medium text-gray-500">Phone</h4>
-                      <p class="mt-1">{@selected_company.phone || "No phone provided"}</p>
-                    </div>
-                    <div>
-                      <h4 class="text-sm font-medium text-gray-500">Address</h4>
-                      <p class="mt-1">{@selected_company.address || "No address provided"}</p>
-                    </div>
-                    <div>
-                      <h4 class="text-sm font-medium text-gray-500">Website</h4>
-                      <p class="mt-1">
-                        <%= if @selected_company.website do %>
-                          <a
-                            href={@selected_company.website}
-                            target="_blank"
-                            class="text-primary-600 hover:text-primary-700"
-                          >
-                            {@selected_company.website}
-                          </a>
-                        <% else %>
-                          No website provided
-                        <% end %>
-                      </p>
-                    </div>
-                  </div>
-                  <div class="pt-4 border-t">
-                    <.button
-                      :if={!@confirming_delete_company}
-                      type="button"
-                      variant="destructive"
-                      phx-click="confirm_delete_company"
-                    >
-                      Delete Company
-                    </.button>
-                    <.button
-                      :if={@confirming_delete_company}
-                      type="button"
-                      variant="destructive"
-                      phx-click="delete_company"
-                    >
-                      Confirm Delete
-                    </.button>
-                  </div>
-                </div>
-              </.tabs_content>
-
-              <.tabs_content value="employees">
-                <div class="space-y-4 p-4">
-                  <%= if Enum.any?(@selected_company.employees) do %>
-                    <div class="divide-y">
-                      <%= for employee <- @selected_company.employees do %>
-                        <div class="py-4">
-                          <div class="flex items-center justify-between">
-                            <div>
-                              <p class="font-medium">
-                                {employee.profile.first_name} {employee.profile.last_name}
-                              </p>
-                              <p class="text-sm text-gray-500">{employee.email}</p>
-                              <p class="text-sm text-gray-500">Position: {employee.position}</p>
-                              <p class="text-sm text-gray-500">Department: {employee.department}</p>
-                            </div>
-                          </div>
-                        </div>
-                      <% end %>
-                    </div>
-                  <% else %>
-                    <p class="text-gray-500">No employees found for this company</p>
-                  <% end %>
-                </div>
-              </.tabs_content>
-
-              <.tabs_content value="timeline">
-                <%= if @selected_company do %>
-                  <.live_component
-                    module={ActivityTimelineComponent}
-                    id={"activity-timeline-#{@selected_company.id}"}
-                    activities={@activities}
-                    company_id={@selected_company.id}
-                    show_timestamps={true}
-                    timestamps={
-                      %{
-                        inserted_at: @selected_company.inserted_at,
-                        updated_at: @selected_company.updated_at
-                      }
-                    }
-                  />
-                <% end %>
-              </.tabs_content>
-            </.tabs>
+            <%= render_company_details(assign(assigns, :context, "desktop")) %>
           <% else %>
             <p class="text-gray-500">Select a company to view details</p>
           <% end %>
         </div>
       </div>
+
+      <!-- Mobile Drawer -->
+      <div class="lg:hidden">
+        <.drawer
+          show={@show_drawer and @selected_company != nil}
+          direction="bottom"
+          on_cancel={JS.push("close_drawer")}
+        >
+          <.drawer_header>
+            <.drawer_title>Company Details</.drawer_title>
+            <%= if @selected_company do %>
+              <.drawer_description>{@selected_company.name}</.drawer_description>
+            <% end %>
+          </.drawer_header>
+          <.drawer_content>
+            <%= if @selected_company do %>
+              <%= render_company_details(assign(assigns, :context, "mobile")) %>
+            <% end %>
+          </.drawer_content>
+        </.drawer>
+      </div>
     </div>
+    """
+  end
+
+  # Extract the company details rendering into a separate function for reuse
+  defp render_company_details(assigns) do
+    # Add a context to make component IDs unique
+    context = assigns[:context] || "desktop"
+    assigns = assign(assigns, :context, context)
+
+    ~H"""
+    <.tabs :let={builder} default="details" id={"company-details-#{@context}"}>
+      <.tabs_list class="grid w-full grid-cols-3">
+        <.tabs_trigger builder={builder} value="details">Details</.tabs_trigger>
+        <.tabs_trigger builder={builder} value="employees">Employees</.tabs_trigger>
+        <.tabs_trigger builder={builder} value="timeline">Timeline</.tabs_trigger>
+      </.tabs_list>
+
+      <.tabs_content value="details">
+        <div class="space-y-4 pt-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Company Name</h4>
+              <p class="mt-1">{@selected_company.name}</p>
+            </div>
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Description</h4>
+              <p class="mt-1">{@selected_company.description || "No description provided"}</p>
+            </div>
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Contact Email</h4>
+              <p class="mt-1">{@selected_company.email || "No email provided"}</p>
+            </div>
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Phone</h4>
+              <p class="mt-1">{@selected_company.phone || "No phone provided"}</p>
+            </div>
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Address</h4>
+              <p class="mt-1">{@selected_company.address || "No address provided"}</p>
+            </div>
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Website</h4>
+              <p class="mt-1">
+                <%= if @selected_company.website do %>
+                  <a
+                    href={@selected_company.website}
+                    target="_blank"
+                    class="text-primary-600 hover:text-primary-700"
+                  >
+                    {@selected_company.website}
+                  </a>
+                <% else %>
+                  No website provided
+                <% end %>
+              </p>
+            </div>
+          </div>
+          <div class="pt-4 border-t w-full">
+            <%= if @confirming_delete_company do %>
+              <div class="flex w-full justify-between space-x-4">
+                <.button
+                  type="button"
+                  variant="destructive"
+                  phx-click="delete_company"
+                  class="w-full"
+                >
+                  Confirm Delete
+                </.button>
+                <.button
+                  type="button"
+                  phx-click="cancel_delete"
+                  class="w-full"
+                >
+                  Cancel
+                </.button>
+              </div>
+            <% else %>
+              <.button
+                type="button"
+                variant="destructive"
+                phx-click="confirm_delete_company"
+                class="w-full"
+              >
+                Delete Company
+              </.button>
+            <% end %>
+          </div>
+        </div>
+      </.tabs_content>
+
+      <.tabs_content value="employees">
+        <div class="space-y-4">
+          <%= if Enum.any?(@selected_company.employees) do %>
+            <div class="divide-y">
+              <%= for employee <- @selected_company.employees do %>
+                <div class="py-4">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <p class="font-medium">
+                        {employee.profile.first_name} {employee.profile.last_name}
+                      </p>
+                      <p class="text-sm text-gray-500">{employee.email}</p>
+                      <p class="text-sm text-gray-500">Position: {employee.position}</p>
+                      <p class="text-sm text-gray-500">Department: {employee.department}</p>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <p class="text-gray-500">No employees found for this company</p>
+          <% end %>
+        </div>
+      </.tabs_content>
+
+      <.tabs_content value="timeline">
+        <%= if @selected_company do %>
+          <.live_component
+            module={ActivityTimelineComponent}
+            id={"activity-timeline-company-#{@selected_company.id}-#{@context}"}
+            activities={@activities}
+            company_id={@selected_company.id}
+            show_timestamps={true}
+            timestamps={
+              %{
+                inserted_at: @selected_company.inserted_at,
+                updated_at: @selected_company.updated_at
+              }
+            }
+          />
+        <% end %>
+      </.tabs_content>
+    </.tabs>
     """
   end
 end

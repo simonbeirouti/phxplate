@@ -24,7 +24,9 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
   """
   def on_mount(:default, %{"id" => company_id}, _session, socket) do
     case authorize_company(company_id, socket.assigns.current_user) do
-      {:ok, _company} -> {:cont, socket}
+      {:ok, _company} ->
+        {:cont, socket}
+
       {:error, _reason} ->
         {:halt,
          socket
@@ -103,9 +105,10 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     # The 'new_employee' from PubSub (e.g., from accept_invitation)
     # should already have its profile preloaded.
     # Check if an employee with this ID already exists in our current list.
-    is_present = Enum.any?(socket.assigns.employees, fn existing_employee ->
-      existing_employee.id == new_employee.id
-    end)
+    is_present =
+      Enum.any?(socket.assigns.employees, fn existing_employee ->
+        existing_employee.id == new_employee.id
+      end)
 
     if is_present do
       # Employee is already in the list. Do nothing to prevent duplication.
@@ -115,14 +118,16 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
       {:noreply, socket}
     else
       # Employee is not in the list, so prepend it.
-      {:noreply, update(socket, :employees, fn existing_employees ->
-        [new_employee | existing_employees]
-      end)}
+      {:noreply,
+       update(socket, :employees, fn existing_employees ->
+         [new_employee | existing_employees]
+       end)}
     end
   end
 
   def handle_info({:updated, %{type: :employee, employee: employee}}, socket) do
     employee = Repo.preload(employee, [:profile])
+
     {:noreply,
      update(socket, :employees, fn employees ->
        Enum.map(employees, fn e -> if e.id == employee.id, do: employee, else: e end)
@@ -130,21 +135,24 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
   end
 
   def handle_info({:deleted, %{type: :employee, id: employee_id}}, socket) do
-    updated_employees = Enum.reject(socket.assigns.employees, fn employee ->
-      employee.id == employee_id
-    end)
+    updated_employees =
+      Enum.reject(socket.assigns.employees, fn employee ->
+        employee.id == employee_id
+      end)
 
     {:noreply, assign(socket, :employees, updated_employees)}
   end
 
   def handle_info({:created, %{type: :invitation, invitation: invitation}}, socket) do
     invitation = Repo.preload(invitation, [:company, :inviter])
+
     {:noreply,
      update(socket, :pending_invitations, fn invitations -> [invitation | invitations] end)}
   end
 
   def handle_info({:updated, %{type: :invitation, invitation: invitation}}, socket) do
     invitation = Repo.preload(invitation, [:company, :inviter])
+
     {:noreply,
      update(socket, :pending_invitations, fn invitations ->
        Enum.map(invitations, fn inv -> if inv.id == invitation.id, do: invitation, else: inv end)
@@ -192,9 +200,10 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
 
   def handle_info({:deleted, %{type: :user, id: user_id}}, socket) do
     # Find employees associated with the deleted user
-    employees_to_delete = Enum.filter(socket.assigns.employees, fn employee ->
-      employee.profile && employee.profile.user_id == user_id
-    end)
+    employees_to_delete =
+      Enum.filter(socket.assigns.employees, fn employee ->
+        employee.profile && employee.profile.user_id == user_id
+      end)
 
     # Delete each employee
     Enum.each(employees_to_delete, fn employee ->
@@ -202,9 +211,10 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     end)
 
     # Remove the employees from the view and refresh activities
-    updated_employees = Enum.reject(socket.assigns.employees, fn employee ->
-      employee.profile && employee.profile.user_id == user_id
-    end)
+    updated_employees =
+      Enum.reject(socket.assigns.employees, fn employee ->
+        employee.profile && employee.profile.user_id == user_id
+      end)
 
     activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
 
@@ -216,9 +226,10 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
 
   def handle_info({:deleted, %{type: :profile, id: profile_id}}, socket) do
     # Remove employees with deleted profiles
-    updated_employees = Enum.reject(socket.assigns.employees, fn employee ->
-      employee.profile && employee.profile.id == profile_id
-    end)
+    updated_employees =
+      Enum.reject(socket.assigns.employees, fn employee ->
+        employee.profile && employee.profile.id == profile_id
+      end)
 
     activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
 
@@ -230,9 +241,10 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
 
   def handle_info({:deleted, %{type: :employee, employee: employee}}, socket) do
     # Remove the specific employee from the view
-    updated_employees = Enum.reject(socket.assigns.employees, fn e ->
-      e.id == employee.id
-    end)
+    updated_employees =
+      Enum.reject(socket.assigns.employees, fn e ->
+        e.id == employee.id
+      end)
 
     activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
 
@@ -244,9 +256,10 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
 
   def handle_info({:employee_deleted, %{type: :employee, id: employee_id}}, socket) do
     # Remove the specific employee from the view
-    updated_employees = Enum.reject(socket.assigns.employees, fn employee ->
-      employee.id == employee_id
-    end)
+    updated_employees =
+      Enum.reject(socket.assigns.employees, fn employee ->
+        employee.id == employee_id
+      end)
 
     activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
 
@@ -258,34 +271,44 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
 
   # Handle global profile creation events
   def handle_info({:created, %{type: :profile, profile: new_profile, global_scope: true}}, socket) do
-    updated_employees = Enum.map(socket.assigns.employees, fn employee ->
-      # If employee is linked by user_id and this new_profile is for that user
-      if employee.profile_id == nil && employee.user_id == new_profile.user_id do
-        %{employee | profile: new_profile, profile_id: new_profile.id}
-      else
-        employee
-      end
-    end)
+    updated_employees =
+      Enum.map(socket.assigns.employees, fn employee ->
+        # If employee is linked by user_id and this new_profile is for that user
+        if employee.profile_id == nil && employee.user_id == new_profile.user_id do
+          %{employee | profile: new_profile, profile_id: new_profile.id}
+        else
+          employee
+        end
+      end)
+
     {:noreply, assign(socket, :employees, updated_employees)}
   end
 
   # Handle global profile update events that CompanyShowLive might receive
-  def handle_info({:updated, %{type: :profile, profile: updated_profile, global_scope: true}}, socket) do
-    updated_employees = Enum.map(socket.assigns.employees, fn employee ->
-      cond do
-        # Profile exists and IDs match
-        employee.profile && employee.profile.id == updated_profile.id ->
-          %{employee | profile: updated_profile}
-        # Profile was nil, but profile_id matches (should ideally not happen if preloaded correctly but good fallback)
-        !employee.profile && employee.profile_id == updated_profile.id ->
-           %{employee | profile: updated_profile}
-        # Employee is linked by user_id and this updated_profile is for that user
-        employee.user_id == updated_profile.user_id ->
-           %{employee | profile: updated_profile, profile_id: updated_profile.id}
-        true ->
-          employee
-      end
-    end)
+  def handle_info(
+        {:updated, %{type: :profile, profile: updated_profile, global_scope: true}},
+        socket
+      ) do
+    updated_employees =
+      Enum.map(socket.assigns.employees, fn employee ->
+        cond do
+          # Profile exists and IDs match
+          employee.profile && employee.profile.id == updated_profile.id ->
+            %{employee | profile: updated_profile}
+
+          # Profile was nil, but profile_id matches (should ideally not happen if preloaded correctly but good fallback)
+          !employee.profile && employee.profile_id == updated_profile.id ->
+            %{employee | profile: updated_profile}
+
+          # Employee is linked by user_id and this updated_profile is for that user
+          employee.user_id == updated_profile.user_id ->
+            %{employee | profile: updated_profile, profile_id: updated_profile.id}
+
+          true ->
+            employee
+        end
+      end)
+
     {:noreply, assign(socket, :employees, updated_employees)}
   end
 
@@ -533,6 +556,10 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     {:noreply, assign(socket, :confirming_delete_company, true)}
   end
 
+  def handle_event("cancel_delete_company", _params, socket) do
+    {:noreply, assign(socket, :confirming_delete_company, false)}
+  end
+
   def handle_event("delete_company", _params, socket) do
     case Companies.delete_company(socket.assigns.company) do
       {:ok, _deleted_company} ->
@@ -612,28 +639,48 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                   <.input field={@form[:description]} type="textarea" />
                 </div>
               </div>
-              <div class="flex justify-between gap-4">
-                <.button
-                  :if={!@confirming_delete_company}
-                  type="button"
-                  variant="destructive"
-                  phx-click="confirm_delete_company"
-                >
-                  Delete Company
-                </.button>
-                <.button
-                  :if={@confirming_delete_company}
-                  type="button"
-                  variant="destructive"
-                  phx-click="delete_company"
-                >
-                  Confirm Delete
-                </.button>
-                <div class="flex gap-4">
-                  <.button :if={@form_changed} type="button" variant="outline" phx-click="reset_company">
+              <div class="flex flex-col gap-4 lg:flex-row lg:justify-between w-full">
+                <div :if={@form_changed} class="flex flex-col gap-3 lg:flex-row lg:gap-3 lg:w-1/2">
+                  <.button
+                    :if={@form_changed}
+                    type="button"
+                    variant="outline"
+                    phx-click="reset_company"
+                    class="w-full"
+                  >
                     Reset
                   </.button>
-                  <.button :if={@form_changed} type="submit">Save Changes</.button>
+                  <.button :if={@form_changed} type="submit" class="w-full">Save Changes</.button>
+                </div>
+                <div class="flex justify-end w-full lg:w-1/2">
+                  <%= if @confirming_delete_company do %>
+                    <div class="flex flex-col gap-3 lg:flex-row lg:gap-3 w-full">
+                      <.button
+                        type="button"
+                        class="w-full"
+                        variant="destructive"
+                        phx-click="delete_company"
+                      >
+                        Confirm Delete
+                      </.button>
+                      <.button
+                        type="button"
+                        class="w-full"
+                        phx-click="cancel_delete_company"
+                      >
+                        Cancel
+                      </.button>
+                    </div>
+                  <% else %>
+                    <.button
+                      type="button"
+                      class="w-full"
+                      variant="destructive"
+                      phx-click="confirm_delete_company"
+                    >
+                      Delete Company
+                    </.button>
+                  <% end %>
                 </div>
               </div>
             </.form>
@@ -641,7 +688,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
         </.tabs_content>
 
         <.tabs_content value="employees" class="h-[calc(100vh-250px)]">
-          <%= render_employees_tab(assigns) %>
+          {render_employees_tab(assigns)}
         </.tabs_content>
 
         <.tabs_content value="timeline">
@@ -736,7 +783,11 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                 <.table_cell>
                   <div class="flex items-center gap-2">
                     <img
-                      src={if employee.profile, do: employee.profile.avatar_url || "/images/default-avatar.svg", else: "/images/default-avatar.svg"}
+                      src={
+                        if employee.profile,
+                          do: employee.profile.avatar_url || "/images/default-avatar.svg",
+                          else: "/images/default-avatar.svg"
+                      }
                       alt="Employee avatar"
                       class="w-12 h-12 rounded-full bg-gray-200"
                     />
@@ -750,7 +801,9 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                   end}
                 </.table_cell>
                 <.table_cell>{employee.email}</.table_cell>
-                <.table_cell>{if employee.profile, do: employee.profile.phone || "N/A", else: "N/A"}</.table_cell>
+                <.table_cell>
+                  {if employee.profile, do: employee.profile.phone || "N/A", else: "N/A"}
+                </.table_cell>
                 <.table_cell>{employee.position || "N/A"}</.table_cell>
                 <.table_cell>{employee.department || "N/A"}</.table_cell>
                 <.table_cell class="text-right">
@@ -806,11 +859,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                 <span class="text-sm font-medium text-gray-700">Pending Invitation:</span>
                 <span class="text-sm text-gray-600">{invitation.email}</span>
               </div>
-              <div
-                class="group relative"
-                phx-click="cancel_invitation"
-                phx-value-id={invitation.id}
-              >
+              <div class="group relative" phx-click="cancel_invitation" phx-value-id={invitation.id}>
                 <.button
                   variant="destructive"
                   class="opacity-0 group-hover:opacity-100 transition-opacity"

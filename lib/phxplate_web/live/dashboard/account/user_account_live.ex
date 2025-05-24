@@ -69,6 +69,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
       |> assign(:form, to_form(changeset))
       |> assign(:social_links, social_links)
       |> assign(:social_networks, @social_networks)
+      |> assign(:form_changed, false)
       # Default selected tab
       |> assign(:selected_tab, "profile")
 
@@ -132,8 +133,49 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
   end
 
   @impl true
+  def handle_event("validate", %{"profile" => profile_params}, socket) do
+    # Get original profile data for comparison
+    profile = socket.assigns.user.profile || %Accounts.Profile{user_id: socket.assigns.user.id}
+
+    original_data = %{
+      "first_name" => profile.first_name || "",
+      "last_name" => profile.last_name || "",
+      "phone" => profile.phone || "",
+      "location" => profile.location || "",
+      "bio" => profile.bio || "",
+      "website" => profile.website || ""
+    }
+
+    # Add social links to original data
+    original_social_data = @social_networks
+    |> Enum.reduce(%{}, fn network, acc ->
+      social_key = "social_links_#{network}"
+      social_value = if profile.social_links, do: profile.social_links[Atom.to_string(network)] || "", else: ""
+      Map.put(acc, social_key, social_value)
+    end)
+
+    original_data = Map.merge(original_data, original_social_data)
+
+    # Check if form has changed
+    form_changed = profile_params != original_data
+
+    changeset = Accounts.change_profile(profile, profile_params)
+    |> Map.put(:action, :validate)
+
+    {:noreply, assign(socket, form: to_form(changeset), form_changed: form_changed)}
+  end
+
   def handle_event("validate", _params, socket) do
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("reset_profile", _params, socket) do
+    profile = socket.assigns.user.profile || %Accounts.Profile{user_id: socket.assigns.user.id}
+    changeset = Accounts.change_profile(profile)
+    social_links = profile.social_links || %{}
+
+    {:noreply, assign(socket, form: to_form(changeset), form_changed: false, social_links: social_links)}
   end
 
   @impl true
@@ -198,6 +240,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
          |> assign(:user, user)
          |> assign(:social_links, social_links)
          |> assign(:form, to_form(Accounts.change_profile(updated_profile)))
+         |> assign(:form_changed, false)
          |> put_flash(:info, "Profile updated successfully!")}
 
       {:error, changeset} ->
@@ -307,24 +350,23 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
                     field={@form[:first_name]}
                     type="text"
                     label="First Name"
-                    phx-debounce="blur"
                   />
                 </div>
                 <div>
-                  <.input field={@form[:last_name]} type="text" label="Last Name" phx-debounce="blur" />
+                  <.input field={@form[:last_name]} type="text" label="Last Name" />
                 </div>
               </div>
 
               <div class="grid grid-cols-2 gap-4">
                 <div>
-                  <.input field={@form[:phone]} type="tel" label="Phone Number" phx-debounce="blur" />
+                  <.input field={@form[:phone]} type="tel" label="Phone Number" />
                 </div>
                 <div>
-                  <.input field={@form[:location]} type="text" label="Location" phx-debounce="blur" />
+                  <.input field={@form[:location]} type="text" label="Location" />
                 </div>
               </div>
 
-              <.input field={@form[:bio]} type="textarea" label="Bio" phx-debounce="blur" />
+              <.input field={@form[:bio]} type="textarea" label="Bio" />
 
               <div class="space-y-4">
                 <label class="block text-sm font-semibold leading-6">Links</label>
@@ -333,7 +375,6 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
                     field={@form[:website]}
                     type="url"
                     label="Website"
-                    phx-debounce="blur"
                     placeholder="https://"
                   />
                   <%= for network <- @social_networks do %>
@@ -343,7 +384,6 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
                         value={@social_links[Atom.to_string(network)]}
                         type="url"
                         label={Phoenix.Naming.humanize(network)}
-                        phx-debounce="blur"
                         placeholder={"Your #{Phoenix.Naming.humanize(network)} URL"}
                       />
                     </div>
@@ -352,9 +392,16 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
               </div>
 
               <:actions>
-                <.button phx-disable-with="Saving..." class="w-full md:w-auto mb-8">
-                  Save Profile
-                </.button>
+                <%= if @form_changed do %>
+                  <div class="flex flex-col gap-3 lg:flex-row lg:gap-3 mb-8 w-full">
+                    <.button type="button" variant="outline" phx-click="reset_profile" class="w-full">
+                      Reset
+                    </.button>
+                    <.button type="submit" phx-disable-with="Saving..." class="w-full">
+                      Save Changes
+                    </.button>
+                  </div>
+                <% end %>
               </:actions>
             </.simple_form>
           </TabsNew.tabs_content>
