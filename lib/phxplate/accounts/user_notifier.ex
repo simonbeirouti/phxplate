@@ -418,9 +418,4 @@ defmodule Phxplate.Accounts.UserNotifier do
         {:error, reason}
     end
   end
-
-  # Overload for text-only emails
-  defp deliver(recipient, subject, text_body) do
-    deliver(recipient, subject, text_body, nil)
-  end
 end

@@ -85,7 +85,10 @@ defmodule PhxplateWeb.UserAuth do
 
   # Check if referer indicates user is coming from pricing page or registration flow
   defp is_pricing_referer?(conn) do
-    referer = List.first(Plug.Conn.get_req_header(conn, "referer") || [])
+    referer = case Plug.Conn.get_req_header(conn, "referer") do
+      [ref | _] -> ref
+      _ -> nil
+    end
     current_path = conn.request_path
 
     # Check for plan_id parameter in the login form submission
@@ -389,24 +392,4 @@ defmodule PhxplateWeb.UserAuth do
   end
 
   defp signed_in_path(_), do: ~p"/dashboard"
-
-  # Check if the LiveView is from the pricing page or registration flow
-  defp is_from_pricing?(socket) do
-    current_uri = socket.assigns[:current_uri] || ""
-    current_path = socket.assigns[:current_path] || ""
-    params = socket.assigns[:current_flash] || %{}
-    plan_id_in_params = socket.assigns[:selected_plan_id] != nil || get_in(socket, [:assigns, :flash, "plan_id"]) != nil
-
-    # Check if we're in registration/login/onboarding with plan_id
-    registration_with_plan = (
-      String.contains?(current_uri, "/register") && plan_id_in_params ||
-      String.contains?(current_uri, "/login") && plan_id_in_params ||
-      String.contains?(current_uri, "/onboarding") && plan_id_in_params
-    )
-
-    String.contains?(current_uri, "/pricing") ||
-    String.contains?(current_path, "/pricing") ||
-    socket.view == PhxplateWeb.PricingLive ||
-    registration_with_plan
-  end
 end

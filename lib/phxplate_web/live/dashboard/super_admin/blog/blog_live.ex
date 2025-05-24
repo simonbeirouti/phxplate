@@ -78,7 +78,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
 
   def handle_event("create_post", %{"post" => post_params}, socket) do
     case Blog.create_post(post_params, socket.assigns.current_user) do
-      {:ok, post} ->
+      {:ok, _post} ->
         socket =
           socket
           |> put_flash(:info, "Post created successfully.")
@@ -194,6 +194,15 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
   def handle_event("paginate", %{"page" => page}, socket) do
     page = String.to_integer(page)
     {:noreply, load_posts(socket, page)}
+  end
+
+  def handle_event("close_drawer", _params, socket) do
+    {:noreply, assign(socket, show_drawer: false)}
+  end
+
+  def handle_event("reset_post", _params, socket) do
+    changeset = Blog.change_post(socket.assigns.selected_post)
+    {:noreply, assign(socket, changeset: changeset, form_changed: false)}
   end
 
   @impl true
@@ -737,14 +746,5 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
     socket = load_posts(socket, socket.assigns.page)
 
     {:noreply, socket}
-  end
-
-  def handle_event("close_drawer", _params, socket) do
-    {:noreply, assign(socket, show_drawer: false)}
-  end
-
-  def handle_event("reset_post", _params, socket) do
-    changeset = Blog.change_post(socket.assigns.selected_post)
-    {:noreply, assign(socket, changeset: changeset, form_changed: false)}
   end
 end
