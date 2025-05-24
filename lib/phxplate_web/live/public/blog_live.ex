@@ -71,7 +71,7 @@ defmodule PhxplateWeb.Public.BlogLive do
           </div>
         </div>
       <% else %>
-        <div class="space-y-8 grid grid-cols-2">
+        <div class="space-y-8 grid grid-cols-1 sm:grid-cols-2">
           <%= for post <- @posts do %>
             <.link href={~p"/blog/#{post.slug}"}>
               <article class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
@@ -159,7 +159,7 @@ defmodule PhxplateWeb.Public.BlogLive do
     {:noreply, socket}
   end
 
-  def handle_info(msg, socket) do
+  def handle_info(_msg, socket) do
     {:noreply, socket}
   end
 end

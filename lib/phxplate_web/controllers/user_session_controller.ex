@@ -47,7 +47,7 @@ defmodule PhxplateWeb.UserSessionController do
       if !Phxplate.Accounts.onboarding_completed?(user) do
         if selected_plan_id do
           # Explicitly set the return path with plan_id if user needs onboarding
-          conn = put_session(conn, :user_return_to, ~p"/onboarding?plan_id=#{selected_plan_id}")
+          ^conn = put_session(conn, :user_return_to, ~p"/onboarding?plan_id=#{selected_plan_id}")
         end
       end
 
