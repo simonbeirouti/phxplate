@@ -18,6 +18,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
   Collects summary statistics about users, companies, employees, subscriptions,
   and revenue. Sets up PubSub subscriptions for real-time updates to these metrics.
   """
+  @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
       # Subscribe to all relevant topics for real-time updates
@@ -47,7 +48,15 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
      )}
   end
 
+  @impl true
+  def handle_params(_params, url, socket) do
+    uri = URI.parse(url)
+    socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
+    {:noreply, socket}
+  end
+
   # Handle employee creation - only global scope
+  @impl true
   def handle_info({:created, %{type: :employee, employee: _employee, global_scope: true}}, socket) do
     {:noreply,
      update(socket, :stats, fn stats ->
@@ -142,6 +151,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
   employees, subscriptions, and revenue in card format, with appropriate icons
   and links to detailed views.
   """
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">

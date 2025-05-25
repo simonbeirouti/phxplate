@@ -245,6 +245,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
   end
 
   @impl true
+  def handle_params(_params, url, socket) do
+    uri = URI.parse(url)
+    socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
+    {:noreply, socket}
+  end
+
   def handle_params(params, _uri, socket) do
     page =
       case params["page"] do

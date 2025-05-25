@@ -237,14 +237,10 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
   end
 
   @impl true
-  def handle_params(params, _uri, socket) do
-    page =
-      case params["page"] do
-        nil -> 1
-        page_param -> String.to_integer(page_param)
-      end
-
-    {:noreply, load_users(socket, page)}
+  def handle_params(_params, url, socket) do
+    uri = URI.parse(url)
+    socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
+    {:noreply, socket}
   end
 
   @impl true
