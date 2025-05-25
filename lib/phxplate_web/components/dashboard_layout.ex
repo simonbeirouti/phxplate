@@ -38,12 +38,12 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             <Lucideicons.x class="h-6 w-6 hidden" id="close-icon" />
           </button>
 
-          <.sidebar_trigger target="main-sidebar" class="pl-2 hidden md:block">
+          <!-- <.sidebar_trigger target="main-sidebar" class="pl-2 hidden md:block">
             <Lucideicons.panel_left class="w-4 h-4" />
-          </.sidebar_trigger>
+          </.sidebar_trigger> -->
 
-          <.separator orientation="vertical" class="mr-2 h-4" />
-          <.breadcrumb>
+          <!-- <.separator orientation="vertical" class="mr-2 h-4" /> -->
+          <.breadcrumb class="ml-4">
             <.breadcrumb_list>
               <%= for {item, idx} <- Enum.with_index(dashboard_breadcrumbs(@layout_data.current_path)) do %>
                 <.breadcrumb_item>
