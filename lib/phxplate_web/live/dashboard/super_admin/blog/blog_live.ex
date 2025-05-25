@@ -553,9 +553,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
                 }
                 placeholder="url-friendly-slug"
               />
-              <p class="text-sm text-gray-500">
-                Will be auto-generated from title if empty
-              </p>
             </div>
 
             <div class="space-y-2 col-span-2">

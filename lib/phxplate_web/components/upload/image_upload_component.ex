@@ -161,7 +161,7 @@ defmodule PhxplateWeb.Components.Upload.ImageUploadComponent do
   @impl true
   def render(assigns) do
     ~H"""
-    <div>
+    <div class="mt-4">
       <form phx-submit="save" phx-change="validate" phx-target={@myself}>
         <div class="flex items-center gap-4">
           <div class="relative w-32 h-32" phx-drop-target={@uploads.image.ref}>

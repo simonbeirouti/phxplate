@@ -186,7 +186,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
         try do
           company = Companies.get_company!(id) |> Repo.preload([:employees])
           activities = Phxplate.Tracking.get_company_activities(id, 20)
-          {:noreply, assign(socket, selected_company: company, activities: activities, show_drawer: true)}
+
+          {:noreply,
+           assign(socket, selected_company: company, activities: activities, show_drawer: true)}
         rescue
           Ecto.NoResultsError ->
             {:noreply,
@@ -344,18 +346,18 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
           <% end %>
         </div>
 
-        <!-- Desktop Details View (hidden on mobile) -->
+    <!-- Desktop Details View (hidden on mobile) -->
         <div class="hidden lg:block col-span-1">
           <h2 class="text-xl font-semibold mb-4">Company Details</h2>
           <%= if @selected_company do %>
-            <%= render_company_details(assign(assigns, :context, "desktop")) %>
+            {render_company_details(assign(assigns, :context, "desktop"))}
           <% else %>
             <p class="text-gray-500">Select a company to view details</p>
           <% end %>
         </div>
       </div>
 
-      <!-- Mobile Drawer -->
+    <!-- Mobile Drawer -->
       <div class="lg:hidden">
         <.drawer
           show={@show_drawer and @selected_company != nil}
@@ -370,7 +372,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
           </.drawer_header>
           <.drawer_content>
             <%= if @selected_company do %>
-              <%= render_company_details(assign(assigns, :context, "mobile")) %>
+              {render_company_details(assign(assigns, :context, "mobile"))}
             <% end %>
           </.drawer_content>
         </.drawer>
@@ -394,7 +396,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
       </.tabs_list>
 
       <.tabs_content value="details">
-        <div class="space-y-4 pt-4">
+        <div class="space-y-4 p-2">
           <div class="grid grid-cols-2 gap-4">
             <div>
               <h4 class="text-sm font-medium text-gray-500">Company Name</h4>
@@ -436,19 +438,10 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
           <div class="pt-4 border-t w-full">
             <%= if @confirming_delete_company do %>
               <div class="flex w-full justify-between space-x-4">
-                <.button
-                  type="button"
-                  variant="destructive"
-                  phx-click="delete_company"
-                  class="w-full"
-                >
+                <.button type="button" variant="destructive" phx-click="delete_company" class="w-full">
                   Confirm Delete
                 </.button>
-                <.button
-                  type="button"
-                  phx-click="cancel_delete"
-                  class="w-full"
-                >
+                <.button type="button" phx-click="cancel_delete" class="w-full">
                   Cancel
                 </.button>
               </div>
@@ -467,20 +460,18 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
       </.tabs_content>
 
       <.tabs_content value="employees">
-        <div class="space-y-4">
+        <div class="space-y-4 p-2">
           <%= if Enum.any?(@selected_company.employees) do %>
             <div class="divide-y">
               <%= for employee <- @selected_company.employees do %>
-                <div class="py-4">
-                  <div class="flex items-center justify-between">
-                    <div>
-                      <p class="font-medium">
-                        {employee.profile.first_name} {employee.profile.last_name}
-                      </p>
-                      <p class="text-sm text-gray-500">{employee.email}</p>
-                      <p class="text-sm text-gray-500">Position: {employee.position}</p>
-                      <p class="text-sm text-gray-500">Department: {employee.department}</p>
-                    </div>
+                <div class="flex items-center justify-between py-2">
+                  <div>
+                    <p class="font-medium">
+                      {employee.profile.first_name} {employee.profile.last_name}
+                    </p>
+                    <p class="text-sm text-gray-500">{employee.email}</p>
+                    <p class="text-sm text-gray-500">Position: {employee.position}</p>
+                    <p class="text-sm text-gray-500">Department: {employee.department}</p>
                   </div>
                 </div>
               <% end %>
