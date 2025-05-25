@@ -251,16 +251,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
     {:noreply, socket}
   end
 
-  def handle_params(params, _uri, socket) do
-    page =
-      case params["page"] do
-        nil -> 1
-        page_param -> String.to_integer(page_param)
-      end
-
-    {:noreply, load_companies(socket, page)}
-  end
-
   defp load_companies(socket, page) do
     per_page = 10
 

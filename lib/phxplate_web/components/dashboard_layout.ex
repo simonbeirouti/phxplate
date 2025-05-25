@@ -43,7 +43,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
           </.sidebar_trigger> -->
 
           <!-- <.separator orientation="vertical" class="mr-2 h-4" /> -->
-          <.breadcrumb class="ml-4">
+          <.breadcrumb class="ml-0 sm:ml-4">
             <.breadcrumb_list>
               <%= for {item, idx} <- Enum.with_index(dashboard_breadcrumbs(@layout_data.current_path)) do %>
                 <.breadcrumb_item>

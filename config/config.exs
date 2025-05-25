@@ -22,7 +22,7 @@ config :phxplate, PhxplateWeb.Endpoint,
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
     formats: [html: PhxplateWeb.ErrorHTML, json: PhxplateWeb.ErrorJSON],
-    layout: false
+    layout: {PhxplateWeb.Layouts, :error}
   ],
   pubsub_server: Phxplate.PubSub,
   live_view: [signing_salt: "OGOK3x5X"]
