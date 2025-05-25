@@ -206,14 +206,10 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
   end
 
   @impl true
-  def handle_params(params, _uri, socket) do
-    page =
-      case params["page"] do
-        nil -> 1
-        page_param -> String.to_integer(page_param)
-      end
-
-    {:noreply, load_posts(socket, page)}
+  def handle_params(_params, url, socket) do
+    uri = URI.parse(url)
+    socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
+    {:noreply, socket}
   end
 
   defp save_post(socket, %Post{id: nil}, post_params, current_user) do
@@ -553,9 +549,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
                 }
                 placeholder="url-friendly-slug"
               />
-              <p class="text-sm text-gray-500">
-                Will be auto-generated from title if empty
-              </p>
             </div>
 
             <div class="space-y-2 col-span-2">

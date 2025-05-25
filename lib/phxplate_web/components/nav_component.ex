@@ -77,7 +77,7 @@ defmodule PhxplateWeb.Components.NavComponent do
         </div>
       </div>
 
-      <div id="mobile-menu" class="hidden md:hidden" phx-hook="NavMenu">
+      <div id="mobile-menu" class="hidden md:hidden absolute w-full bg-white border-b shadow-lg" phx-hook="NavMenu">
         <div class="space-y-2 p-2">
           <%= for link <- @public_links do %>
             <.link

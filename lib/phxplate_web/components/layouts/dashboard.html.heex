@@ -1,0 +1,62 @@
+<.sidebar_provider>
+  <.sidebar_main data={@layout_data}></.sidebar_main>
+  <.sidebar_inset>
+    <%= if @layout_data.user do %>
+      <.live_component
+        module={PhxplateWeb.UserSessionHandlerLive}
+        id="user-session-handler"
+        current_user={@layout_data.user}
+      />
+    <% end %>
+
+    <header class="flex h-16 shrink-0 items-center border-b gap-2 pl-2">
+      <button
+        type="button"
+        id="mobile-menu-button"
+        class="md:hidden inline-flex items-center justify-center rounded-md p-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+        phx-hook="NavMenu"
+      >
+        <span class="sr-only">Open main menu</span>
+        <Lucideicons.menu class="h-6 w-6" id="menu-icon" />
+        <Lucideicons.x class="h-6 w-6 hidden" id="close-icon" />
+      </button>
+
+      <.sidebar_trigger target="main-sidebar" class="pl-2 hidden md:block">
+        <Lucideicons.panel_left class="w-4 h-4" />
+      </.sidebar_trigger>
+
+      <.separator orientation="vertical" class="mr-2 h-4" />
+      <.breadcrumb class="ml-4">
+        <.breadcrumb_list>
+          <%= for {item, idx} <- Enum.with_index(dashboard_breadcrumbs(@layout_data.current_path)) do %>
+            <.breadcrumb_item class={if idx == 0, do: "hidden md:block", else: nil}>
+              <.breadcrumb_link href={item.href}>
+                {item.label}
+              </.breadcrumb_link>
+            </.breadcrumb_item>
+            <.breadcrumb_separator
+              :if={idx < length(dashboard_breadcrumbs(@layout_data.current_path)) - 1}
+              class="hidden md:block"
+            />
+          <% end %>
+        </.breadcrumb_list>
+      </.breadcrumb>
+    </header>
+
+    <div id="mobile-menu" class="hidden md:hidden absolute w-full bg-white border-b mt-16 shadow-lg z-50">
+      <div class="space-y-1 px-2 pb-3 pt-2">
+        <.mobile_nav_main items={@layout_data.navMain} />
+        <.mobile_nav_projects companies={@layout_data.companies} />
+        <.mobile_nav_bookmarked bookmarked={@layout_data.bookmarked} />
+        <.mobile_nav_user user={@layout_data.user} />
+      </div>
+    </div>
+
+    <main class="flex-1">
+      <div class="p-4">
+        <.flash_group flash={@flash} />
+        {@inner_content}
+      </div>
+    </main>
+  </.sidebar_inset>
+</.sidebar_provider>
