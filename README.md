@@ -206,9 +206,10 @@ When deploying to production for the first time:
    - Preserve all existing data
 
 Next steps to implement
-- [] Toggle side-menu better
-   - [] Display sub-items on-hover and or on-click when menu closed
-- [] OTP for admin + super admin 
+- [] Email marketing functionality
+   - [] Scheduling
+   - [] Targetted marketing
+- [] OTP for admin + super admin, social logins
 - [] Proration charge and custom checkout
 
 Research
