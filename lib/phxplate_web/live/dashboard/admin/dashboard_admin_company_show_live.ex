@@ -65,7 +65,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
           |> PageMeta.assign_metadata(
             title: "#{company.name} Details",
             description: "Company details and employee management",
-            url: "/dashboard/admin/company/#{company.id}"
+            url: "/dashboard/admin/companies/#{company.id}"
           )
           |> assign(
             company: company,
@@ -98,6 +98,13 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
          |> put_flash(:error, "You don't have access to this company")
          |> redirect(to: ~p"/dashboard/admin/companies")}
     end
+  end
+
+  @impl true
+  def handle_params(_params, url, socket) do
+    uri = URI.parse(url)
+    socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
+    {:noreply, socket}
   end
 
   @impl true

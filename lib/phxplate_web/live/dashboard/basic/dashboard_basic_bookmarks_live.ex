@@ -43,6 +43,13 @@ defmodule PhxplateWeb.Dashboard.Basic.BookmarksLive do
   end
 
   @impl true
+  def handle_params(_params, url, socket) do
+    uri = URI.parse(url)
+    socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_info({:created, %{type: :bookmark, bookmark: bookmark}}, socket) do
     # Only add the bookmark if it doesn't already exist in the list
     case Enum.find(socket.assigns.bookmarks, &(&1.id == bookmark.id)) do
@@ -100,8 +107,8 @@ defmodule PhxplateWeb.Dashboard.Basic.BookmarksLive do
           <.link
             navigate={
               cond do
-                is_owner?(bookmark.company, @current_user.id) -> ~p"/dashboard/admin/company/#{bookmark.company.id}"
-                is_employee?(bookmark.company, @current_user.email) -> ~p"/dashboard/company/#{bookmark.company.id}"
+                is_owner?(bookmark.company, @current_user.id) -> ~p"/dashboard/admin/companies/#{bookmark.company.id}"
+                is_employee?(bookmark.company, @current_user.email) -> ~p"/dashboard/companies/#{bookmark.company.id}"
                 true -> ~p"/companies/#{bookmark.company.id}"
               end
             }

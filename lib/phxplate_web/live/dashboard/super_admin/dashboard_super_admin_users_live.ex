@@ -237,14 +237,10 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
   end
 
   @impl true
-  def handle_params(params, _uri, socket) do
-    page =
-      case params["page"] do
-        nil -> 1
-        page_param -> String.to_integer(page_param)
-      end
-
-    {:noreply, load_users(socket, page)}
+  def handle_params(_params, url, socket) do
+    uri = URI.parse(url)
+    socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
+    {:noreply, socket}
   end
 
   @impl true
@@ -418,7 +414,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
       </.tabs_list>
 
       <.tabs_content value="profile">
-        <div class="space-y-4 p-4">
+        <div class="space-y-4 p-2">
           <%= if @selected_user.profile do %>
             <div class="grid grid-cols-2 gap-4">
               <div class="col-span-1 flex items-center justify-center">
@@ -484,7 +480,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
       </.tabs_content>
 
       <.tabs_content value="account">
-        <div class="space-y-4 p-4">
+        <div class="space-y-4 p-2">
           <div class="grid grid-cols-2 gap-4">
             <div>
               <h4 class="text-sm font-medium text-gray-500">Email</h4>

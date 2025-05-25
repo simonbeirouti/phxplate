@@ -51,6 +51,13 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyLive do
   end
 
   @impl true
+  def handle_params(_params, url, socket) do
+    uri = URI.parse(url)
+    socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_info({:created, %{type: :company, company: company}}, socket) do
     if company.owner_id == socket.assigns.current_user.id and not Enum.any?(socket.assigns.companies, &(&1.id == company.id)) do
       company = Repo.preload(company, [employees: [:profile]])

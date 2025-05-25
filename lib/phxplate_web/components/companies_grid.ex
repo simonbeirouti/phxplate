@@ -39,8 +39,8 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
     ~H"""
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
       <%= for company <- @companies do %>
-        <.link navigate={"/dashboard/admin/company/#{company.id}"}>
-          <div class="bg-white shadow rounded-lg p-4 flex flex-col justify-center">
+        <.link navigate={"/dashboard/admin/companies/#{company.id}"}>
+          <div class="bg-white shadow rounded-lg p-4 flex flex-col justify-center h-40">
             <h3 class="text-lg font-semibold text-gray-900 mb-2">{company.name}</h3>
             <p class="text-gray-600 mb-3">
               {length(Companies.get_company_employees(company))} Employees
@@ -54,7 +54,7 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
 
       <%= if @can_create_company do %>
         <div
-          class="bg-white rounded-lg p-4 border-2 border-dashed border-gray-300 flex flex-col items-center justify-center hover:border-gray-400 transition-colors cursor-pointer"
+          class="bg-white rounded-lg p-4 border-2 border-dashed border-gray-300 flex flex-col items-center justify-center hover:border-gray-400 transition-colors cursor-pointer h-40"
           phx-click={
             JS.push("open_create_company_dialog")
             |> JS.show(to: "#create-company-dialog")
