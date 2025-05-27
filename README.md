@@ -111,6 +111,8 @@ You can customize these plans by modifying the `plan_data` array in `lib/phxplat
    ```
    Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 
+7. Want to get up and running with Tidewave? Follow the docs [here](https://hexdocs.pm/tidewave/installation.html).
+
 ## Testing Environment
 
 For testing purposes, you can populate the database with sample data:
