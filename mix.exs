@@ -70,7 +70,8 @@ defmodule Phxplate.MixProject do
       {:sweet_xml, "~> 0.6"},
       {:resend, "~> 0.4.0"},
       {:premailex, "~> 0.3.20"},
-      {:mdex, "~> 0.7.0"}
+      {:mdex, "~> 0.7.0"},
+      {:tidewave, "~> 0.1", only: :dev}
     ]
   end
 
