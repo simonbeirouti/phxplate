@@ -1,0 +1,967 @@
+{
+  "profiles": [
+    {
+      "id": 11,
+      "first_name": "Hassan",
+      "last_name": "Steuber",
+      "bio": "Voluptatum inventore odit aut. Consectetur natus unde non voluptate molestias magnam quidem. Eaque et voluptatibus aut ut non qui! Excepturi porro enim officia recusandae aperiam. Odio esse autem quas!",
+      "avatar_url": "https://robohash.org/set_set2/bgset_bg1/ML9f7pOgNjpTRyUGWSN",
+      "phone": "577-906-9621",
+      "location": "Koss",
+      "website": "https://mclaughlin.name",
+      "social_links": {
+        "github": "https://weissnat.name",
+        "twitter": "http://greenholt.info",
+        "linkedin": "https://kunze.org"
+      },
+      "user_id": 11,
+      "inserted_at": "2025-05-23T05:27:39",
+      "updated_at": "2025-05-23T05:27:39"
+    },
+    {
+      "id": 10,
+      "first_name": "Teagan",
+      "last_name": "Dietrich",
+      "bio": "Est quia ad beatae accusantium. Accusamus eveniet alias et alias!",
+      "avatar_url": "https://robohash.org/set_set1/bgset_bg2/D1a1PjIm9oTiLFlZw",
+      "phone": "(843) 478-4375",
+      "location": "North Dallin",
+      "website": "http://gutmann.biz",
+      "social_links": {
+        "github": "http://raynor.info",
+        "twitter": "http://walker.org",
+        "linkedin": "http://crist.com"
+      },
+      "user_id": 10,
+      "inserted_at": "2025-05-23T05:27:39",
+      "updated_at": "2025-05-23T05:27:39"
+    },
+    {
+      "id": 9,
+      "first_name": "Franco",
+      "last_name": "Stroman",
+      "bio": "Quia laudantium qui aut architecto dolor? Magnam voluptas quo beatae! Molestiae aut officiis minima! Sint similique saepe esse.",
+      "avatar_url": "https://robohash.org/set_set3/bgset_bg2/0gfhGJimI21gdn7",
+      "phone": "(384) 335-0747",
+      "location": "Osinski",
+      "website": "http://eichmann.biz",
+      "social_links": {
+        "github": "https://hartmann.net",
+        "twitter": "https://stroman.net",
+        "linkedin": "http://lesch.org"
+      },
+      "user_id": 9,
+      "inserted_at": "2025-05-23T05:27:38",
+      "updated_at": "2025-05-23T05:27:38"
+    },
+    {
+      "id": 8,
+      "first_name": "Rollin",
+      "last_name": "Franecki",
+      "bio": "Error atque nemo architecto. Officia pariatur minus omnis eos non eum. Pariatur cupiditate officia dolorem molestiae nesciunt quae et! Aliquam et omnis aut laboriosam accusamus! Est et voluptas ducimus impedit officiis sed numquam eligendi quo?",
+      "avatar_url": "https://robohash.org/set_set3/bgset_bg2/5Wz",
+      "phone": "483/864-6732",
+      "location": "Langworth",
+      "website": "https://baumbach.info",
+      "social_links": {
+        "github": "https://roob.info",
+        "twitter": "http://bechtelar.info",
+        "linkedin": "https://gleichner.com"
+      },
+      "user_id": 8,
+      "inserted_at": "2025-05-23T05:27:38",
+      "updated_at": "2025-05-23T05:27:38"
+    },
+    {
+      "id": 7,
+      "first_name": "Maddison",
+      "last_name": "Dibbert",
+      "bio": "Blanditiis quos assumenda et et. Deleniti molestiae maiores sit sequi tempore culpa et? Rerum maiores aspernatur consequatur molestiae voluptatum. Impedit vitae rerum necessitatibus impedit culpa veniam mollitia sit?",
+      "avatar_url": "https://robohash.org/set_set1/bgset_bg1/mtT6TonT",
+      "phone": "389-766-0353",
+      "location": "Jacinto",
+      "website": "http://boyle.com",
+      "social_links": {
+        "github": "https://gutkowski.org",
+        "twitter": "http://daniel.net",
+        "linkedin": "http://rolfson.org"
+      },
+      "user_id": 7,
+      "inserted_at": "2025-05-23T05:27:38",
+      "updated_at": "2025-05-23T05:27:38"
+    },
+    {
+      "id": 6,
+      "first_name": "Eusebio",
+      "last_name": "MacGyver",
+      "bio": "Occaecati dolorum repellendus reiciendis beatae. Dolores saepe est et beatae. Voluptas similique nemo voluptatibus neque quae amet atque ut temporibus. Consequatur quis laboriosam delectus aut non aut et facilis.",
+      "avatar_url": "https://robohash.org/set_set2/bgset_bg1/X",
+      "phone": "3589732209",
+      "location": "Lake Jessica",
+      "website": "https://tromp.com",
+      "social_links": {
+        "github": "https://huel.info",
+        "twitter": "http://gerlach.name",
+        "linkedin": "https://jenkins.biz"
+      },
+      "user_id": 6,
+      "inserted_at": "2025-05-23T05:27:38",
+      "updated_at": "2025-05-23T05:27:38"
+    },
+    {
+      "id": 5,
+      "first_name": "Bernice",
+      "last_name": "Becker",
+      "bio": "Quas aliquid sed aut quasi. Iure aliquid quas possimus! Corrupti ex soluta optio dolor doloribus provident! Id et qui quo nostrum nobis id itaque esse.",
+      "avatar_url": "https://robohash.org/set_set1/bgset_bg1/PFHnGLia",
+      "phone": "576/473-2338",
+      "location": "Abbott",
+      "website": "https://waelchi.com",
+      "social_links": {
+        "github": "http://gottlieb.net",
+        "twitter": "http://larson.info",
+        "linkedin": "https://oconner.net"
+      },
+      "user_id": 5,
+      "inserted_at": "2025-05-23T05:27:33",
+      "updated_at": "2025-05-23T05:27:33"
+    },
+    {
+      "id": 4,
+      "first_name": "Jazmyne",
+      "last_name": "Rutherford",
+      "bio": "Alias reiciendis harum delectus quia voluptates mollitia similique libero soluta? Natus doloribus dolor saepe aut tenetur. Qui aperiam aliquam omnis aliquid vitae minus ut? Molestiae quia aut quia deleniti sint. Esse nihil alias qui.",
+      "avatar_url": "https://robohash.org/set_set2/bgset_bg2/J2qFA597ox",
+      "phone": "2034372605",
+      "location": "Dana",
+      "website": "http://koch.org",
+      "social_links": {
+        "github": "https://schmidt.info",
+        "twitter": "https://legros.net",
+        "linkedin": "https://botsford.org"
+      },
+      "user_id": 4,
+      "inserted_at": "2025-05-23T05:27:32",
+      "updated_at": "2025-05-23T05:27:32"
+    },
+    {
+      "id": 3,
+      "first_name": "Freida",
+      "last_name": "Ledner",
+      "bio": "Illum dolorem necessitatibus id natus cumque est fugiat. Quod illum id provident voluptate praesentium debitis suscipit explicabo sint.",
+      "avatar_url": "https://robohash.org/set_set2/bgset_bg1/yJ2z0jFRaYOH7OzKcZ",
+      "phone": "404.941.1890",
+      "location": "South Vergie",
+      "website": "https://keeling.net",
+      "social_links": {
+        "github": "http://renner.com",
+        "twitter": "http://runolfsdottir.biz",
+        "linkedin": "http://larson.name"
+      },
+      "user_id": 3,
+      "inserted_at": "2025-05-23T05:27:28",
+      "updated_at": "2025-05-23T05:27:28"
+    },
+    {
+      "id": 2,
+      "first_name": "Friedrich",
+      "last_name": "Kreiger",
+      "bio": "Sint ea magnam neque labore soluta amet praesentium? Delectus vel vel qui et est et numquam quaerat molestiae? Esse qui commodi esse possimus ullam nemo libero.",
+      "avatar_url": "https://robohash.org/set_set2/bgset_bg1/8huCu1",
+      "phone": "959.669.8593",
+      "location": "Stark",
+      "website": "https://kautzer.net",
+      "social_links": {
+        "github": "https://schimmel.com",
+        "twitter": "https://krajcik.biz",
+        "linkedin": "https://mertz.com"
+      },
+      "user_id": 2,
+      "inserted_at": "2025-05-23T05:27:24",
+      "updated_at": "2025-05-23T05:27:24"
+    },
+    {
+      "id": 1,
+      "first_name": "Billy",
+      "last_name": "Simonis",
+      "bio": "Quia ad quia vero. Eum natus eum voluptatem in voluptas aut. Rerum eum earum molestias?",
+      "avatar_url": "https://robohash.org/set_set3/bgset_bg2/ghYYXg6OMhKSxA3fEPa",
+      "phone": "(642) 443-3576",
+      "location": "Tressa",
+      "website": "http://buckridge.org",
+      "social_links": {
+        "github": "https://bartoletti.biz",
+        "twitter": "http://bernhard.net",
+        "linkedin": "https://dach.name"
+      },
+      "user_id": 1,
+      "inserted_at": "2025-05-23T05:27:20",
+      "updated_at": "2025-05-23T05:27:20"
+    }
+  ],
+  "companies": [
+    {
+      "id": 2,
+      "name": "Nader, Larson and Senger",
+      "address": "9725 Mervin Alley",
+      "description": "generate collaborative web-readiness",
+      "email": "burnice.kub@dare.biz",
+      "phone": "242-663-1070",
+      "logo": "https://robohash.org/set_set1/bgset_bg2/t3HRESDgX",
+      "website": "http://corwin.com",
+      "owner_id": 3,
+      "employees": [
+        {
+          "id": 4,
+          "position": "engage rich ROI",
+          "email": "agnes1963@abbott.com",
+          "department": "envisioneer wireless ROI",
+          "salary": "1.39",
+          "company_id": 2,
+          "profile_id": 11
+        },
+        {
+          "id": 3,
+          "position": "reintermediate out-of-the-box networks",
+          "email": "efrain2088@tremblay.org",
+          "department": "iterate frictionless e-business",
+          "salary": "4.11",
+          "company_id": 2,
+          "profile_id": 10
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Casper-Hermiston",
+      "address": "333 O'Conner Meadows",
+      "description": "embrace magnetic users",
+      "email": "tyrese1957@padberg.org",
+      "phone": "(568) 722-3942",
+      "logo": "https://robohash.org/set_set2/bgset_bg1/SCOlfsCHw",
+      "website": "http://kreiger.info",
+      "owner_id": 4,
+      "employees": [
+        {
+          "id": 2,
+          "position": "generate clicks-and-mortar technologies",
+          "email": "angela_schiller@breitenberg.biz",
+          "department": "revolutionize transparent e-services",
+          "salary": "1.53",
+          "company_id": 1,
+          "profile_id": 9
+        },
+        {
+          "id": 1,
+          "position": "empower revolutionary metrics",
+          "email": "wade_carter@murphy.org",
+          "department": "transition value-added paradigms",
+          "salary": "7.72",
+          "company_id": 1,
+          "profile_id": 8
+        }
+      ]
+    }
+  ],
+  "plans": [
+    {
+      "id": 1,
+      "name": "Small Plan",
+      "description": "For small teams",
+      "metadata": {
+        "tier": "small"
+      },
+      "features": {
+        "projects": 5,
+        "storage": "5GB",
+        "support": "Email"
+      },
+      "currency": "usd",
+      "interval": "month",
+      "unit_amount": 1500,
+      "stripe_price_id": "price_1RRo8XQea2kLMz7zn7iGiHqS",
+      "stripe_product_id": "prod_SMXCTtv3JLthHL"
+    },
+    {
+      "id": 2,
+      "name": "Small Plan (Yearly)",
+      "description": "For small teams",
+      "metadata": {
+        "tier": "small"
+      },
+      "features": {
+        "projects": 5,
+        "storage": "5GB",
+        "support": "Email"
+      },
+      "currency": "usd",
+      "interval": "year",
+      "unit_amount": 15000,
+      "stripe_price_id": "price_1RRo8XQea2kLMz7zO8zHimaA",
+      "stripe_product_id": "prod_SMXCTtv3JLthHL"
+    },
+    {
+      "id": 3,
+      "name": "Medium Plan",
+      "description": "For medium teams",
+      "metadata": {
+        "tier": "medium"
+      },
+      "features": {
+        "projects": 10,
+        "storage": "10GB",
+        "support": "Priority Email"
+      },
+      "currency": "usd",
+      "interval": "month",
+      "unit_amount": 3000,
+      "stripe_price_id": "price_1RRo8YQea2kLMz7z1Thc2x4f",
+      "stripe_product_id": "prod_SMXCv4R7L0rI5M"
+    },
+    {
+      "id": 4,
+      "name": "Medium Plan (Yearly)",
+      "description": "For medium teams",
+      "metadata": {
+        "tier": "medium"
+      },
+      "features": {
+        "projects": 10,
+        "storage": "10GB",
+        "support": "Priority Email"
+      },
+      "currency": "usd",
+      "interval": "year",
+      "unit_amount": 30000,
+      "stripe_price_id": "price_1RRo8YQea2kLMz7zVUM7yo1K",
+      "stripe_product_id": "prod_SMXCv4R7L0rI5M"
+    },
+    {
+      "id": 5,
+      "name": "Large Plan",
+      "description": "For enterprise teams",
+      "metadata": {
+        "tier": "large"
+      },
+      "features": {
+        "projects": "Unlimited",
+        "storage": "20GB",
+        "support": "24/7 Phone & Email"
+      },
+      "currency": "usd",
+      "interval": "month",
+      "unit_amount": 5000,
+      "stripe_price_id": "price_1RRo8ZQea2kLMz7zqZONVspd",
+      "stripe_product_id": "prod_SMXC0NVReW9WDF"
+    },
+    {
+      "id": 6,
+      "name": "Large Plan (Yearly)",
+      "description": "For enterprise teams",
+      "metadata": {
+        "tier": "large"
+      },
+      "features": {
+        "projects": "Unlimited",
+        "storage": "20GB",
+        "support": "24/7 Phone & Email"
+      },
+      "currency": "usd",
+      "interval": "year",
+      "unit_amount": 50000,
+      "stripe_price_id": "price_1RRo8aQea2kLMz7zUDVMHzgs",
+      "stripe_product_id": "prod_SMXC0NVReW9WDF"
+    }
+  ],
+  "subscriptions": [
+    {
+      "id": 4,
+      "stripe_customer_id": "cus_SMXDcIHKGAgMRS",
+      "stripe_subscription_id": "sub_1RRo8pQea2kLMz7zkJIjSJT0",
+      "paid_tier": "medium",
+      "subscription_status": "active",
+      "subscription_period_end": "2025-06-23T05:27:35Z",
+      "user_id": 6,
+      "plan_id": 3
+    },
+    {
+      "id": 3,
+      "stripe_customer_id": "cus_SMXDNHHTBZS4lf",
+      "stripe_subscription_id": "sub_1RRo8kQea2kLMz7zDiwUlgKQ",
+      "paid_tier": "small",
+      "subscription_status": "active",
+      "subscription_period_end": "2025-06-23T05:27:30Z",
+      "user_id": 4,
+      "plan_id": 1
+    },
+    {
+      "id": 2,
+      "stripe_customer_id": "cus_SMXDkwpm06DuxY",
+      "stripe_subscription_id": "sub_1RRo8gQea2kLMz7zBwvUYx54",
+      "paid_tier": "medium",
+      "subscription_status": "active",
+      "subscription_period_end": "2025-06-23T05:27:26Z",
+      "user_id": 3,
+      "plan_id": 3
+    },
+    {
+      "id": 1,
+      "stripe_customer_id": "cus_SMXDgyGruUuyI6",
+      "stripe_subscription_id": "sub_1RRo8cQea2kLMz7zZuXinPJv",
+      "paid_tier": "large",
+      "subscription_status": "active",
+      "subscription_period_end": "2025-06-23T05:27:22Z",
+      "user_id": 2,
+      "plan_id": 5
+    }
+  ],
+  "activities": {
+    "companies": [
+      {
+        "id": 17,
+        "action": "company_creation",
+        "inserted_at": "2025-05-23T05:27:38Z",
+        "entity_type": "company",
+        "entity_id": 2,
+        "changes": {},
+        "actor": {
+          "id": 3,
+          "email": "blake2090@bogisich.com"
+        }
+      },
+      {
+        "id": 16,
+        "action": "company_creation",
+        "inserted_at": "2025-05-23T05:27:38Z",
+        "entity_type": "company",
+        "entity_id": 1,
+        "changes": {},
+        "actor": {
+          "id": 4,
+          "email": "horace1942@cassin.org"
+        }
+      }
+    ],
+    "users": [
+      {
+        "id": 15,
+        "action": "registration",
+        "inserted_at": "2025-05-23T05:27:38Z",
+        "entity_type": "user",
+        "entity_id": 7,
+        "changes": {},
+        "actor": {
+          "id": 7,
+          "email": "morton.dubuque@blick.org"
+        }
+      },
+      {
+        "id": 13,
+        "action": "subscription_tier_update",
+        "inserted_at": "2025-05-23T05:27:38Z",
+        "entity_type": "user",
+        "entity_id": 6,
+        "changes": {
+          "tier": "medium"
+        },
+        "actor": {
+          "id": 6,
+          "email": "alfonzo2083@renner.name"
+        }
+      },
+      {
+        "id": 14,
+        "action": "subscription_status_update",
+        "inserted_at": "2025-05-23T05:27:38Z",
+        "entity_type": "user",
+        "entity_id": 6,
+        "changes": {
+          "status": "active"
+        },
+        "actor": {
+          "id": 6,
+          "email": "alfonzo2083@renner.name"
+        }
+      },
+      {
+        "id": 12,
+        "action": "registration",
+        "inserted_at": "2025-05-23T05:27:33Z",
+        "entity_type": "user",
+        "entity_id": 6,
+        "changes": {},
+        "actor": {
+          "id": 6,
+          "email": "alfonzo2083@renner.name"
+        }
+      },
+      {
+        "id": 11,
+        "action": "registration",
+        "inserted_at": "2025-05-23T05:27:33Z",
+        "entity_type": "user",
+        "entity_id": 5,
+        "changes": {},
+        "actor": {
+          "id": 5,
+          "email": "crystal.wiegand@doyle.biz"
+        }
+      },
+      {
+        "id": 9,
+        "action": "subscription_tier_update",
+        "inserted_at": "2025-05-23T05:27:32Z",
+        "entity_type": "user",
+        "entity_id": 4,
+        "changes": {
+          "tier": "small"
+        },
+        "actor": {
+          "id": 4,
+          "email": "horace1942@cassin.org"
+        }
+      },
+      {
+        "id": 10,
+        "action": "subscription_status_update",
+        "inserted_at": "2025-05-23T05:27:32Z",
+        "entity_type": "user",
+        "entity_id": 4,
+        "changes": {
+          "status": "active"
+        },
+        "actor": {
+          "id": 4,
+          "email": "horace1942@cassin.org"
+        }
+      },
+      {
+        "id": 8,
+        "action": "registration",
+        "inserted_at": "2025-05-23T05:27:28Z",
+        "entity_type": "user",
+        "entity_id": 4,
+        "changes": {},
+        "actor": {
+          "id": 4,
+          "email": "horace1942@cassin.org"
+        }
+      },
+      {
+        "id": 6,
+        "action": "subscription_tier_update",
+        "inserted_at": "2025-05-23T05:27:28Z",
+        "entity_type": "user",
+        "entity_id": 3,
+        "changes": {
+          "tier": "medium"
+        },
+        "actor": {
+          "id": 3,
+          "email": "blake2090@bogisich.com"
+        }
+      },
+      {
+        "id": 7,
+        "action": "subscription_status_update",
+        "inserted_at": "2025-05-23T05:27:28Z",
+        "entity_type": "user",
+        "entity_id": 3,
+        "changes": {
+          "status": "active"
+        },
+        "actor": {
+          "id": 3,
+          "email": "blake2090@bogisich.com"
+        }
+      },
+      {
+        "id": 5,
+        "action": "registration",
+        "inserted_at": "2025-05-23T05:27:25Z",
+        "entity_type": "user",
+        "entity_id": 3,
+        "changes": {},
+        "actor": {
+          "id": 3,
+          "email": "blake2090@bogisich.com"
+        }
+      },
+      {
+        "id": 3,
+        "action": "subscription_tier_update",
+        "inserted_at": "2025-05-23T05:27:24Z",
+        "entity_type": "user",
+        "entity_id": 2,
+        "changes": {
+          "tier": "large"
+        },
+        "actor": {
+          "id": 2,
+          "email": "susanna2068@williamson.name"
+        }
+      },
+      {
+        "id": 4,
+        "action": "subscription_status_update",
+        "inserted_at": "2025-05-23T05:27:24Z",
+        "entity_type": "user",
+        "entity_id": 2,
+        "changes": {
+          "status": "active"
+        },
+        "actor": {
+          "id": 2,
+          "email": "susanna2068@williamson.name"
+        }
+      },
+      {
+        "id": 2,
+        "action": "registration",
+        "inserted_at": "2025-05-23T05:27:20Z",
+        "entity_type": "user",
+        "entity_id": 2,
+        "changes": {},
+        "actor": {
+          "id": 2,
+          "email": "susanna2068@williamson.name"
+        }
+      },
+      {
+        "id": 1,
+        "action": "registration",
+        "inserted_at": "2025-05-23T05:27:20Z",
+        "entity_type": "user",
+        "entity_id": 1,
+        "changes": {},
+        "actor": {
+          "id": 1,
+          "email": "bernhard1984@muller.name"
+        }
+      }
+    ]
+  },
+  "super_admins": [
+    {
+      "id": 1,
+      "profile": {
+        "id": 1,
+        "first_name": "Billy",
+        "last_name": "Simonis",
+        "bio": "Quia ad quia vero. Eum natus eum voluptatem in voluptas aut. Rerum eum earum molestias?",
+        "avatar_url": "https://robohash.org/set_set3/bgset_bg2/ghYYXg6OMhKSxA3fEPa",
+        "phone": "(642) 443-3576",
+        "location": "Tressa",
+        "website": "http://buckridge.org",
+        "social_links": {
+          "github": "https://bartoletti.biz",
+          "twitter": "http://bernhard.net",
+          "linkedin": "https://dach.name"
+        },
+        "user_id": 1,
+        "inserted_at": "2025-05-23T05:27:20",
+        "updated_at": "2025-05-23T05:27:20"
+      },
+      "email": "bernhard1984@muller.name",
+      "role": "super_admin",
+      "onboarding_completed": true
+    }
+  ],
+  "admins": [
+    {
+      "id": 4,
+      "profile": {
+        "id": 4,
+        "first_name": "Jazmyne",
+        "last_name": "Rutherford",
+        "bio": "Alias reiciendis harum delectus quia voluptates mollitia similique libero soluta? Natus doloribus dolor saepe aut tenetur. Qui aperiam aliquam omnis aliquid vitae minus ut? Molestiae quia aut quia deleniti sint. Esse nihil alias qui.",
+        "avatar_url": "https://robohash.org/set_set2/bgset_bg2/J2qFA597ox",
+        "phone": "2034372605",
+        "location": "Dana",
+        "website": "http://koch.org",
+        "social_links": {
+          "github": "https://schmidt.info",
+          "twitter": "https://legros.net",
+          "linkedin": "https://botsford.org"
+        },
+        "user_id": 4,
+        "inserted_at": "2025-05-23T05:27:32",
+        "updated_at": "2025-05-23T05:27:32"
+      },
+      "email": "horace1942@cassin.org",
+      "role": "admin",
+      "onboarding_completed": true,
+      "subscription": {
+        "id": 3,
+        "stripe_customer_id": "cus_SMXDNHHTBZS4lf",
+        "stripe_subscription_id": "sub_1RRo8kQea2kLMz7zDiwUlgKQ",
+        "paid_tier": "small",
+        "subscription_status": "active",
+        "subscription_period_end": "2025-06-23T05:27:30Z",
+        "user_id": 4,
+        "plan_id": 1
+      }
+    },
+    {
+      "id": 3,
+      "profile": {
+        "id": 3,
+        "first_name": "Freida",
+        "last_name": "Ledner",
+        "bio": "Illum dolorem necessitatibus id natus cumque est fugiat. Quod illum id provident voluptate praesentium debitis suscipit explicabo sint.",
+        "avatar_url": "https://robohash.org/set_set2/bgset_bg1/yJ2z0jFRaYOH7OzKcZ",
+        "phone": "404.941.1890",
+        "location": "South Vergie",
+        "website": "https://keeling.net",
+        "social_links": {
+          "github": "http://renner.com",
+          "twitter": "http://runolfsdottir.biz",
+          "linkedin": "http://larson.name"
+        },
+        "user_id": 3,
+        "inserted_at": "2025-05-23T05:27:28",
+        "updated_at": "2025-05-23T05:27:28"
+      },
+      "email": "blake2090@bogisich.com",
+      "role": "admin",
+      "onboarding_completed": true,
+      "subscription": {
+        "id": 2,
+        "stripe_customer_id": "cus_SMXDkwpm06DuxY",
+        "stripe_subscription_id": "sub_1RRo8gQea2kLMz7zBwvUYx54",
+        "paid_tier": "medium",
+        "subscription_status": "active",
+        "subscription_period_end": "2025-06-23T05:27:26Z",
+        "user_id": 3,
+        "plan_id": 3
+      }
+    },
+    {
+      "id": 2,
+      "profile": {
+        "id": 2,
+        "first_name": "Friedrich",
+        "last_name": "Kreiger",
+        "bio": "Sint ea magnam neque labore soluta amet praesentium? Delectus vel vel qui et est et numquam quaerat molestiae? Esse qui commodi esse possimus ullam nemo libero.",
+        "avatar_url": "https://robohash.org/set_set2/bgset_bg1/8huCu1",
+        "phone": "959.669.8593",
+        "location": "Stark",
+        "website": "https://kautzer.net",
+        "social_links": {
+          "github": "https://schimmel.com",
+          "twitter": "https://krajcik.biz",
+          "linkedin": "https://mertz.com"
+        },
+        "user_id": 2,
+        "inserted_at": "2025-05-23T05:27:24",
+        "updated_at": "2025-05-23T05:27:24"
+      },
+      "email": "susanna2068@williamson.name",
+      "role": "admin",
+      "onboarding_completed": true,
+      "subscription": {
+        "id": 1,
+        "stripe_customer_id": "cus_SMXDgyGruUuyI6",
+        "stripe_subscription_id": "sub_1RRo8cQea2kLMz7zZuXinPJv",
+        "paid_tier": "large",
+        "subscription_status": "active",
+        "subscription_period_end": "2025-06-23T05:27:22Z",
+        "user_id": 2,
+        "plan_id": 5
+      }
+    }
+  ],
+  "basic_users": [
+    {
+      "id": 11,
+      "profile": {
+        "id": 11,
+        "first_name": "Hassan",
+        "last_name": "Steuber",
+        "bio": "Voluptatum inventore odit aut. Consectetur natus unde non voluptate molestias magnam quidem. Eaque et voluptatibus aut ut non qui! Excepturi porro enim officia recusandae aperiam. Odio esse autem quas!",
+        "avatar_url": "https://robohash.org/set_set2/bgset_bg1/ML9f7pOgNjpTRyUGWSN",
+        "phone": "577-906-9621",
+        "location": "Koss",
+        "website": "https://mclaughlin.name",
+        "social_links": {
+          "github": "https://weissnat.name",
+          "twitter": "http://greenholt.info",
+          "linkedin": "https://kunze.org"
+        },
+        "user_id": 11,
+        "inserted_at": "2025-05-23T05:27:39",
+        "updated_at": "2025-05-23T05:27:39"
+      },
+      "email": "agnes1963@abbott.com",
+      "role": "basic",
+      "onboarding_completed": true,
+      "stripe_customer_id": null,
+      "subscription": null
+    },
+    {
+      "id": 10,
+      "profile": {
+        "id": 10,
+        "first_name": "Teagan",
+        "last_name": "Dietrich",
+        "bio": "Est quia ad beatae accusantium. Accusamus eveniet alias et alias!",
+        "avatar_url": "https://robohash.org/set_set1/bgset_bg2/D1a1PjIm9oTiLFlZw",
+        "phone": "(843) 478-4375",
+        "location": "North Dallin",
+        "website": "http://gutmann.biz",
+        "social_links": {
+          "github": "http://raynor.info",
+          "twitter": "http://walker.org",
+          "linkedin": "http://crist.com"
+        },
+        "user_id": 10,
+        "inserted_at": "2025-05-23T05:27:39",
+        "updated_at": "2025-05-23T05:27:39"
+      },
+      "email": "efrain2088@tremblay.org",
+      "role": "basic",
+      "onboarding_completed": true,
+      "stripe_customer_id": null,
+      "subscription": null
+    },
+    {
+      "id": 9,
+      "profile": {
+        "id": 9,
+        "first_name": "Franco",
+        "last_name": "Stroman",
+        "bio": "Quia laudantium qui aut architecto dolor? Magnam voluptas quo beatae! Molestiae aut officiis minima! Sint similique saepe esse.",
+        "avatar_url": "https://robohash.org/set_set3/bgset_bg2/0gfhGJimI21gdn7",
+        "phone": "(384) 335-0747",
+        "location": "Osinski",
+        "website": "http://eichmann.biz",
+        "social_links": {
+          "github": "https://hartmann.net",
+          "twitter": "https://stroman.net",
+          "linkedin": "http://lesch.org"
+        },
+        "user_id": 9,
+        "inserted_at": "2025-05-23T05:27:38",
+        "updated_at": "2025-05-23T05:27:38"
+      },
+      "email": "angela_schiller@breitenberg.biz",
+      "role": "basic",
+      "onboarding_completed": true,
+      "stripe_customer_id": null,
+      "subscription": null
+    },
+    {
+      "id": 8,
+      "profile": {
+        "id": 8,
+        "first_name": "Rollin",
+        "last_name": "Franecki",
+        "bio": "Error atque nemo architecto. Officia pariatur minus omnis eos non eum. Pariatur cupiditate officia dolorem molestiae nesciunt quae et! Aliquam et omnis aut laboriosam accusamus! Est et voluptas ducimus impedit officiis sed numquam eligendi quo?",
+        "avatar_url": "https://robohash.org/set_set3/bgset_bg2/5Wz",
+        "phone": "483/864-6732",
+        "location": "Langworth",
+        "website": "https://baumbach.info",
+        "social_links": {
+          "github": "https://roob.info",
+          "twitter": "http://bechtelar.info",
+          "linkedin": "https://gleichner.com"
+        },
+        "user_id": 8,
+        "inserted_at": "2025-05-23T05:27:38",
+        "updated_at": "2025-05-23T05:27:38"
+      },
+      "email": "wade_carter@murphy.org",
+      "role": "basic",
+      "onboarding_completed": true,
+      "stripe_customer_id": null,
+      "subscription": null
+    },
+    {
+      "id": 7,
+      "profile": {
+        "id": 7,
+        "first_name": "Maddison",
+        "last_name": "Dibbert",
+        "bio": "Blanditiis quos assumenda et et. Deleniti molestiae maiores sit sequi tempore culpa et? Rerum maiores aspernatur consequatur molestiae voluptatum. Impedit vitae rerum necessitatibus impedit culpa veniam mollitia sit?",
+        "avatar_url": "https://robohash.org/set_set1/bgset_bg1/mtT6TonT",
+        "phone": "389-766-0353",
+        "location": "Jacinto",
+        "website": "http://boyle.com",
+        "social_links": {
+          "github": "https://gutkowski.org",
+          "twitter": "http://daniel.net",
+          "linkedin": "http://rolfson.org"
+        },
+        "user_id": 7,
+        "inserted_at": "2025-05-23T05:27:38",
+        "updated_at": "2025-05-23T05:27:38"
+      },
+      "email": "morton.dubuque@blick.org",
+      "role": "basic",
+      "onboarding_completed": true,
+      "stripe_customer_id": null,
+      "subscription": null
+    },
+    {
+      "id": 6,
+      "profile": {
+        "id": 6,
+        "first_name": "Eusebio",
+        "last_name": "MacGyver",
+        "bio": "Occaecati dolorum repellendus reiciendis beatae. Dolores saepe est et beatae. Voluptas similique nemo voluptatibus neque quae amet atque ut temporibus. Consequatur quis laboriosam delectus aut non aut et facilis.",
+        "avatar_url": "https://robohash.org/set_set2/bgset_bg1/X",
+        "phone": "3589732209",
+        "location": "Lake Jessica",
+        "website": "https://tromp.com",
+        "social_links": {
+          "github": "https://huel.info",
+          "twitter": "http://gerlach.name",
+          "linkedin": "https://jenkins.biz"
+        },
+        "user_id": 6,
+        "inserted_at": "2025-05-23T05:27:38",
+        "updated_at": "2025-05-23T05:27:38"
+      },
+      "email": "alfonzo2083@renner.name",
+      "role": "basic",
+      "onboarding_completed": true,
+      "stripe_customer_id": "cus_SMXDcIHKGAgMRS",
+      "subscription": {
+        "id": 4,
+        "stripe_customer_id": "cus_SMXDcIHKGAgMRS",
+        "stripe_subscription_id": "sub_1RRo8pQea2kLMz7zkJIjSJT0",
+        "paid_tier": "medium",
+        "subscription_status": "active",
+        "subscription_period_end": "2025-06-23T05:27:35Z",
+        "user_id": 6,
+        "plan_id": 3
+      }
+    },
+    {
+      "id": 5,
+      "profile": {
+        "id": 5,
+        "first_name": "Bernice",
+        "last_name": "Becker",
+        "bio": "Quas aliquid sed aut quasi. Iure aliquid quas possimus! Corrupti ex soluta optio dolor doloribus provident! Id et qui quo nostrum nobis id itaque esse.",
+        "avatar_url": "https://robohash.org/set_set1/bgset_bg1/PFHnGLia",
+        "phone": "576/473-2338",
+        "location": "Abbott",
+        "website": "https://waelchi.com",
+        "social_links": {
+          "github": "http://gottlieb.net",
+          "twitter": "http://larson.info",
+          "linkedin": "https://oconner.net"
+        },
+        "user_id": 5,
+        "inserted_at": "2025-05-23T05:27:33",
+        "updated_at": "2025-05-23T05:27:33"
+      },
+      "email": "crystal.wiegand@doyle.biz",
+      "role": "basic",
+      "onboarding_completed": true,
+      "stripe_customer_id": null,
+      "subscription": null
+    }
+  ]
+}
