@@ -51,6 +51,9 @@ if config_env() == :prod do
   host = System.get_env("PHX_HOST") || "example.com"
   port = String.to_integer(System.get_env("PORT") || "4000")
 
+  # Explicitly set the base_url for production to ensure Stripe callbacks work correctly
+  config :phxplate, :base_url, "https://#{host}"
+
   config :phxplate, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   config :phxplate, PhxplateWeb.Endpoint,
