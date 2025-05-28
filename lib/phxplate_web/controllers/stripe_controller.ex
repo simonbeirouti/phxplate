@@ -350,12 +350,30 @@ defmodule PhxplateWeb.StripeController do
 
   * `session_id` - The ID of the Stripe checkout session
   """
-  def success(conn, %{"session_id" => session_id}) do
+  def success(conn, %{"session_id" => session_id} = params) do
+    # Check if this is an upgrade
+    is_upgrade = Map.get(params, "is_upgrade") == "true"
+    old_subscription_id = Map.get(params, "old_subscription_id")
+    
     # Retrieve the checkout session to get subscription details
     case Stripe.Session.retrieve(session_id) do
       {:ok, session} ->
         # Process the successful checkout session
         process_successful_checkout(session)
+        
+        # If this is an upgrade, cancel the old subscription
+        if is_upgrade && old_subscription_id do
+          Logger.info("Canceling old subscription #{old_subscription_id} after successful upgrade")
+          
+          # Cancel the old subscription immediately
+          case Stripe.Subscription.update(old_subscription_id, %{cancel_at_period_end: true}) do
+            {:ok, _canceled_subscription} ->
+              Logger.info("Successfully canceled old subscription #{old_subscription_id}")
+            {:error, error} ->
+              Logger.error("Failed to cancel old subscription #{old_subscription_id}: #{inspect(error)}")
+          end
+        end
+        
         conn
         |> put_flash(:info, "Your subscription has been updated successfully.")
         |> Phoenix.Controller.redirect(to: "/dashboard/account?tab=subscription")

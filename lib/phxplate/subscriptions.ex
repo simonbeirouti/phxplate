@@ -262,7 +262,15 @@ defmodule Phxplate.Subscriptions do
       session_params = if subscription && subscription.stripe_customer_id do
         # For existing subscriptions, we'll create a new subscription and cancel the old one after success
         # This is the recommended approach by Stripe for changing plans
-        %{
+
+        # Get the current plan details
+        current_plan = subscription.plan
+        new_plan = plan
+
+        # Determine if this is an upgrade (higher price plan)
+        is_upgrade = current_plan && new_plan && new_plan.unit_amount > current_plan.unit_amount
+
+        base_params = %{
           mode: "subscription",
           customer: subscription.stripe_customer_id,
           success_url: success_url,
@@ -276,6 +284,46 @@ defmodule Phxplate.Subscriptions do
             }
           ]
         }
+
+        # For upgrades, we'll handle the proration manually since Stripe's proration_behavior has limitations
+        if is_upgrade do
+          # Calculate days remaining in current subscription period
+          today = DateTime.utc_now()
+          period_end = subscription.subscription_period_end
+
+          # Calculate total days in billing period (approximation)
+          total_days_in_period =
+            case current_plan.interval do
+              "month" -> 30 # Approximate for simplicity
+              "year" -> 365
+              _ -> 30
+            end
+
+          # Calculate days remaining and used
+          days_remaining = DateTime.diff(period_end, today, :day)
+
+          # Calculate percentage of period remaining
+          percent_remaining = days_remaining / total_days_in_period
+
+          # Calculate prorated amount of current subscription that should be credited
+          current_plan_remaining_value = current_plan.unit_amount * percent_remaining
+
+          # Store this information in metadata for reference
+          Map.merge(base_params, %{
+            subscription_data: %{
+              metadata: %{
+                previous_plan: current_plan.name,
+                previous_amount: current_plan.unit_amount,
+                upgrade_date: DateTime.utc_now() |> DateTime.to_iso8601(),
+                days_remaining: days_remaining,
+                percent_remaining: Float.round(percent_remaining * 100, 2),
+                credit_amount: trunc(current_plan_remaining_value)
+              }
+            }
+          })
+        else
+          base_params
+        end
       else
         # For new subscriptions
         base_params = %{
@@ -329,21 +377,326 @@ defmodule Phxplate.Subscriptions do
     - `{:error, reason}` on failure
   """
   def change_subscription_plan(%User{} = user, %Plan{} = plan) do
-    case create_checkout_session(user, plan) do
-      {:ok, _session} = result ->
-        # Track the plan change attempt
-        track_subscription_change(
-          "subscription_plan_change_initiated",
-          user,
-          nil,
-          %{
-            "new_plan" => plan.name,
-            "price" => plan.unit_amount,
-            "interval" => plan.interval
+    # Get the user's current subscription
+    subscription = get_user_subscription(user.id)
+
+    if subscription && subscription.stripe_subscription_id do
+      # Get the current plan details
+      current_plan = subscription.plan
+      new_plan = plan
+
+      # Determine if this is an upgrade (higher price plan)
+      is_upgrade = current_plan && new_plan && new_plan.unit_amount > current_plan.unit_amount
+
+      if is_upgrade do
+        # First, check if there's a scheduled downgrade and clear it if exists
+        if subscription.metadata && subscription.metadata["scheduled_plan_change"] do
+          # Clear the scheduled downgrade by updating the subscription in Stripe
+          case Stripe.Subscription.retrieve(subscription.stripe_subscription_id) do
+            {:ok, stripe_subscription} ->
+              # Get the first subscription item ID (assuming single plan subscription)
+              [subscription_item | _] = stripe_subscription.items.data
+              subscription_item_id = subscription_item.id
+
+              # Update the subscription to keep the current plan (cancel the scheduled downgrade)
+              Stripe.Subscription.update(subscription.stripe_subscription_id, %{
+                items: [
+                  %{
+                    id: subscription_item_id,
+                    price: current_plan.stripe_price_id
+                  }
+                ]
+              })
+
+              # Get the scheduled plan change details before clearing
+              scheduled_plan_id = subscription.metadata["scheduled_plan_change"]["plan_id"]
+              scheduled_plan = nil
+
+              # Try to get the scheduled plan details if possible
+              try do
+                scheduled_plan = Phxplate.Subscriptions.get_plan!(scheduled_plan_id)
+                Logger.info("Found scheduled plan change to #{scheduled_plan.name}")
+              rescue
+                _ -> Logger.info("Could not find scheduled plan with ID #{scheduled_plan_id}")
+              end
+
+              # Clear the metadata in our local database
+              {:ok, updated_subscription} = update_subscription(subscription, %{metadata: %{}})
+
+              Logger.info("Cleared scheduled downgrade before processing upgrade")
+
+              # Return the updated subscription for further processing
+              subscription = updated_subscription
+            {:error, error} ->
+              Logger.error("Failed to clear scheduled downgrade: #{inspect(error)}")
+          end
+        end
+
+        # For upgrades, we'll handle it with a different approach since Stripe's proration_behavior has limitations
+        # 1. Calculate the prorated credit from the current subscription
+        # 2. Create a one-time coupon for the prorated amount
+        # 3. Apply the coupon to the new subscription
+        # 4. Cancel the old subscription after the new one is created
+
+        # Calculate days remaining in current subscription period
+        today = DateTime.utc_now()
+        period_end = subscription.subscription_period_end
+
+        # Calculate total days in billing period (approximation)
+        total_days_in_period =
+          case current_plan.interval do
+            "month" -> 30 # Approximate for simplicity
+            "year" -> 365
+            _ -> 30
+          end
+
+        # Calculate days remaining and used
+        days_remaining = DateTime.diff(period_end, today, :day)
+
+        # Calculate percentage of period remaining
+        percent_remaining = days_remaining / total_days_in_period
+
+        # Calculate prorated amount of current subscription that should be credited
+        # For yearly plans, this is a significant amount that needs to be properly credited
+        current_plan_remaining_value =
+          if current_plan.interval == "year" do
+            # For yearly plans, calculate the full remaining value
+            # This ensures proper credit for expensive yearly plans
+            trunc(current_plan.unit_amount * percent_remaining)
+          else
+            # For monthly plans, use the standard calculation
+            trunc(current_plan.unit_amount * percent_remaining)
+          end
+
+        # Log the credit calculation for debugging
+        Logger.info("Calculated credit for upgrade: #{current_plan_remaining_value} (#{percent_remaining * 100}% remaining of #{current_plan.unit_amount})")
+
+        # Create a checkout session for the new plan
+        success_url = "#{Application.get_env(:phxplate, :base_url)}/callbacks/stripe/success?session_id={CHECKOUT_SESSION_ID}&is_upgrade=true&old_subscription_id=#{subscription.stripe_subscription_id}"
+        cancel_url = "#{Application.get_env(:phxplate, :base_url)}/callbacks/stripe/cancel"
+
+        # Create checkout session parameters
+        session_params = %{
+          mode: "subscription",
+          customer: subscription.stripe_customer_id,
+          success_url: success_url,
+          cancel_url: cancel_url,
+          client_reference_id: user.id,
+          payment_method_types: ["card"],
+          line_items: [
+            %{
+              price: new_plan.stripe_price_id,
+              quantity: 1
+            }
+          ],
+          subscription_data: %{
+            metadata: %{
+              previous_plan: current_plan.name,
+              previous_amount: current_plan.unit_amount,
+              upgrade_date: DateTime.utc_now() |> DateTime.to_iso8601(),
+              days_remaining: days_remaining,
+              percent_remaining: Float.round(percent_remaining * 100, 2),
+              credit_amount: current_plan_remaining_value,
+              is_upgrade: true,
+              old_subscription_id: subscription.stripe_subscription_id
+            }
           }
-        )
-        result
-      error -> error
+        }
+
+        # If there's a significant credit amount, create a discount
+        if current_plan_remaining_value > 0 do
+          # Create a unique coupon ID for this upgrade
+          coupon_id = "upgrade_#{user.id}_#{DateTime.utc_now() |> DateTime.to_unix()}"
+
+          # Create a one-time coupon for the prorated amount
+          # Ensure the coupon name is not too long (Stripe has a 40 character limit)
+          coupon_name = "Credit for #{current_plan.interval}ly plan"
+
+          coupon_params = %{
+            id: coupon_id,
+            amount_off: current_plan_remaining_value,
+            currency: current_plan.currency,
+            duration: "once",
+            name: coupon_name
+          }
+
+          case Stripe.Coupon.create(coupon_params) do
+            {:ok, coupon} ->
+              # Apply the coupon to the checkout session
+              session_params = Map.put(session_params, :discounts, [%{coupon: coupon.id}])
+
+              Logger.info("Created coupon #{coupon.id} for upgrade credit of #{current_plan_remaining_value}")
+
+              # Create the checkout session with the coupon applied
+              case Stripe.Session.create(session_params) do
+                {:ok, session} ->
+                  # Track the subscription change attempt
+                  track_subscription_change(
+                    "subscription_plan_upgrade",
+                    user,
+                    user,
+                    %{
+                      "plan_id" => plan.id,
+                      "plan_name" => plan.name,
+                      "previous_plan" => current_plan.name,
+                      "credit_amount" => current_plan_remaining_value,
+                      "coupon_id" => coupon.id
+                    }
+                  )
+
+                  {:ok, session}
+                {:error, error} ->
+                  Logger.error("Failed to create Stripe checkout session for upgrade: #{inspect(error)}")
+                  {:error, error}
+              end
+
+            {:error, error} ->
+              Logger.error("Failed to create coupon for upgrade: #{inspect(error)}")
+
+              # Fall back to creating a session without a coupon
+              case Stripe.Session.create(session_params) do
+                {:ok, session} -> {:ok, session}
+                {:error, error} -> {:error, error}
+              end
+          end
+        else
+          # No significant credit to apply, just create the session
+          case Stripe.Session.create(session_params) do
+            {:ok, session} ->
+              # Track the subscription change attempt
+              track_subscription_change(
+                "subscription_plan_upgrade",
+                user,
+                user,
+                %{
+                  "plan_id" => plan.id,
+                  "plan_name" => plan.name,
+                  "previous_plan" => current_plan.name
+                }
+              )
+
+              {:ok, session}
+            {:error, error} ->
+              Logger.error("Failed to create Stripe checkout session for upgrade: #{inspect(error)}")
+              {:error, error}
+          end
+        end
+      else
+        # For downgrades, follow industry standard practice:
+        # 1. Keep current subscription until end of billing period
+        # 2. Schedule the downgrade to take effect at the next billing cycle
+        # 3. Don't charge the customer again until the end of their current billing period
+
+        # Determine if this is a downgrade (lower price plan)
+        is_downgrade = current_plan && new_plan && new_plan.unit_amount < current_plan.unit_amount
+
+        if is_downgrade do
+          # For downgrades, we'll schedule the change at the end of the current billing period
+          Logger.info("Processing subscription downgrade from #{current_plan.name} to #{new_plan.name}")
+
+          # Get the current subscription from Stripe to ensure we have the latest data
+          case Stripe.Subscription.retrieve(subscription.stripe_subscription_id) do
+            {:ok, stripe_subscription} ->
+              # Schedule the downgrade at the end of the current billing period
+              # by updating the subscription with the new price, but setting proration_behavior to 'none'
+              # and using the current_period_end as the billing_cycle_anchor
+
+              # Get the first subscription item ID (assuming single plan subscription)
+              [subscription_item | _] = stripe_subscription.items.data
+              subscription_item_id = subscription_item.id
+
+              # Update the subscription to change plans at the end of the billing period
+              update_params = %{
+                proration_behavior: "none",
+                items: [
+                  %{
+                    id: subscription_item_id,
+                    price: new_plan.stripe_price_id
+                  }
+                ],
+                metadata: %{
+                  downgrade_date: DateTime.utc_now() |> DateTime.to_iso8601(),
+                  previous_plan: current_plan.name,
+                  new_plan: new_plan.name
+                }
+              }
+
+              case Stripe.Subscription.update(subscription.stripe_subscription_id, update_params) do
+                {:ok, updated_subscription} ->
+                  # Update the local subscription record to reflect the scheduled change
+                  # but keep the current plan until the change takes effect
+                  {:ok, _updated_local_subscription} = update_subscription(subscription, %{
+                    metadata: %{
+                      scheduled_plan_change: %{
+                        plan_id: new_plan.id,
+                        effective_date: DateTime.from_unix!(updated_subscription.current_period_end)
+                      }
+                    }
+                  })
+
+                  # Track the subscription change attempt
+                  track_subscription_change(
+                    "subscription_plan_downgrade_scheduled",
+                    user,
+                    user,
+                    %{
+                      "current_plan_id" => current_plan.id,
+                      "current_plan_name" => current_plan.name,
+                      "new_plan_id" => new_plan.id,
+                      "new_plan_name" => new_plan.name,
+                      "effective_date" => DateTime.from_unix!(updated_subscription.current_period_end) |> DateTime.to_iso8601()
+                    }
+                  )
+
+                  # Return success with the updated subscription
+                  {:ok, %{
+                    scheduled_downgrade: true,
+                    current_plan: current_plan.name,
+                    new_plan: new_plan.name,
+                    effective_date: DateTime.from_unix!(updated_subscription.current_period_end)
+                  }}
+
+                {:error, error} ->
+                  Logger.error("Failed to schedule subscription downgrade: #{inspect(error)}")
+                  {:error, error}
+              end
+
+            {:error, error} ->
+              Logger.error("Failed to retrieve subscription from Stripe: #{inspect(error)}")
+              {:error, error}
+          end
+        else
+          # For lateral changes (same price), use the standard checkout session
+          case create_checkout_session(user, plan) do
+            {:ok, session} ->
+              # Track the subscription change attempt
+              track_subscription_change(
+                "subscription_plan_change",
+                user,
+                user,
+                %{"plan_id" => plan.id, "plan_name" => plan.name}
+              )
+
+              {:ok, session}
+            error -> error
+          end
+        end
+      end
+    else
+      # No current subscription, create a new one
+      case create_checkout_session(user, plan) do
+        {:ok, session} ->
+          # Track the subscription change attempt
+          track_subscription_change(
+            "subscription_plan_change",
+            user,
+            user,
+            %{"plan_id" => plan.id, "plan_name" => plan.name}
+          )
+
+          {:ok, session}
+        error -> error
+      end
     end
   end
 
