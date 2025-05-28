@@ -254,8 +254,19 @@ defmodule Phxplate.Subscriptions do
       {:error, "Plan does not have a Stripe price ID"}
     else
       # Use the router routes for success and cancel URLs
-      success_url = "#{Application.get_env(:phxplate, :base_url)}/callbacks/stripe/success?session_id={CHECKOUT_SESSION_ID}"
-      cancel_url = "#{Application.get_env(:phxplate, :base_url)}/callbacks/stripe/cancel"
+      base_url = Application.get_env(:phxplate, :base_url) || "https://#{System.get_env("PHX_HOST")}"
+      
+      # Ensure base_url doesn't end with a slash
+      base_url = String.trim_trailing(base_url, "/")
+      
+      # Make sure we have a valid base URL, fallback to the PHX_HOST directly if needed
+      base_url = if String.contains?(base_url, "://"), do: base_url, else: "https://#{System.get_env("PHX_HOST")}"
+      
+      success_url = "#{base_url}/callbacks/stripe/success?session_id={CHECKOUT_SESSION_ID}"
+      cancel_url = "#{base_url}/callbacks/stripe/cancel"
+      
+      # Log the URLs for debugging
+      Logger.info("Creating Stripe checkout with URLs: success=#{success_url}, cancel=#{cancel_url}")
 
       subscription = get_user_subscription(user.id)
 
