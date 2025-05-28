@@ -26,6 +26,7 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
   attr :current_subscription, :any, default: nil, doc: "The user's current subscription, if any."
   attr :target, :any, default: nil, doc: "The target for phx-target, if any."
   attr :loading, :boolean, default: false, doc: "Whether the plan selection is loading."
+  attr :proration_info, :map, default: %{}, doc: "Proration information for plan upgrades."
 
   def plan_selector(assigns) do
     ~H"""
@@ -45,6 +46,7 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
                 is_popular={plan.metadata["tier"] == "medium"}
                 current_user={@current_user}
                 current_subscription={@current_subscription}
+                proration_info={@proration_info[plan.metadata["tier"]]}
                 target={@target}
                 loading={@loading}
               />
@@ -61,6 +63,7 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
                 is_popular={plan.metadata["tier"] == "medium"}
                 current_user={@current_user}
                 current_subscription={@current_subscription}
+                proration_info={@proration_info[plan.metadata["tier"]]}
                 target={@target}
                 loading={@loading}
               />
@@ -83,6 +86,7 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
   attr :is_popular, :boolean, default: false
   attr :current_user, :any, default: nil
   attr :current_subscription, :any, default: nil
+  attr :proration_info, :map, default: nil
   attr :target, :any, default: nil
   attr :loading, :boolean, default: false
 
@@ -100,6 +104,12 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
           {format_price(@plan)}
           <span class="ml-1 text-sm font-normal">/ {@plan.interval}</span>
         </.card_description>
+        <%= if @proration_info && @proration_info.is_upgrade && @plan.id == @proration_info.plan_id do %>
+          <div class="mt-2 p-2 bg-green-50 rounded-md border border-green-200">
+            <p class="text-sm text-green-700">Upgrade now and pay only <span class="font-bold">{@proration_info.prorated_price}</span> for the remainder of your billing period.</p>
+            <p class="text-xs text-green-600 mt-1">({@proration_info.percent_remaining}% of your billing period remaining)</p>
+          </div>
+        <% end %>
         <.card_description class="mt-2">
           {@plan.description}
         </.card_description>
@@ -129,7 +139,11 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
               <div class="inline-block animate-spin h-4 w-4 mr-2 border-2 border-white rounded-full border-t-transparent" />
               Processing...
             <% else %>
-              Select Plan
+              <%= if @proration_info && @proration_info.is_upgrade && @plan.id == @proration_info.plan_id do %>
+                Upgrade Now
+              <% else %>
+                Select Plan
+              <% end %>
             <% end %>
           </.button>
         <% end %>

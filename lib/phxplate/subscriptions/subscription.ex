@@ -8,7 +8,7 @@ defmodule Phxplate.Subscriptions.Subscription do
   establishes associations with both users and plans.
   """
   use Ecto.Schema
-  @derive {Jason.Encoder, only: [:id, :stripe_customer_id, :stripe_subscription_id, :paid_tier, :subscription_status, :subscription_period_end, :user_id, :plan_id]}
+  @derive {Jason.Encoder, only: [:id, :stripe_customer_id, :stripe_subscription_id, :paid_tier, :subscription_status, :subscription_period_end, :metadata, :user_id, :plan_id]}
   import Ecto.Changeset
   alias Phxplate.Accounts.User
   alias Phxplate.Subscriptions.Plan
@@ -22,6 +22,7 @@ defmodule Phxplate.Subscriptions.Subscription do
     field :paid_tier, Ecto.Enum, values: @paid_tiers
     field :subscription_status, Ecto.Enum, values: @subscription_statuses
     field :subscription_period_end, :utc_datetime
+    field :metadata, :map, default: %{}
 
     belongs_to :user, User
     belongs_to :plan, Plan
@@ -47,6 +48,7 @@ defmodule Phxplate.Subscriptions.Subscription do
       :paid_tier,
       :subscription_status,
       :subscription_period_end,
+      :metadata,
       :user_id,
       :plan_id
     ])
