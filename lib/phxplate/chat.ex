@@ -35,18 +35,22 @@ defmodule Phxplate.Chat do
   def list_active_sessions, do: ChatSession.list_active_sessions()
   
   @doc """
-  Lists chat sessions with pagination support.
+  Lists chat sessions with pagination support and optional filtering.
   
   ## Options
   
     * `:page` - The page number (default: 1)
     * `:per_page` - The number of items per page (default: 10)
+    * `:status` - Filter by status ("active" or "closed")
   """
   def list_sessions(opts \\ []) do
     page = Keyword.get(opts, :page, 1)
     per_page = Keyword.get(opts, :per_page, 10)
+    status = Keyword.get(opts, :status)
     
-    ChatSession.list_sessions(page, per_page)
+    filter_opts = if status, do: [status: status], else: []
+    
+    ChatSession.list_sessions(page, per_page, filter_opts)
   end
   
   @doc """
@@ -54,6 +58,17 @@ defmodule Phxplate.Chat do
   """
   def count_sessions do
     ChatSession.count_sessions()
+  end
+  
+  @doc """
+  Returns the total count of chat sessions with optional filtering.
+  
+  ## Options
+  
+    * `:status` - Filter sessions by status ("active" or "closed")
+  """
+  def count_sessions(opts) do
+    ChatSession.count_sessions(opts)
   end
 
   @doc """
@@ -126,13 +141,23 @@ defmodule Phxplate.Chat do
     
     # Format the transcript
     messages = Enum.map(session.messages, fn message ->
-      timestamp = message.inserted_at |> DateTime.to_naive() |> NaiveDateTime.to_string()
+      # Handle both DateTime and NaiveDateTime types
+      timestamp = case message.inserted_at do
+        %DateTime{} -> message.inserted_at |> DateTime.to_naive() |> NaiveDateTime.to_string()
+        %NaiveDateTime{} -> message.inserted_at |> NaiveDateTime.to_string()
+      end
       sender = if message.sender_type == "admin", do: "Support Agent", else: get_sender_name(session, message)
       "[#{timestamp}] #{sender}: #{message.content}"
     end)
     
+    # Format the session start time for the header
+    session_time = case session.inserted_at do
+      %DateTime{} -> session.inserted_at |> DateTime.to_naive() |> NaiveDateTime.to_string()
+      %NaiveDateTime{} -> session.inserted_at |> NaiveDateTime.to_string()
+    end
+    
     # Join the messages with newlines
-    Enum.join(["Chat Transcript - #{session.inserted_at}"] ++ messages, "\n")
+    Enum.join(["Chat Transcript - #{session_time}"] ++ messages, "\n")
   end
 
   # Helper function to get the sender name

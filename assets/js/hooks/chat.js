@@ -24,14 +24,43 @@ const ChatHooks = {
   // Hook for scrolling chat messages
   ScrollChat: {
     mounted() {
+      // Initial scroll to bottom
       this.scrollToBottom();
-
+      
+      // Track if user has manually scrolled up
+      this.userHasScrolled = false;
+      
+      // Add scroll event listener to detect manual scrolling
+      this.el.addEventListener('scroll', () => {
+        // If we're not at the bottom, user has scrolled up
+        const isAtBottom = this.isNearBottom();
+        this.userHasScrolled = !isAtBottom;
+      });
+      
       // Set up a mutation observer to scroll to bottom when new messages are added
-      const observer = new MutationObserver(() => {
-        this.scrollToBottom();
+      // but only if user hasn't scrolled up manually or auto-scroll is forced
+      const observer = new MutationObserver((mutations) => {
+        // Check if any nodes were added
+        const nodesAdded = mutations.some(mutation => mutation.addedNodes.length > 0);
+        
+        if (nodesAdded) {
+          // Only auto-scroll if user is already at bottom or auto-scroll is forced
+          const shouldAutoScroll = !this.userHasScrolled || 
+                                  this.el.dataset.autoScroll === 'true';
+          
+          if (shouldAutoScroll) {
+            this.scrollToBottom();
+          }
+        }
       });
 
-      observer.observe(this.el, { childList: true });
+      observer.observe(this.el, { childList: true, subtree: true });
+    },
+    
+    // Check if user is near bottom of scroll (within 100px)
+    isNearBottom() {
+      const threshold = 100; // pixels from bottom
+      return this.el.scrollHeight - this.el.scrollTop - this.el.clientHeight < threshold;
     },
 
     scrollToBottom() {

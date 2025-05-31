@@ -108,12 +108,28 @@ defmodule Phxplate.Chat.ChatSession do
   end
   
   @doc """
-  Lists chat sessions with pagination.
+  Lists chat sessions with pagination and optional status filtering.
+  
+  ## Parameters
+  
+    * `page` - The page number (starting from 1)
+    * `per_page` - Number of items per page
+    * `opts` - Additional options
+      * `:status` - Filter by status ("active" or "closed")
   """
-  def list_sessions(page, per_page) do
+  def list_sessions(page, per_page, opts \\ []) do
+    status = Keyword.get(opts, :status)
     offset = (page - 1) * per_page
     
-    __MODULE__
+    query = __MODULE__
+    
+    query = if status do
+      where(query, [s], s.status == ^status)
+    else
+      query
+    end
+    
+    query
     |> order_by([s], desc: s.inserted_at)
     |> limit(^per_page)
     |> offset(^offset)
@@ -126,5 +142,26 @@ defmodule Phxplate.Chat.ChatSession do
   """
   def count_sessions do
     Repo.aggregate(__MODULE__, :count, :id)
+  end
+  
+  @doc """
+  Returns the total count of chat sessions with optional filtering by status.
+  
+  ## Options
+  
+    * `:status` - Filter sessions by status ("active" or "closed")
+  """
+  def count_sessions(opts) do
+    status = Keyword.get(opts, :status)
+    
+    query = __MODULE__
+    
+    query = if status do
+      where(query, [s], s.status == ^status)
+    else
+      query
+    end
+    
+    Repo.aggregate(query, :count, :id)
   end
 end

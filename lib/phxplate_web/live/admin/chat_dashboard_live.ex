@@ -8,8 +8,12 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
   """
   use PhxplateWeb, :live_view
   alias Phxplate.Chat
+  alias Phxplate.Repo
+  alias Phxplate.Accounts
   alias PhxplateWeb.PageMeta
   import PhxplateWeb.Components.UI.Drawer
+  alias Phoenix.LiveView.JS
+  import PhxplateWeb.CoreComponents
 
   @impl true
   def mount(_params, _session, socket) do
@@ -24,7 +28,8 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
      |> assign(
        selected_session: nil,
        current_message: "",
-       show_drawer: false
+       show_drawer: false,
+       filter: "active"
      )
      |> PageMeta.assign_metadata(
        title: "Chat Management",
@@ -36,13 +41,17 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
 
   defp load_sessions(socket, page) do
     per_page = 10
+    filter = socket.assigns.filter
 
-    # Get total count for pagination
-    total_sessions = Chat.count_sessions()
+    # Apply filter if not "all"
+    filter_opts = if filter != "all", do: [status: filter], else: []
+
+    # Get total count for pagination with filter
+    total_sessions = Chat.count_sessions(filter_opts)
     total_pages = max(1, ceil(total_sessions / per_page))
 
-    # Get paginated sessions
-    sessions = Chat.list_sessions(page: page, per_page: per_page)
+    # Get paginated sessions with filter
+    sessions = Chat.list_sessions(Keyword.merge([page: page, per_page: per_page], filter_opts))
 
     socket
     |> assign(:active_sessions, sessions)
@@ -93,6 +102,13 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
     {:noreply, assign(socket, current_message: content)}
   end
 
+  def handle_event("filter_sessions", %{"filter" => filter}, socket) do
+    {:noreply,
+     socket
+     |> assign(:filter, filter)
+     |> load_sessions(1)}
+  end
+
   def handle_event("paginate", %{"page" => page}, socket) do
     page = String.to_integer(page)
     {:noreply, load_sessions(socket, page)}
@@ -103,14 +119,42 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
       session = socket.assigns.selected_session
 
       case Chat.close_session(session) do
-        {:ok, _session} ->
+        {:ok, updated_session} ->
+          # Send transcript email to the user
+          send_transcript_email(updated_session)
+
+          # Show a notification that the transcript was sent
+          socket = put_flash(socket, :info, "Chat session closed and transcript sent")
           {:noreply, socket}
 
         {:error, _changeset} ->
+          socket = put_flash(socket, :error, "Failed to close chat session")
           {:noreply, socket}
       end
     else
       {:noreply, socket}
+    end
+  end
+
+  # Helper function to send the transcript email
+  defp send_transcript_email(session) do
+    # Get the recipient email based on the session type (user or anonymous)
+    recipient_email = cond do
+      session.user_id ->
+        user = Repo.get(Accounts.User, session.user_id)
+        user && user.email
+      session.anonymous_email ->
+        session.anonymous_email
+      true ->
+        nil
+    end
+
+    # Only send if we have a valid email
+    if recipient_email do
+      # Send the transcript email in a separate process to not block the LiveView
+      Task.start(fn ->
+        Accounts.UserNotifier.deliver_chat_transcript(recipient_email, session.id)
+      end)
     end
   end
 
@@ -205,6 +249,33 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
         <div class="h-[calc(100vh-200px)] col-span-1">
           <h2 class="text-xl font-semibold mb-4">Chat Sessions</h2>
 
+          <div class="flex space-x-2 mb-4">
+            <.button
+              phx-click="filter_sessions"
+              phx-value-filter="all"
+              variant={if @filter == "all", do: "default", else: "outline"}
+              size="sm"
+            >
+              All
+            </.button>
+            <.button
+              phx-click="filter_sessions"
+              phx-value-filter="active"
+              variant={if @filter == "active", do: "default", else: "outline"}
+              size="sm"
+            >
+              Active
+            </.button>
+            <.button
+              phx-click="filter_sessions"
+              phx-value-filter="closed"
+              variant={if @filter == "closed", do: "default", else: "outline"}
+              size="sm"
+            >
+              Closed
+            </.button>
+          </div>
+
           <%= if Enum.empty?(@active_sessions) do %>
             <div class="text-center py-4">
               <p class="text-sm text-gray-500">No active chat sessions</p>
@@ -214,14 +285,14 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
               <div class={"cursor-pointer p-3 rounded-md hover:bg-gray-50 relative #{if @selected_session && @selected_session.id == session.id, do: "bg-gray-100 border-l-4 border-blue-500", else: ""}"}>
                 <!-- Desktop click handler (hidden on mobile) -->
                 <div
-                  class="hidden md:block h-full w-full absolute inset-0"
+                  class="hidden lg:block h-full w-full absolute inset-0"
                   phx-click="select_session"
                   phx-value-id={session.id}
                 >
                 </div>
                 <!-- Mobile click handler (hidden on desktop) -->
                 <div
-                  class="md:hidden h-full w-full absolute inset-0"
+                  class="lg:hidden h-full w-full absolute inset-0"
                   phx-click="select_session"
                   phx-value-id={session.id}
                   phx-value-is_mobile="true"
@@ -282,86 +353,10 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
         </div>
 
         <!-- Chat Content (Right Side) -->
-        <div class="lg:col-span-2 h-[calc(100vh-200px)] overflow-hidden">
+        <div class="hidden lg:block col-span-2 h-[calc(100vh-200px)] overflow-hidden">
+          <h2 class="text-xl font-semibold mb-4">Chat Details</h2>
           <%= if @selected_session do %>
-            <div class="bg-white overflow-hidden shadow rounded-lg h-full flex flex-col">
-              <div class="px-4 py-5 sm:px-6 flex justify-between items-center border-b">
-                <div>
-                  <h3 class="text-lg leading-6 font-medium text-gray-900">
-                    <%= if @selected_session.user_id do %>
-                      {@selected_session.user.email}
-                    <% else %>
-                      {@selected_session.anonymous_name}
-                    <% end %>
-                  </h3>
-                  <%= if @selected_session.anonymous_email do %>
-                    <p class="mt-1 max-w-2xl text-sm text-gray-500">
-                      {@selected_session.anonymous_email}
-                    </p>
-                  <% end %>
-                </div>
-                <div class="flex items-center space-x-3">
-                  <span class={"inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium #{if @selected_session.status == "active", do: "bg-green-100 text-green-800", else: "bg-gray-100 text-gray-800"}"}>
-                    {@selected_session.status}
-                  </span>
-                  <%= if @selected_session.status == "active" do %>
-                    <.button phx-click="close_session" size="sm" variant="destructive">
-                      Close Session
-                    </.button>
-                  <% end %>
-                </div>
-              </div>
-              <div class="flex-1 overflow-hidden flex flex-col">
-                <div
-                  class="chat-messages flex-1 overflow-y-auto p-4"
-                  id="desktop-chat-messages"
-                  phx-hook="ScrollChat"
-                >
-                  <div
-                    id="messages-desktop"
-                    phx-update="stream"
-                    phx-stream="messages"
-                    class="space-y-3"
-                  >
-                    <%= for {msg_id, message} <- @streams.messages do %>
-                      <div
-                        class={"flex #{if message.sender_type == "admin", do: "justify-end", else: "justify-start"}"}
-                        id={msg_id}
-                      >
-                        <div class={"max-w-3/4 px-4 py-2 rounded-lg #{if message.sender_type == "admin", do: "bg-blue-100", else: "bg-gray-100"}"}>
-                          <div class="text-sm">{message.content}</div>
-                          <div class="text-xs text-gray-500 mt-1">
-                            {Calendar.strftime(message.inserted_at, "%H:%M")}
-                          </div>
-                        </div>
-                      </div>
-                    <% end %>
-                  </div>
-                </div>
-
-                <%= if @selected_session.status == "active" do %>
-                  <div class="border-t p-4">
-                    <.form
-                      for={%{}}
-                      as={:message}
-                      phx-submit="send_message"
-                      phx-change="update_message"
-                    >
-                      <div class="flex space-x-2">
-                        <input
-                          type="text"
-                          name="message[content]"
-                          value={@current_message}
-                          placeholder="Type your message..."
-                          class="flex-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                        />
-                        <.button type="submit">Send</.button>
-                      </div>
-                    </.form>
-                  </div>
-                <% end %>
-              </div>
-            </div>
+            {render_chat_details(assign(assigns, :context, "desktop"))}
           <% else %>
             <div class="bg-white overflow-hidden shadow rounded-lg h-full flex flex-col justify-center items-center">
               <div class="text-center p-8">
@@ -390,86 +385,228 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
         </div>
       </div>
 
-    <!-- Mobile Drawer -->
+      <!-- Mobile Drawer -->
       <.drawer show={@show_drawer} on_cancel={JS.push("close_drawer")}>
         <.drawer_header>
-          <.drawer_title>
-            <%= if @selected_session do %>
-              <%= if @selected_session.user_id do %>
-                {@selected_session.user.email}
-              <% else %>
-                {@selected_session.anonymous_name}
-              <% end %>
-            <% else %>
-              Chat Session
-            <% end %>
-          </.drawer_title>
+          <.drawer_title>Chat Details</.drawer_title>
           <%= if @selected_session && @selected_session.anonymous_email do %>
-            <.drawer_description>
-              {@selected_session.anonymous_email}
+            <.drawer_description class="flex flex-row items-center justify-between">
+              <%= if @selected_session do %>
+                <%= if @selected_session.user_id do %>
+                  {@selected_session.user.email}
+                <% else %>
+                  {@selected_session.anonymous_name}
+                <% end %>
+              <% else %>
+                Chat Session
+              <% end %>
+              <span class="text-xs text-gray-500">
+                {Calendar.strftime(@selected_session.started_at, "%B %d, %Y at %H:%M")} -
+                <span class={"inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium #{if @selected_session.status == "active", do: "bg-green-100 text-green-800", else: "bg-gray-100 text-gray-800"}"}>
+                  {@selected_session.status}
+                </span>
+              </span>
             </.drawer_description>
           <% end %>
         </.drawer_header>
 
         <%= if @selected_session do %>
           <.drawer_content>
-            <div class="flex justify-between items-center mb-4">
-              <span class={"inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium #{if @selected_session.status == "active", do: "bg-green-100 text-green-800", else: "bg-gray-100 text-gray-800"}"}>
-                {@selected_session.status}
-              </span>
-              <%= if @selected_session.status == "active" do %>
-                <.button phx-click="close_session" size="sm" variant="destructive">
-                  Close Session
-                </.button>
-              <% end %>
-            </div>
+            {render_mobile_chat_details(assigns)}
+          </.drawer_content>
+        <% end %>
+      </.drawer>
+    </div>
+    """
+  end
 
+  # Separate function for mobile drawer to ensure proper layout
+  defp render_mobile_chat_details(assigns) do
+    assigns = assign(assigns, :context, "mobile")
+    
+    ~H"""
+    <div class="flex flex-col h-[60vh]">
+      <!-- Chat Messages Area - Takes available space and scrolls -->
+      <div class="flex-1 overflow-y-auto" id="mobile-chat-messages" phx-hook="ScrollChat" data-auto-scroll="true">
+        <div
+          id="messages-mobile"
+          phx-update="stream"
+          phx-stream="messages"
+          class="space-y-3 p-2"
+        >
+          <%= for {msg_id, message} <- @streams.messages do %>
             <div
-              class="chat-messages h-96 overflow-y-auto mb-4"
-              id="mobile-chat-messages"
-              phx-hook="ScrollChat"
+              class={"flex #{if message.sender_type == "admin", do: "justify-end", else: "justify-start"}"}
+              id={msg_id}
             >
-              <div id="messages-mobile" phx-update="stream" phx-stream="messages" class="space-y-3">
-                <%= for {msg_id, message} <- @streams.messages do %>
-                  <div
-                    class={"flex #{if message.sender_type == "admin", do: "justify-end", else: "justify-start"}"}
-                    id={msg_id}
-                  >
-                    <div class={"max-w-3/4 px-4 py-2 rounded-lg #{if message.sender_type == "admin", do: "bg-blue-100", else: "bg-gray-100"}"}>
-                      <div class="text-sm">{message.content}</div>
-                      <div class="text-xs text-gray-500 mt-1">
-                        {Calendar.strftime(message.inserted_at, "%H:%M")}
-                      </div>
-                    </div>
-                  </div>
-                <% end %>
+              <div class={"max-w-3/4 px-4 py-2 rounded-lg #{if message.sender_type == "admin", do: "bg-blue-100", else: "bg-gray-100"}"}>
+                <div class="text-sm">{message.content}</div>
+                <div class="text-xs text-gray-500 mt-1">
+                  {Calendar.strftime(message.inserted_at, "%H:%M")}
+                </div>
               </div>
             </div>
+          <% end %>
+        </div>
+      </div>
 
-            <%= if @selected_session.status == "active" do %>
-              <.form
-                for={%{}}
-                as={:message}
-                phx-submit="send_message"
-                phx-change="update_message"
-                class="mt-4"
-              >
-                <div class="flex space-x-2">
+      <!-- Message Input Area - Fixed at bottom -->
+      <%= if @selected_session.status == "active" do %>
+        <div class="py-3 bg-white border-t mt-auto">
+          <.form for={%{}} as={:message} phx-submit="send_message" phx-change="update_message">
+            <div class="flex items-center gap-2">
+              <input
+                type="text"
+                name="message[content]"
+                value={@current_message}
+                placeholder="Type your message..."
+                class="flex-grow block rounded-md shadow-sm"
+              />
+              <div class="flex-shrink-0 flex gap-2">
+                <.button type="submit">Send</.button>
+                <.button phx-click="close_session" variant="destructive">
+                  <Lucideicons.fingerprint class="w-5 h-5" />
+                </.button>
+              </div>
+            </div>
+          </.form>
+        </div>
+      <% end %>
+    </div>
+    """
+  end
+
+  defp render_chat_details(assigns) do
+    context = assigns[:context] || "desktop"
+    assigns = assign(assigns, :context, context)
+
+    ~H"""
+    <.tabs :let={builder} default="chat" id={"chat-details-#{@context}"}>
+      <.tabs_list class="grid w-full grid-cols-2">
+        <.tabs_trigger builder={builder} value="chat">Chat</.tabs_trigger>
+        <.tabs_trigger builder={builder} value="info">Information</.tabs_trigger>
+      </.tabs_list>
+
+      <.tabs_content value="chat" class="h-[calc(100vh-300px)] flex flex-col">
+        <div class="flex-1 overflow-hidden flex flex-col h-full">
+          <div
+            class="chat-messages flex-1 overflow-y-auto"
+            id={"#{@context}-chat-messages"}
+            phx-hook="ScrollChat"
+            data-auto-scroll="true"
+          >
+            <div
+              id={"messages-#{@context}"}
+              phx-update="stream"
+              phx-stream="messages"
+              class="space-y-3 p-2"
+            >
+              <%= for {msg_id, message} <- @streams.messages do %>
+                <div
+                  class={"flex #{if message.sender_type == "admin", do: "justify-end", else: "justify-start"}"}
+                  id={msg_id}
+                >
+                  <div class={"max-w-3/4 px-4 py-2 rounded-lg #{if message.sender_type == "admin", do: "bg-blue-100", else: "bg-gray-100"}"}>
+                    <div class="text-sm">{message.content}</div>
+                    <div class="text-xs text-gray-500 mt-1">
+                      {Calendar.strftime(message.inserted_at, "%H:%M")}
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </div>
+
+          <%= if @selected_session.status == "active" do %>
+            <div class="pt-3 sticky bottom-0 bg-white border-t mt-auto">
+              <.form for={%{}} as={:message} phx-submit="send_message" phx-change="update_message">
+                <div class="flex items-center gap-2">
                   <input
                     type="text"
                     name="message[content]"
                     value={@current_message}
                     placeholder="Type your message..."
-                    class="flex-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    class="flex-grow block rounded-md shadow-sm"
                   />
-                  <.button type="submit">Send</.button>
+                  <div class="flex-shrink-0 flex gap-2">
+                    <.button type="submit">Send</.button>
+                    <.button phx-click="close_session" variant="destructive">
+                      <Lucideicons.fingerprint class="w-5 h-5" />
+                    </.button>
+                  </div>
                 </div>
               </.form>
-            <% end %>
-          </.drawer_content>
-        <% end %>
-      </.drawer>
-    </div>
+            </div>
+          <% end %>
+        </div>
+      </.tabs_content>
+
+      <.tabs_content value="info">
+        <div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Session ID</h4>
+              <p class="mt-1">{@selected_session.id}</p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Status</h4>
+              <div class="mt-1">
+                <span class={"inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium #{if @selected_session.status == :active, do: "bg-green-100 text-green-800", else: "bg-red-100 text-red-800"}"}>
+                  {@selected_session.status}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Started At</h4>
+              <p class="mt-1">
+                {Calendar.strftime(@selected_session.started_at, "%B %d, %Y at %I:%M %p")}
+              </p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Last Activity</h4>
+              <p class="mt-1">
+                <%= if @selected_session.messages && length(@selected_session.messages) > 0 do %>
+                  <% latest_message =
+                    @selected_session.messages
+                    |> Enum.sort_by(fn msg -> msg.inserted_at end, {:desc, NaiveDateTime})
+                    |> hd() %>
+                  {Calendar.strftime(latest_message.inserted_at, "%B %d, %Y at %I:%M %p")}
+                <% else %>
+                  No messages yet
+                <% end %>
+              </p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Message Count</h4>
+              <p class="mt-1">{length(@selected_session.messages)}</p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">User Information</h4>
+              <p class="mt-1">
+                <%= if @selected_session.user_id do %>
+                  User ID: {@selected_session.user_id}
+                <% else %>
+                  Anonymous User
+                <% end %>
+              </p>
+            </div>
+          </div>
+
+          <%= if @selected_session.status == "active" do %>
+            <div class="mt-6">
+              <.button phx-click="close_session" variant="destructive" class="w-full">
+                Close Session
+              </.button>
+            </div>
+          <% end %>
+        </div>
+      </.tabs_content>
+    </.tabs>
     """
   end
 end

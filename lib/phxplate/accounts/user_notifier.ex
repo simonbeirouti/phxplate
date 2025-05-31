@@ -51,11 +51,7 @@ defmodule Phxplate.Accounts.UserNotifier do
       font-weight: bold;
     }
     .message-box {
-      margin: 20px 0;
       padding: 15px;
-      border: 1px solid #e6e8ec; /* --border: 220 13% 91% */
-      border-radius: 0.5rem;
-      background-color: #f8f9fc; /* --secondary: 220 14.3% 95.9% */
     }
     h1, h2, h3 {
       color: #0a0b0e; /* --foreground: 224 71.4% 4.1% */
@@ -111,6 +107,29 @@ defmodule Phxplate.Accounts.UserNotifier do
     year = assigns[:year]
 
     content = case assigns[:template] do
+      "chat_transcript" ->
+        """
+        <h2>Hi #{assigns.recipient_name},</h2>
+        <p>Thank you for chatting with us. Below is a transcript of your conversation:</p>
+
+        <div class="message-box">
+          <p><strong>Session ID:</strong> #{assigns.session_id}</p>
+          <p><strong>Started:</strong> #{Calendar.strftime(assigns.started_at, "%B %d, %Y at %I:%M %p")}</p>
+          #{if assigns.ended_at, do: "<p><strong>Ended:</strong> #{Calendar.strftime(assigns.ended_at, "%B %d, %Y at %I:%M %p")}</p>", else: ""}
+        </div>
+
+        <div class="message-box" style="max-height: 400px; overflow-y: auto;">
+          <style>
+            .message-line { margin-bottom: 8px; }
+            .timestamp { color: #717789; font-size: 12px; }
+            .transcript-header { font-weight: bold; margin-bottom: 10px; }
+          </style>
+          #{assigns.transcript}
+        </div>
+
+        <p>If you have any further questions, please don't hesitate to contact us.</p>
+        """
+
       "confirmation_instructions" ->
         """
         <h2>Hi #{assigns.user.email},</h2>
@@ -389,6 +408,145 @@ defmodule Phxplate.Accounts.UserNotifier do
 
     user_subject = "Thank you for contacting us"
     deliver(email, user_subject, user_text_body, render_email_template(user_template_assigns))
+  end
+
+  @doc """
+  Deliver chat transcript email.
+
+  Sends the chat transcript to the user when a chat session is closed.
+  """
+  def deliver_chat_transcript(email, session_id) do
+    # Get the chat session with messages
+    session = Phxplate.Chat.get_session_with_messages(session_id)
+
+    # Generate the transcript
+    transcript = Phxplate.Chat.generate_transcript(session_id)
+
+    # Format the transcript for HTML display
+    formatted_transcript =
+      transcript
+      |> String.split("\n")
+      |> Enum.filter(fn line ->
+        # Skip the header line with the date
+        not String.starts_with?(line, "Chat Transcript - ")
+      end)
+      |> Enum.map(fn line ->
+        # Check if it's a message line with timestamp
+        if String.starts_with?(line, "[") do
+          # Extract parts: "[timestamp] sender: content"
+          case Regex.run(~r/\[(.*?)\] (.*?): (.*)/, line) do
+            [_, timestamp, sender, content] ->
+              is_admin = sender == "Support Agent"
+              # Extract just the time part from the timestamp (HH:MM:SS)
+              # Format as HH:MM by removing seconds
+              time = timestamp
+                |> String.split(" ")
+                |> List.last()
+                |> String.split(":")
+                |> Enum.take(2)
+                |> Enum.join(":")
+
+              # Create a simple message bubble with content and time-name below
+              bg_color = if is_admin, do: "#f3f4f6", else: "#e6f0fd"
+              text_color = "#374151"
+
+              # Create a message bubble with width based on content, positioned to the left
+              "<div style=\"margin-bottom: 16px; text-align: left;\">" <>
+              "  <div style=\"display: inline-block; padding: 10px 12px; border-radius: 12px; background-color: #{bg_color}; color: #{text_color};\">" <>
+              "    <div style=\"font-size: 14px;\">#{content}</div>" <>
+              "  </div>" <>
+              "  <div style=\"font-size: 10px; color: #6b7280; margin-top: 4px;\">#{time} - #{sender}</div>" <>
+              "</div>"
+            _ -> "<div>#{line}</div>"
+          end
+        else
+          "" # Skip header lines
+        end
+      end)
+      |> Enum.join("\n")
+
+    # Determine recipient name
+    recipient_name = cond do
+      session.anonymous_name -> session.anonymous_name
+      session.user_id ->
+        user = Phxplate.Repo.get(Phxplate.Accounts.User, session.user_id)
+        user && (user.first_name || user.email) || "User"
+      true -> "User"
+    end
+
+    # Create template assigns
+    template_assigns = %{
+      template: "chat_transcript",
+      recipient_name: recipient_name,
+      transcript: formatted_transcript,
+      session_id: session.id,
+      started_at: session.started_at,
+      ended_at: session.ended_at,
+      app_name: Phxplate.config([:title]),
+      year: DateTime.utc_now().year,
+      recipient_email: email
+    }
+
+    # Plain text version
+    text_body = """
+    ==============================
+
+    Hi #{recipient_name},
+
+    Thank you for chatting with us. Below is a transcript of your conversation:
+
+    Session ID: #{session.id}
+    Started: #{Calendar.strftime(session.started_at, "%B %d, %Y at %I:%M %p")}
+    #{if session.ended_at, do: "Ended: #{Calendar.strftime(session.ended_at, "%B %d, %Y at %I:%M %p")}", else: ""}
+
+    #{transcript}
+
+    ==============================
+    """
+
+    # Add chat transcript template to the case statement in render_email_template
+    content = case template_assigns[:template] do
+      "chat_transcript" ->
+        """
+        <h2>Hi #{template_assigns.recipient_name},</h2>
+        <p>Thank you for chatting with us. Below is a transcript of your conversation:</p>
+
+        <div class="info-container" style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; background-color: #f9fafb; margin-top: 16px; margin-bottom: 8px;">
+          <h3 style="margin-top: 0; margin-bottom: 12px; color: #374151; font-size: 16px;">Session Information</h3>
+          <div class="info-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="info-item">
+              <div style="font-size: 14px; color: #6b7280; margin-bottom: 4px;">Started At</div>
+              <div style="font-size: 16px;">#{Calendar.strftime(template_assigns.started_at, "%B %d, %Y at %I:%M %p")}</div>
+            </div>
+            #{if template_assigns.ended_at do
+              ~s(<div class="info-item">
+                <div style="font-size: 14px; color: #6b7280; margin-bottom: 4px;">Ended At</div>
+                <div style="font-size: 16px;">#{Calendar.strftime(template_assigns.ended_at, "%B %d, %Y at %I:%M %p")}</div>
+              </div>)
+            else
+              ""
+            end}
+          </div>
+        </div>
+
+        <div class="chat-container" style="border: 1px solid #e5e7eb; border-radius: 8px; background-color: #f9fafb;">
+          <div class="chat-header" style="background-color: #f3f4f6; padding: 12px 16px; border-bottom: 1px solid #e5e7eb; border-top-left-radius: 8px; border-top-right-radius: 8px;">
+            <h3 style="margin: 0; color: #374151; font-size: 16px;">Chat Transcript</h3>
+          </div>
+
+          <div class="message-box" style="background-color: white; padding: 12px;">
+            #{template_assigns.transcript}
+          </div>
+        </div>
+
+        <p>If you have any further questions, please don't hesitate to contact us.</p>
+        """
+      _ ->
+        render_email_template(template_assigns)
+    end
+
+    # Send the email
+    deliver(email, "Your Chat Transcript", text_body, email_layout("Your Chat Transcript", content, template_assigns.app_name, template_assigns.year, email))
   end
 
   # Delivers the email using the application mailer with HTML support

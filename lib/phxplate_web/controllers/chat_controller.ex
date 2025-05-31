@@ -1,8 +1,7 @@
 defmodule PhxplateWeb.ChatController do
   use PhxplateWeb, :controller
   alias Phxplate.Chat
-  alias Phxplate.Chat.ChatSession
-  
+
   def create(conn, %{"chat" => chat_params}) do
     # Extract user information if logged in
     attrs = case conn.assigns[:current_user] do
@@ -20,12 +19,12 @@ defmodule PhxplateWeb.ChatController do
           started_at: DateTime.utc_now()
         }
     end
-    
+
     case Chat.create_session(attrs) do
       {:ok, session} ->
         # Notify admins about the new session
         Chat.notify_new_session(session)
-        
+
         # Return the session ID for the frontend to connect to the channel
         json(conn, %{session_id: session.id})
       {:error, _changeset} ->
@@ -34,10 +33,10 @@ defmodule PhxplateWeb.ChatController do
         |> json(%{error: "Could not create chat session"})
     end
   end
-  
+
   def get_session(conn, %{"id" => session_id}) do
     session = Chat.get_session_with_messages(session_id)
-    
+
     if session do
       # Check if the user is authorized to access this session
       authorized = cond do
@@ -52,7 +51,7 @@ defmodule PhxplateWeb.ChatController do
         true ->
           false
       end
-      
+
       if authorized do
         json(conn, %{
           session: %{
@@ -61,7 +60,7 @@ defmodule PhxplateWeb.ChatController do
             anonymous_name: session.anonymous_name,
             anonymous_email: session.anonymous_email,
             started_at: session.started_at,
-            messages: Enum.map(session.messages, fn msg -> 
+            messages: Enum.map(session.messages, fn msg ->
               %{
                 id: msg.id,
                 content: msg.content,
@@ -82,12 +81,12 @@ defmodule PhxplateWeb.ChatController do
       |> json(%{error: "Chat session not found"})
     end
   end
-  
+
   def get_anonymous_sessions(conn, %{"email" => email}) do
     sessions = Chat.get_anonymous_sessions(email)
-    
+
     json(conn, %{
-      sessions: Enum.map(sessions, fn session -> 
+      sessions: Enum.map(sessions, fn session ->
         %{
           id: session.id,
           status: session.status,
