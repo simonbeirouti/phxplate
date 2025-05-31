@@ -26,28 +26,28 @@ const ChatHooks = {
     mounted() {
       // Initial scroll to bottom
       this.scrollToBottom();
-      
+
       // Track if user has manually scrolled up
       this.userHasScrolled = false;
-      
+
       // Add scroll event listener to detect manual scrolling
       this.el.addEventListener('scroll', () => {
         // If we're not at the bottom, user has scrolled up
         const isAtBottom = this.isNearBottom();
         this.userHasScrolled = !isAtBottom;
       });
-      
+
       // Set up a mutation observer to scroll to bottom when new messages are added
       // but only if user hasn't scrolled up manually or auto-scroll is forced
       const observer = new MutationObserver((mutations) => {
         // Check if any nodes were added
         const nodesAdded = mutations.some(mutation => mutation.addedNodes.length > 0);
-        
+
         if (nodesAdded) {
           // Only auto-scroll if user is already at bottom or auto-scroll is forced
-          const shouldAutoScroll = !this.userHasScrolled || 
-                                  this.el.dataset.autoScroll === 'true';
-          
+          const shouldAutoScroll = !this.userHasScrolled ||
+            this.el.dataset.autoScroll === 'true';
+
           if (shouldAutoScroll) {
             this.scrollToBottom();
           }
@@ -56,7 +56,7 @@ const ChatHooks = {
 
       observer.observe(this.el, { childList: true, subtree: true });
     },
-    
+
     // Check if user is near bottom of scroll (within 100px)
     isNearBottom() {
       const threshold = 100; // pixels from bottom
@@ -128,12 +128,25 @@ const ChatHooks = {
       this.channel = null;
       this.sessionId = null;
       this.showingSettings = false;
-      
-      // Check if we have stored anonymous user data
-      this.anonymousName = localStorage.getItem(STORAGE_KEYS.ANONYMOUS_NAME);
-      this.anonymousEmail = localStorage.getItem(STORAGE_KEYS.ANONYMOUS_EMAIL);
+
+      // Check if we have user data from the server (authenticated user)
+      const userData = this.el.dataset.user ? JSON.parse(this.el.dataset.user) : null;
+
+      if (userData) {
+        // If we have authenticated user data, use it directly
+        this.anonymousName = userData.name;
+        this.anonymousEmail = userData.email;
+        this.userId = userData.id;
+        localStorage.setItem(STORAGE_KEYS.ANONYMOUS_NAME, userData.name);
+        localStorage.setItem(STORAGE_KEYS.ANONYMOUS_EMAIL, userData.email);
+      } else {
+        // Otherwise check if we have stored anonymous user data
+        this.anonymousName = localStorage.getItem(STORAGE_KEYS.ANONYMOUS_NAME);
+        this.anonymousEmail = localStorage.getItem(STORAGE_KEYS.ANONYMOUS_EMAIL);
+      }
+
       this.previousSessions = JSON.parse(localStorage.getItem(STORAGE_KEYS.CHAT_SESSIONS) || '[]');
-      
+
       // If we have an email, fetch sessions from the server
       if (this.anonymousEmail) {
         this.fetchAnonymousSessions(this.anonymousEmail);
@@ -167,7 +180,7 @@ const ChatHooks = {
           this.startChat({});
         });
       }
-      
+
       // Initialize the chat interface based on user state
       this.initializeChatInterface();
     },
@@ -178,7 +191,7 @@ const ChatHooks = {
       if (!modalContent) {
         return;
       }
-      
+
       // If we have user info already, show previous chats or start new chat options
       if (this.anonymousName && this.anonymousEmail) {
         // Always fetch the latest sessions from the server
@@ -188,7 +201,225 @@ const ChatHooks = {
         this.renderRegistrationForm();
       }
     },
-    
+
+    renderRegistrationForm() {
+      const modalBody = this.el.querySelector(".chat-modal-body");
+      if (!modalBody) return;
+
+      // Clear the modal body
+      modalBody.innerHTML = '';
+
+      // Check if user is authenticated (has userId)
+      const isAuthenticated = !!this.userId;
+
+      if (isAuthenticated) {
+        // For authenticated users, show fixed text display instead of input fields
+        const registrationContainer = document.createElement('div');
+        registrationContainer.className = 'space-y-4';
+        registrationContainer.innerHTML = `
+          <div class="mb-4">
+            <h3 class="text-lg font-medium text-center">Start a New Chat</h3>
+          </div>
+          
+          <div>
+            <p class="block text-sm font-medium text-gray-700">Your Name</p>
+            <p class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">${this.anonymousName || ''}</p>
+          </div>
+          
+          <div>
+            <p class="block text-sm font-medium text-gray-700">Your Email</p>
+            <p class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">${this.anonymousEmail || ''}</p>
+          </div>
+          
+          <div class="pt-2">
+            <button id="start-chat-button" class="w-full bg-primary hover:bg-primary/80 text-white font-medium py-2 px-4 rounded">Start Chat</button>
+          </div>
+        `;
+
+        modalBody.appendChild(registrationContainer);
+
+        // Add event listener for start chat button
+        const startChatButton = registrationContainer.querySelector('#start-chat-button');
+        if (startChatButton) {
+          startChatButton.addEventListener('click', () => {
+            this.startChat({
+              name: this.anonymousName,
+              email: this.anonymousEmail,
+              user_id: this.userId
+            });
+          });
+        }
+      } else {
+        // For anonymous users, show the regular form with input fields
+        const registrationForm = document.createElement('form');
+        registrationForm.id = 'chat-registration-form';
+        registrationForm.className = 'space-y-4';
+        registrationForm.innerHTML = `
+          <div class="mb-4">
+            <h3 class="text-lg font-medium text-center">Start a New Chat</h3>
+          </div>
+          
+          <div>
+            <label for="chat-name" class="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
+            <input type="text" id="chat-name" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" value="${this.anonymousName || ''}" required>
+          </div>
+          
+          <div>
+            <label for="chat-email" class="block text-sm font-medium text-gray-700 mb-1">Your Email</label>
+            <input type="email" id="chat-email" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" value="${this.anonymousEmail || ''}" required>
+          </div>
+          
+          <div class="pt-2">
+            <button type="submit" class="w-full bg-primary hover:bg-primary/80 text-white font-medium py-2 px-4 rounded">Start Chat</button>
+          </div>
+        `;
+
+        modalBody.appendChild(registrationForm);
+
+        // Add event listener for form submission
+        registrationForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+
+          const name = registrationForm.querySelector('#chat-name').value.trim();
+          const email = registrationForm.querySelector('#chat-email').value.trim();
+
+          if (name && email) {
+            // Update local storage and instance variables
+            localStorage.setItem(STORAGE_KEYS.ANONYMOUS_NAME, name);
+            localStorage.setItem(STORAGE_KEYS.ANONYMOUS_EMAIL, email);
+            this.anonymousName = name;
+            this.anonymousEmail = email;
+
+            // Start the chat
+            this.startChat({ name, email });
+          }
+        });
+      }
+    },
+
+    renderSettingsForm() {
+      const modalBody = this.el.querySelector(".chat-modal-body");
+      if (!modalBody) return;
+
+      // Clear the modal body
+      modalBody.innerHTML = '';
+
+      // Check if user is authenticated (has userId)
+      const isAuthenticated = !!this.userId;
+
+      // Create back button and header HTML
+      const headerHtml = `
+        <div class="flex items-center mb-4">
+          <button id="back-to-chats-button" class="mr-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+            </svg>
+          </button>
+          <h3 class="text-lg font-medium">User Settings</h3>
+        </div>
+      `;
+
+      if (isAuthenticated) {
+        // For authenticated users, show fixed text display instead of input fields
+        const settingsContainer = document.createElement('div');
+        settingsContainer.className = 'space-y-4';
+        settingsContainer.innerHTML = `
+          ${headerHtml}
+          
+          <div>
+            <p class="block text-sm font-medium text-gray-700">Your Name</p>
+            <p class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">${this.anonymousName || ''}</p>
+          </div>
+          
+          <div>
+            <p class="block text-sm font-medium text-gray-700">Your Email</p>
+            <p class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">${this.anonymousEmail || ''}</p>
+          </div>
+          
+          <div class="pt-2">
+            <button id="back-button" class="w-full bg-primary hover:bg-primary/80 text-white font-medium py-2 px-4 rounded">Back to Dashboard</button>
+          </div>
+        `;
+
+        modalBody.appendChild(settingsContainer);
+
+        // Add event listener for back button (both the arrow and the main button)
+        const backButton = settingsContainer.querySelector('#back-to-chats-button');
+        const mainBackButton = settingsContainer.querySelector('#back-button');
+
+        const goBack = (e) => {
+          e.preventDefault();
+          this.showingSettings = false;
+          this.renderUserDashboard();
+        };
+
+        if (backButton) {
+          backButton.addEventListener('click', goBack);
+        }
+
+        if (mainBackButton) {
+          mainBackButton.addEventListener('click', goBack);
+        }
+      } else {
+        // For anonymous users, show the regular form with input fields
+        const settingsForm = document.createElement('form');
+        settingsForm.id = 'chat-settings-form';
+        settingsForm.className = 'space-y-4';
+        settingsForm.innerHTML = `
+          ${headerHtml}
+          
+          <div>
+            <label for="settings-name" class="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
+            <input type="text" id="settings-name" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" value="${this.anonymousName || ''}" required>
+          </div>
+          
+          <div>
+            <label for="settings-email" class="block text-sm font-medium text-gray-700 mb-1">Your Email</label>
+            <input type="email" id="settings-email" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" value="${this.anonymousEmail || ''}" required>
+          </div>
+          
+          <div class="pt-2">
+            <button type="submit" class="w-full bg-primary hover:bg-primary/80 text-white font-medium py-2 px-4 rounded">Save Changes</button>
+          </div>
+        `;
+
+        modalBody.appendChild(settingsForm);
+
+        // Add event listener for back button
+        const backButton = settingsForm.querySelector('#back-to-chats-button');
+        if (backButton) {
+          backButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.showingSettings = false;
+            this.renderUserDashboard();
+          });
+        }
+
+        // Add event listener for form submission
+        settingsForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+
+          const name = settingsForm.querySelector('#settings-name').value.trim();
+          const email = settingsForm.querySelector('#settings-email').value.trim();
+
+          if (name && email) {
+            // Update local storage and instance variables
+            localStorage.setItem(STORAGE_KEYS.ANONYMOUS_NAME, name);
+            localStorage.setItem(STORAGE_KEYS.ANONYMOUS_EMAIL, email);
+            this.anonymousName = name;
+            this.anonymousEmail = email;
+
+            // If email changed, fetch sessions for the new email
+            this.fetchAnonymousSessions(email);
+
+            // Go back to dashboard
+            this.showingSettings = false;
+            this.renderUserDashboard();
+          }
+        });
+      }
+    },
+
     renderUserDashboard() {
       // Update the header to include settings button
       const modalHeader = this.el.querySelector(".chat-modal-header");
@@ -202,7 +433,7 @@ const ChatHooks = {
           </button>
         </div>
       `;
-      
+
       // Add event listener for settings button
       const settingsButton = modalHeader.querySelector('#chat-settings-button');
       if (settingsButton) {
@@ -211,18 +442,18 @@ const ChatHooks = {
           this.renderSettingsForm();
         });
       }
-      
+
       const modalBody = this.el.querySelector(".chat-modal-body");
       if (!modalBody) return;
-      
+
       // Clear the modal body first
       modalBody.innerHTML = '';
-      
+
       // Create container for the entire dashboard
       const dashboardContainer = document.createElement('div');
       dashboardContainer.className = 'chat-dashboard-container flex flex-col h-full';
       modalBody.appendChild(dashboardContainer);
-      
+
       // Add previous sessions at the top
       if (this.previousSessions && this.previousSessions.length > 0) {
         const previousSessionsContainer = document.createElement('div');
@@ -231,29 +462,29 @@ const ChatHooks = {
           <h4 class="text-md font-medium mb-2 px-2 pt-1">Your Previous Conversations</h4>
           <div class="previous-sessions-list"></div>
         `;
-        
+
         const sessionsList = previousSessionsContainer.querySelector('.previous-sessions-list');
-        
+
         // Sort sessions by date (newest first)
         const sortedSessions = [...this.previousSessions].sort((a, b) => {
           return new Date(b.date) - new Date(a.date);
         });
-        
+
         // Add each session as a compact row
         sortedSessions.forEach(session => {
           const sessionCard = document.createElement('div');
           sessionCard.className = 'session-card bg-white border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer mx-2 mb-3 flex justify-between items-center';
-          
+
           // Format date nicely - just time
           const sessionDate = new Date(session.date);
           const formattedDate = sessionDate.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: 'numeric' });
           const formattedTime = sessionDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          
+
           // Create status badge
           const statusBadge = `<span class="inline-block px-2 py-0.5 text-xs rounded-full ${session.status === 'closed' ? 'bg-gray-200 text-gray-800' : 'bg-green-100 text-green-800'}">
             ${session.status === 'closed' ? 'Closed' : 'Active'}
           </span>`;
-          
+
           // Create content for the session card - only essential info
           sessionCard.innerHTML = `
             <div class="flex flex-col items-start gap-2">
@@ -269,7 +500,7 @@ const ChatHooks = {
               </button>
             </div>
           `;
-          
+
           // Add event listener for continue button
           const continueButton = sessionCard.querySelector('.continue-chat-button');
           if (continueButton) {
@@ -278,15 +509,15 @@ const ChatHooks = {
               this.joinExistingSession(session.id);
             });
           }
-          
+
           // Make the whole card clickable
           sessionCard.addEventListener('click', () => {
             this.joinExistingSession(session.id);
           });
-          
+
           sessionsList.appendChild(sessionCard);
         });
-        
+
         dashboardContainer.appendChild(previousSessionsContainer);
       } else {
         // Show a message if no previous sessions
@@ -295,7 +526,7 @@ const ChatHooks = {
         noSessionsMessage.textContent = 'No previous conversations found.';
         dashboardContainer.appendChild(noSessionsMessage);
       }
-      
+
       // Add new chat button at the bottom
       const newChatButtonContainer = document.createElement('div');
       newChatButtonContainer.className = 'mt-auto pt-2 px-2 pb-2';
@@ -308,140 +539,102 @@ const ChatHooks = {
         </button>
       `;
       dashboardContainer.appendChild(newChatButtonContainer);
-      
+
       // Add event listener for new chat button
       const newChatButton = newChatButtonContainer.querySelector('#new-chat-button');
       newChatButton.addEventListener('click', () => {
         this.startChat({
           name: this.anonymousName,
-          email: this.anonymousEmail
+          email: this.anonymousEmail,
+          user_id: this.userId
         });
+        return;
       });
-    },
-    
-    renderSettingsForm() {
-      const modalBody = this.el.querySelector(".chat-modal-body");
-      if (!modalBody) return;
-      
-      // Clear the modal body
-      modalBody.innerHTML = '';
-      
-      // Create settings form
-      const settingsForm = document.createElement('form');
-      settingsForm.id = 'chat-settings-form';
-      settingsForm.className = 'space-y-4';
-      settingsForm.innerHTML = `
-        <div class="flex items-center mb-4">
-          <button id="back-to-chats-button" class="mr-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
-            </svg>
-          </button>
-          <h3 class="text-lg font-medium">User Settings</h3>
-        </div>
-        
-        <div>
-          <label for="settings-name" class="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
-          <input type="text" id="settings-name" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" value="${this.anonymousName || ''}" required>
-        </div>
-        
-        <div>
-          <label for="settings-email" class="block text-sm font-medium text-gray-700 mb-1">Your Email</label>
-          <input type="email" id="settings-email" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" value="${this.anonymousEmail || ''}" required>
-        </div>
-        
-        <div class="pt-2">
-          <button type="submit" class="w-full bg-primary hover:bg-primary/80 text-white font-medium py-2 px-4 rounded">Save Changes</button>
-        </div>
-      `;
-      
-      modalBody.appendChild(settingsForm);
-      
-      // Add event listener for back button
-      const backButton = settingsForm.querySelector('#back-to-chats-button');
-      if (backButton) {
-        backButton.addEventListener('click', (e) => {
+
+      const modalContent = this.el.querySelector('.chat-modal-content');
+      // Check if user is authenticated (has userId)
+      const isAuthenticated = !!this.userId;
+
+      // Create different content based on authentication status
+      if (isAuthenticated) {
+        // For authenticated users, show fixed text display instead of input fields
+        modalContent.innerHTML = `
+          <div class="chat-registration-form">
+            <h4 class="text-lg font-medium mb-4">Start a New Chat</h4>
+            <div class="space-y-4">
+              <div>
+                <p class="block text-sm font-medium text-gray-700">Name</p>
+                <p class="mt-1 py-2 px-3 block w-full rounded-md border border-gray-300 bg-gray-50">${this.anonymousName || ''}</p>
+              </div>
+              <div>
+                <p class="block text-sm font-medium text-gray-700">Email</p>
+                <p class="mt-1 py-2 px-3 block w-full rounded-md border border-gray-300 bg-gray-50">${this.anonymousEmail || ''}</p>
+              </div>
+              <div>
+                <button id="start-chat-button" class="w-full bg-primary hover:bg-primary/80 text-white font-medium py-2 px-4 rounded">Start Chat</button>
+              </div>
+            </div>
+          </div>
+        `;
+
+        // Add event listener for the start chat button
+        const startChatButton = modalContent.querySelector('#start-chat-button');
+        startChatButton.addEventListener('click', () => {
+          this.startChat({
+            name: this.anonymousName,
+            email: this.anonymousEmail,
+            user_id: this.userId
+          });
+        });
+      } else {
+        // For anonymous users, show the regular form with input fields
+        modalContent.innerHTML = `
+          <div class="chat-registration-form">
+            <h4 class="text-lg font-medium mb-4">Start a New Chat</h4>
+            <form id="chat-registration-form" class="space-y-4">
+              <div>
+                <label for="name" class="block text-sm font-medium text-gray-700">Name</label>
+                <input type="text" id="chat-name" name="name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50" value="${this.anonymousName || ''}" required>
+              </div>
+              <div>
+                <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                <input type="email" id="chat-email" name="email" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50" value="${this.anonymousEmail || ''}" required>
+              </div>
+              <div>
+                <button type="submit" class="w-full bg-primary hover:bg-primary/80 text-white font-medium py-2 px-4 rounded">Start Chat</button>
+              </div>
+            </form>
+          </div>
+        `;
+      }
+
+      // Only add event listener for form submission if we're showing the form (not authenticated)
+      if (!isAuthenticated) {
+        const form = modalContent.querySelector('#chat-registration-form');
+        form.addEventListener('submit', (e) => {
           e.preventDefault();
-          this.showingSettings = false;
-          this.renderUserDashboard();
+
+          const nameInput = form.querySelector('#chat-name');
+          const emailInput = form.querySelector('#chat-email');
+
+          const name = nameInput.value.trim();
+          const email = emailInput.value.trim();
+
+          if (name && email) {
+            // Store the anonymous user data
+            localStorage.setItem(STORAGE_KEYS.ANONYMOUS_NAME, name);
+            localStorage.setItem(STORAGE_KEYS.ANONYMOUS_EMAIL, email);
+
+            this.anonymousName = name;
+            this.anonymousEmail = email;
+
+            // Start the chat with the provided information
+            this.startChat({ name, email });
+          }
         });
       }
-      
-      // Add event listener for form submission
-      settingsForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        
-        const name = settingsForm.querySelector('#settings-name').value.trim();
-        const email = settingsForm.querySelector('#settings-email').value.trim();
-        
-        if (name && email) {
-          // Update local storage and instance variables
-          localStorage.setItem(STORAGE_KEYS.ANONYMOUS_NAME, name);
-          localStorage.setItem(STORAGE_KEYS.ANONYMOUS_EMAIL, email);
-          this.anonymousName = name;
-          this.anonymousEmail = email;
-          
-          // If email changed, fetch sessions for the new email
-          this.fetchAnonymousSessions(email);
-          
-          // Go back to dashboard
-          this.showingSettings = false;
-          this.renderUserDashboard();
-        }
-      });
     },
-    
-    renderRegistrationForm() {
-      const modalBody = this.el.querySelector(".chat-modal-body");
-      if (!modalBody) return;
-      
-      // Create registration form
-      const registrationForm = document.createElement('form');
-      registrationForm.id = 'chat-form';
-      registrationForm.className = 'space-y-4';
-      registrationForm.innerHTML = `
-        <h3 class="text-lg font-medium mb-4">Start a Conversation</h3>
-        
-        <div>
-          <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
-          <input type="text" id="name" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" value="${this.anonymousName || ''}" required>
-        </div>
-        
-        <div>
-          <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Your Email</label>
-          <input type="email" id="email" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" value="${this.anonymousEmail || ''}" required>
-        </div>
-        
-        <div class="pt-2">
-          <button type="submit" class="w-full bg-primary hover:bg-primary/80 text-white font-medium py-2 px-4 rounded">Start Chat</button>
-        </div>
-      `;
-      
-      modalBody.appendChild(registrationForm);
-      
-      // Add event listener for form submission
-      registrationForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        
-        const name = registrationForm.querySelector('#name').value.trim();
-        const email = registrationForm.querySelector('#email').value.trim();
-        
-        if (name && email) {
-          // Store in local storage
-          localStorage.setItem(STORAGE_KEYS.ANONYMOUS_NAME, name);
-          localStorage.setItem(STORAGE_KEYS.ANONYMOUS_EMAIL, email);
-          this.anonymousName = name;
-          this.anonymousEmail = email;
-          
-          // Fetch any existing sessions for this email
-          this.fetchAnonymousSessions(email);
-          
-          // Start a new chat
-          this.startChat({ name, email });
-        }
-      });
-    },
-    
+
     renderPreviousSessions() {
       // This is a placeholder for re-rendering just the previous sessions section
       // In practice, we're just calling renderUserDashboard to refresh the whole view
@@ -449,7 +642,7 @@ const ChatHooks = {
         this.renderUserDashboard();
       }
     },
-    
+
     fetchAnonymousSessions(email) {
       fetch(`/api/chat/anonymous/${encodeURIComponent(email)}`)
         .then(response => {
@@ -464,7 +657,7 @@ const ChatHooks = {
             const sortedSessions = data.sessions.sort((a, b) => {
               return new Date(b.started_at) - new Date(a.started_at);
             }).slice(0, 4);
-            
+
             // Create minimal session objects with only the data we need
             // This reduces the amount of potentially sensitive data stored in localStorage
             const minimalSessions = sortedSessions.map(s => ({
@@ -478,11 +671,11 @@ const ChatHooks = {
               } : null,
               message_count: s.message_count || 0
             }));
-            
+
             // Update local storage with minimal data
             localStorage.setItem(STORAGE_KEYS.CHAT_SESSIONS, JSON.stringify(minimalSessions));
             this.previousSessions = minimalSessions;
-            
+
             // If we have user info already, show the dashboard with previous sessions
             if (this.anonymousName && this.anonymousEmail) {
               this.renderUserDashboard();
@@ -502,19 +695,19 @@ const ChatHooks = {
           }
         });
     },
-    
+
     joinExistingSession(sessionId) {
       // Convert sessionId to string if it's a number to ensure consistent comparison
       const sessionIdStr = String(sessionId);
-      
+
       // Find the session in our previous sessions
       const session = this.previousSessions.find(s => String(s.id) === sessionIdStr);
-      
+
       if (!session) {
         console.error('Session not found:', sessionId);
         return;
       }
-      
+
       // Handle differently based on session status
       if (session.status === 'closed') {
         // For closed sessions, just view the chat history
@@ -527,11 +720,11 @@ const ChatHooks = {
         this.renderChatInterface();
       }
     },
-    
+
     viewChatHistory(sessionId) {
       // Set the current session ID
       this.sessionId = sessionId;
-      
+
       // Fetch the session with messages
       fetch(`/api/chat/${sessionId}?email=${encodeURIComponent(this.anonymousEmail)}`)
         .then(response => {
@@ -552,7 +745,7 @@ const ChatHooks = {
           console.error('Error fetching chat history:', error);
         });
     },
-    
+
     renderChatHistoryInterface(session) {
       // Update the header to include a back button instead of end chat
       const modalHeader = this.el.querySelector(".chat-modal-header");
@@ -571,7 +764,7 @@ const ChatHooks = {
           </svg>
         </button>
       `;
-      
+
       // Add event listener for back button
       const backButton = modalHeader.querySelector('#back-to-dashboard');
       if (backButton) {
@@ -579,7 +772,7 @@ const ChatHooks = {
           this.renderUserDashboard();
         });
       }
-      
+
       // Clear the content area
       const modalBody = this.el.querySelector(".chat-modal-body");
       modalBody.innerHTML = `
@@ -592,7 +785,7 @@ const ChatHooks = {
           </div>
         </div>
       `;
-      
+
       // Render the messages
       if (session.messages && session.messages.length > 0) {
         this.renderMessages(session.messages);
@@ -601,7 +794,7 @@ const ChatHooks = {
         messagesContainer.innerHTML = '<div class="text-center text-gray-500 my-4">No messages in this chat session.</div>';
       }
     },
-    
+
     startChat(userData) {
       // If we're joining an existing session, use the session_id directly
       if (userData.session_id) {
@@ -610,7 +803,18 @@ const ChatHooks = {
         this.renderChatInterface();
         return;
       }
-      
+
+      // Prepare chat data - if user_id is available, use it instead of anonymous fields
+      const chatData = { ...userData };
+
+      // If we have a user_id (from authenticated user), include it and remove anonymous fields
+      if (this.userId) {
+        chatData.user_id = this.userId;
+        // When user_id is present, we don't need anonymous fields
+        delete chatData.anonymous_name;
+        delete chatData.anonymous_email;
+      }
+
       // Otherwise create a new chat session via API
       fetch("/api/chat", {
         method: "POST",
@@ -618,13 +822,13 @@ const ChatHooks = {
           "Content-Type": "application/json",
           "X-CSRF-Token": document.querySelector("meta[name='csrf-token']").getAttribute("content")
         },
-        body: JSON.stringify({ chat: userData })
+        body: JSON.stringify({ chat: chatData })
       })
         .then(response => response.json())
         .then(data => {
           if (data.session_id) {
             this.sessionId = data.session_id;
-            
+
             // Store this new session in local storage
             const sessions = JSON.parse(localStorage.getItem(STORAGE_KEYS.CHAT_SESSIONS) || '[]');
             // Check if session already exists
@@ -639,7 +843,7 @@ const ChatHooks = {
               localStorage.setItem(STORAGE_KEYS.CHAT_SESSIONS, JSON.stringify(sessions));
               this.previousSessions = sessions;
             }
-            
+
             this.joinChatChannel();
             this.renderChatInterface();
           } else {
@@ -691,7 +895,7 @@ const ChatHooks = {
           </button>
         </div>
       `;
-      
+
       // Clear the content area
       const modalBody = this.el.querySelector(".chat-modal-body");
       modalBody.innerHTML = `
@@ -720,7 +924,7 @@ const ChatHooks = {
           }
         });
       }
-      
+
       // Re-add the close button event listener since we replaced the header
       const closeButton = this.el.querySelector("#close-chat-button");
       if (closeButton) {
@@ -824,7 +1028,7 @@ const ChatHooks = {
       const overlay = document.createElement('div');
       overlay.className = 'chat-confirmation-overlay absolute inset-0 bg-black bg-opacity-70 z-10 flex items-center justify-center';
       overlay.style.borderRadius = 'inherit';
-      
+
       // Create confirmation dialog
       overlay.innerHTML = `
         <div class="bg-white p-6 rounded-lg shadow-lg max-w-xs w-full">
@@ -840,23 +1044,23 @@ const ChatHooks = {
           </div>
         </div>
       `;
-      
+
       // Add overlay to the modal
       const chatModal = this.el;
       chatModal.appendChild(overlay);
-      
+
       // Add event listeners
       const cancelButton = overlay.querySelector('#cancel-end-chat');
       const confirmButton = overlay.querySelector('#confirm-end-chat');
-      
+
       cancelButton.addEventListener('click', () => {
         chatModal.removeChild(overlay);
       });
-      
+
       confirmButton.addEventListener('click', () => {
         // Remove the overlay
         chatModal.removeChild(overlay);
-        
+
         // Close the session
         this.channel.push("close_session", {})
           .receive("ok", () => {
@@ -882,7 +1086,7 @@ const ChatHooks = {
         localStorage.setItem(STORAGE_KEYS.CHAT_SESSIONS, JSON.stringify(updatedSessions));
         this.previousSessions = updatedSessions;
       }
-      
+
       // Update the header to remove the End Chat button
       const modalHeader = this.el.querySelector(".chat-modal-header");
       modalHeader.innerHTML = `
@@ -893,7 +1097,7 @@ const ChatHooks = {
           </svg>
         </button>
       `;
-      
+
       // Re-add the close button event listener
       const closeButton = this.el.querySelector("#close-chat-button");
       if (closeButton) {
@@ -913,7 +1117,7 @@ const ChatHooks = {
           }
         });
       }
-      
+
       // Update the body content
       const modalBody = this.el.querySelector(".chat-modal-body");
       modalBody.innerHTML = `
@@ -951,11 +1155,13 @@ const ChatHooks = {
             this.channel = null;
           }
           this.sessionId = null;
-          // Fetch the latest sessions and render the dashboard
+          // Fetch the latest sessions and render the dashboard without auto-starting a new chat
           this.fetchAnonymousSessions(this.anonymousEmail);
+          // Just render the dashboard instead of auto-starting a new chat
+          this.renderUserDashboard();
         }
       }, 1000);
-      
+
       // Still allow manual navigation via button
       const newChatButton = modalBody.querySelector("#new-chat-button");
       newChatButton.addEventListener("click", () => {
