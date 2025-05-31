@@ -10,9 +10,6 @@ defmodule PhxplateWeb.Layouts do
   """
   use PhxplateWeb, :html
 
-  import PhxplateWeb.Components.DashboardLayout
-  use SaladUI
-
   embed_templates "layouts/*"
 
   def auth(assigns) do

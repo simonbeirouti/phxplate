@@ -356,7 +356,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
           <% end %>
         </div>
 
-    <!-- Desktop Details View (hidden on mobile) -->
+        <!-- Desktop Details View (hidden on mobile) -->
         <div class="hidden lg:block col-span-2 overflow-y-auto">
           <h2 class="text-xl font-semibold mb-4">Post Details</h2>
           <%= if @selected_post do %>

@@ -80,6 +80,8 @@ defmodule PhxplateWeb.Router do
 
     get "/", PageController, :home
     get "/about", PageController, :about
+    
+    # Chat is now handled by the ChatButton component in the root layout
 
     live_session :public,
       on_mount: [{PhxplateWeb.UserAuth, :mount_current_user}],
@@ -108,10 +110,14 @@ defmodule PhxplateWeb.Router do
   #   post "/stripe/webhook", StripeController, :webhook
   # end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", PhxplateWeb do
-  #   pipe_through :api
-  # end
+  # API routes for chat functionality
+  scope "/api", PhxplateWeb do
+    pipe_through :api
+    
+    post "/chat", ChatController, :create
+    get "/chat/anonymous/:email", ChatController, :get_anonymous_sessions
+    get "/chat/:id", ChatController, :get_session
+  end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:phxplate, :dev_routes) do
@@ -211,6 +217,7 @@ defmodule PhxplateWeb.Router do
       live "/super_admin/blogs", Dashboard.SuperAdmin.BlogsLive, :index
       live "/super_admin/users", Dashboard.SuperAdmin.UsersLive, :index
       live "/super_admin/companies", Dashboard.SuperAdmin.CompaniesLive, :index
+      live "/super_admin/chat", Admin.ChatDashboardLive, :index
     end
   end
 end
