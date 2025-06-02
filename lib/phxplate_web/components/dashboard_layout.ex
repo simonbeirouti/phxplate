@@ -2,13 +2,43 @@ defmodule PhxplateWeb.Components.DashboardLayout do
   @moduledoc false
   use PhxplateWeb, :live_component
   use SaladUI
+  import PhxplateWeb.Components.UI.DialogDrawerWrapper
 
   import Lucideicons, except: [import: 1, quote: 1, menu: 1, link: 1]
 
   def render(assigns) do
+    assigns =
+      assigns
+      |> assign_new(:show_support, fn -> false end)
+      |> assign_new(:support_mode, fn -> "dialog" end)
+
     ~H"""
-    <div>
-      <.render_dashboard_layout layout_data={@layout_data} flash={@flash} inner_content={@inner_content} />
+    <div phx-hook="FeatureRequestEvents" id={@id}>
+      <.render_dashboard_layout
+        layout_data={@layout_data}
+        flash={@flash}
+        inner_content={@inner_content}
+        show_support={@show_support}
+        myself={@myself}
+        support_mode={@support_mode}
+      />
+      <.dialog_drawer_wrapper
+        id="support-modal"
+        show={@show_support}
+        mode={@support_mode}
+        on_cancel={JS.push("toggle_support", target: @myself)}
+        hook="DialogDrawerMode"
+        myself={@myself}
+        name="Feature Request or Feedback!"
+        description="Submit a feature request or provide feedback"
+      >
+        <.live_component
+          module={PhxplateWeb.Dashboard.FeatureRequestLive}
+          id="feature-request"
+          current_user={@layout_data.user}
+          parent_id={@id}
+        />
+      </.dialog_drawer_wrapper>
     </div>
     """
   end
@@ -38,12 +68,12 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             <Lucideicons.x class="h-6 w-6 hidden" id="close-icon" />
           </button>
 
-          <!-- <.sidebar_trigger target="main-sidebar" class="pl-2 hidden md:block">
+    <!-- <.sidebar_trigger target="main-sidebar" class="pl-2 hidden md:block">
             <Lucideicons.panel_left class="w-4 h-4" />
           </.sidebar_trigger> -->
 
           <!-- <.separator orientation="vertical" class="mr-2 h-4" /> -->
-          <.breadcrumb class="ml-0 sm:ml-4">
+          <.breadcrumb class="ml-0 md:ml-2">
             <.breadcrumb_list>
               <%= for {item, idx} <- Enum.with_index(dashboard_breadcrumbs(@layout_data.current_path)) do %>
                 <.breadcrumb_item>
@@ -58,9 +88,18 @@ defmodule PhxplateWeb.Components.DashboardLayout do
               <% end %>
             </.breadcrumb_list>
           </.breadcrumb>
+
+          <div class="flex-grow" />
+          <.button variant="outline" class="mr-2" phx-click="toggle_support" phx-target={@myself}>
+            <Lucideicons.bell_plus class="w-4 h-4" />
+            <span class="sr-only">Support & Feature Requests</span>
+          </.button>
         </header>
 
-        <div id="mobile-menu" class="hidden md:hidden absolute w-full bg-white border-b mt-16 shadow-lg z-50">
+        <div
+          id="mobile-menu"
+          class="hidden md:hidden absolute w-full bg-white border-b mt-16 shadow-lg z-50"
+        >
           <div class="space-y-1 px-2 pb-3 pt-2">
             <.mobile_nav_main items={@layout_data.navMain} />
             <.mobile_nav_projects companies={@layout_data.companies} />
@@ -88,7 +127,11 @@ defmodule PhxplateWeb.Components.DashboardLayout do
       </.sidebar_header>
       <.sidebar_content>
         <.nav_main items={@data.navMain} />
-        <.nav_projects :if={length(@data.companies) >= 1} label="Companies" projects={@data.companies} />
+        <.nav_projects
+          :if={length(@data.companies) >= 1}
+          label="Companies"
+          projects={@data.companies}
+        />
         <.nav_projects
           :if={length(@data.bookmarked) >= 1}
           label="Bookmarked"
@@ -361,11 +404,60 @@ defmodule PhxplateWeb.Components.DashboardLayout do
 
     Enum.reduce(segments, {base, "/dashboard"}, fn seg, {acc, path} ->
       next_path = path <> "/" <> seg
-      label = seg |> String.replace("_", " ") |> String.split() |> Enum.map(&String.capitalize/1) |> Enum.join(" ")
+
+      label =
+        seg
+        |> String.replace("_", " ")
+        |> String.split()
+        |> Enum.map(&String.capitalize/1)
+        |> Enum.join(" ")
+
       {acc ++ [%{label: label, href: next_path}], next_path}
     end)
     |> elem(0)
   end
 
   def dashboard_breadcrumbs(_), do: [%{label: "Dashboard", href: "/dashboard"}]
+
+  def handle_event("toggle_support", _params, socket) do
+    current_value = Map.get(socket.assigns, :show_support, false)
+    {:noreply, assign(socket, :show_support, !current_value)}
+  end
+
+  def handle_event("set_screen_mode", %{"mode" => mode}, socket) do
+    {:noreply, assign(socket, :support_mode, mode)}
+  end
+
+  def handle_event("feature_request_success", %{"message" => message}, socket) do
+    socket =
+      socket
+      |> assign(:show_support, false)
+      |> put_flash(:info, message)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("feature_request_error", %{"message" => message}, socket) do
+    socket = put_flash(socket, :error, message)
+    {:noreply, socket}
+  end
+
+  def update(assigns, socket) do
+    filtered_assigns = Map.drop(assigns, [:flash])
+    {:ok, assign(socket, filtered_assigns)}
+  end
+
+  def handle_info({:feature_request_success, message}, socket) do
+    socket =
+      socket
+      |> assign(:show_support, false)
+      |> put_flash(:info, message)
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:feature_request_error, message}, socket) do
+    socket = put_flash(socket, :error, message)
+    {:noreply, socket}
+  end
 end
