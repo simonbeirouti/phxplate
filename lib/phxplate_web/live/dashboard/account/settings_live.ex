@@ -155,8 +155,9 @@ defmodule PhxplateWeb.Dashboard.Account.SettingsLive do
             phx-submit="update_email"
             phx-change="validate_email"
           >
-            <.input field={@email_form[:email]} type="email" label="Email" required />
+            <.input class="text-base" field={@email_form[:email]} type="email" label="Email" required />
             <.input
+              class="text-base"
               field={@email_form[:current_password]}
               name="current_password"
               id="current_password_for_email"
@@ -198,6 +199,7 @@ defmodule PhxplateWeb.Dashboard.Account.SettingsLive do
             phx-change="validate_password"
           >
             <.input
+              class="text-base"
               field={@password_form[:current_password]}
               name="current_password"
               type="password"
@@ -205,8 +207,9 @@ defmodule PhxplateWeb.Dashboard.Account.SettingsLive do
               value={@password_form_current_password}
               required
             />
-            <.input field={@password_form[:password]} type="password" label="New password" required />
+            <.input class="text-base" field={@password_form[:password]} type="password" label="New password" required />
             <.input
+              class="text-base"
               field={@password_form[:password_confirmation]}
               type="password"
               label="Confirm new password"

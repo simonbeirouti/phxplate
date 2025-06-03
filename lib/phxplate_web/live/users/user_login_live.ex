@@ -32,11 +32,11 @@ defmodule PhxplateWeb.UserLoginLive do
         </.header>
 
         <.simple_form for={@form} id="login_form" action={~p"/login"} phx-update="ignore">
-          <.input field={@form[:email]} type="email" label="Email" required />
-          <.input field={@form[:password]} type="password" label="Password" required />
+          <.input class="text-base" field={@form[:email]} type="email" label="Email" required />
+          <.input class="text-base" field={@form[:password]} type="password" label="Password" required />
 
           <:actions>
-            <.input field={@form[:remember_me]} type="checkbox" label="Keep me logged in" />
+            <.input class="text-base" field={@form[:remember_me]} type="checkbox" label="Keep me logged in" />
             <.link href={~p"/reset-password"} class="text-sm font-semibold">
               Forgot your password?
             </.link>

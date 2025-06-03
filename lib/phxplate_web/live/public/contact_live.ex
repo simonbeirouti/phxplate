@@ -24,12 +24,12 @@ defmodule PhxplateWeb.ContactLive do
       <.simple_form for={@form} id="contact-form" phx-submit="submit">
         <div class="grid grid-cols-1 gap-6">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <.input field={@form[:name]} type="text" label="Name" placeholder="Your name" required />
-            <.input field={@form[:email]} type="email" label="Email" value={@current_user_email} placeholder="your@email.com" required />
+            <.input class="text-base" field={@form[:name]} type="text" label="Name" placeholder="Your name" required />
+            <.input class="text-base" field={@form[:email]} type="email" label="Email" value={@current_user_email} placeholder="your@email.com" required />
           </div>
 
-          <.input field={@form[:subject]} type="text" label="Subject" placeholder="What is this regarding?" required />
-          <.input field={@form[:message]} type="textarea" label="Message" placeholder="How can we help you?" required rows={6} />
+          <.input class="text-base" field={@form[:subject]} type="text" label="Subject" placeholder="What is this regarding?" required />
+          <.input class="text-base" field={@form[:message]} type="textarea" label="Message" placeholder="How can we help you?" required rows={6} />
 
           <input type="hidden" name="user_id" value={@current_user_id} />
         </div>

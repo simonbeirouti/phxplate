@@ -469,7 +469,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     case Companies.invite_to_company(socket.assigns.company, email, socket.assigns.current_user) do
       {:ok, _invitation} ->
         activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
-        
+
         # Use a single function to close all dialogs
         {:noreply,
          socket
@@ -633,27 +633,27 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
               <div class="grid grid-cols-2 gap-4">
                 <div class="col-span-2 sm:col-span-1 space-y-2">
                   <.label for="company_name">Name</.label>
-                  <.input field={@form[:name]} type="text" />
+                  <.input class="text-base" field={@form[:name]} type="text" />
                 </div>
                 <div class="col-span-2 sm:col-span-1 space-y-2">
                   <.label for="company_email">Email</.label>
-                  <.input field={@form[:email]} type="email" />
+                  <.input class="text-base" field={@form[:email]} type="email" />
                 </div>
                 <div class="col-span-2 sm:col-span-1 space-y-2">
                   <.label for="company_phone">Phone</.label>
-                  <.input field={@form[:phone]} type="tel" />
+                  <.input class="text-base" field={@form[:phone]} type="tel" />
                 </div>
                 <div class="col-span-2 sm:col-span-1 space-y-2">
                   <.label for="company_website">Website</.label>
-                  <.input field={@form[:website]} type="url" />
+                  <.input class="text-base" field={@form[:website]} type="url" />
                 </div>
                 <div class="col-span-2 sm:col-span-1 space-y-2">
                   <.label for="company_address">Address</.label>
-                  <.input field={@form[:address]} type="text" />
+                  <.input class="text-base" field={@form[:address]} type="text" />
                 </div>
                 <div class="col-span-2 space-y-2">
                   <.label for="company_description">Description</.label>
-                  <.input field={@form[:description]} type="textarea" />
+                  <.input class="text-base" field={@form[:description]} type="textarea" />
                 </div>
               </div>
               <div class="flex flex-col gap-4 lg:flex-row lg:justify-between w-full">
@@ -739,7 +739,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
   defp invite_dialog(assigns) do
     assigns = assign_new(assigns, :mode, fn -> "dialog" end)
     assigns = assign_new(assigns, :show_dialog, fn -> false end)
-    
+
     ~H"""
     <div class={["mt-4", assigns[:container_class]]} id={assigns.container_id}>
       <.button
@@ -753,7 +753,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
       >
         <Lucideicons.plus class="w-4 h-4 mr-2" /> Invite User
       </.button>
-      
+
       <PhxplateWeb.Components.UI.DialogDrawerWrapper.dialog_drawer_wrapper
         id={assigns.dialog_id}
         show={@show_dialog}
@@ -770,6 +770,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                 Email
               </.label>
               <.input
+                class="text-base"
                 id={assigns.input_id}
                 name="email"
                 type="email"

@@ -61,16 +61,16 @@ defmodule PhxplateWeb.Onboarding.ProfileLive do
         </.error>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <.input field={@form[:first_name]} type="text" label="First Name" required />
-          <.input field={@form[:last_name]} type="text" label="Last Name" required />
+          <.input class="text-base" field={@form[:first_name]} type="text" label="First Name" required />
+          <.input class="text-base" field={@form[:last_name]} type="text" label="Last Name" required />
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <.input field={@form[:phone]} type="text" label="Phone" required />
-          <.input field={@form[:location]} type="text" label="Location" required />
+          <.input class="text-base" field={@form[:phone]} type="text" label="Phone" required />
+          <.input class="text-base" field={@form[:location]} type="text" label="Location" required />
         </div>
 
-        <.input field={@form[:bio]} type="textarea" label="Bio" />
+        <.input class="text-base" field={@form[:bio]} type="textarea" label="Bio" />
 
         <:actions>
           <.button phx-disable-with="Saving..." class="w-full">Save Profile</.button>

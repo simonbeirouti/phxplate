@@ -425,6 +425,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
                 Title
               </label>
               <.input
+                class="text-base"
                 id="title"
                 name="post[title]"
                 type="text"
@@ -444,6 +445,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
                 Description
               </label>
               <.input
+                class="text-base"
                 id="description"
                 name="post[description]"
                 type="text"
@@ -466,7 +468,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
                 name="post[content]"
                 placeholder="Write your post content here..."
                 rows="8"
-                class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                class="text-base flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 required
               ><%= Ecto.Changeset.get_field(@new_post_changeset, :content) || "" %></textarea>
               <%= if @new_post_changeset.errors[:content] do %>
@@ -531,6 +533,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
                 Title
               </label>
               <.input
+                class="text-base"
                 id={"post_title_#{@context}"}
                 name="post[title]"
                 type="text"
@@ -550,6 +553,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
                 Slug
               </label>
               <.input
+                class="text-base"
                 id={"post_slug_#{@context}"}
                 name="post[slug]"
                 type="text"
@@ -568,6 +572,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
                 Description
               </label>
               <.input
+                class="text-base"
                 id={"post_description_#{@context}"}
                 name="post[description]"
                 type="text"
@@ -590,7 +595,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
                 name="post[content]"
                 placeholder="Write your post content here..."
                 rows="10"
-                class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                class="text-base flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 required
               ><%= Ecto.Changeset.get_field(@changeset || Blog.change_post(@selected_post), :content) || "" %></textarea>
             </div>
