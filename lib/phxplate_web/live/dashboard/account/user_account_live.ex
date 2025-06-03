@@ -347,31 +347,33 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
               <div class="grid grid-cols-2 gap-4">
                 <div>
                   <.input
+                    class="text-base"
                     field={@form[:first_name]}
                     type="text"
                     label="First Name"
                   />
                 </div>
                 <div>
-                  <.input field={@form[:last_name]} type="text" label="Last Name" />
+                  <.input class="text-base" field={@form[:last_name]} type="text" label="Last Name" />
                 </div>
               </div>
 
               <div class="grid grid-cols-2 gap-4">
                 <div>
-                  <.input field={@form[:phone]} type="tel" label="Phone Number" />
+                  <.input class="text-base" field={@form[:phone]} type="tel" label="Phone Number" />
                 </div>
                 <div>
-                  <.input field={@form[:location]} type="text" label="Location" />
+                  <.input class="text-base" field={@form[:location]} type="text" label="Location" />
                 </div>
               </div>
 
-              <.input field={@form[:bio]} type="textarea" label="Bio" />
+              <.input class="text-base" field={@form[:bio]} type="textarea" label="Bio" />
 
               <div class="space-y-4">
                 <label class="block text-sm font-semibold leading-6">Links</label>
                 <div class="grid grid-cols-2 gap-4">
                   <.input
+                    class="text-base"
                     field={@form[:website]}
                     type="url"
                     label="Website"
@@ -380,6 +382,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
                   <%= for network <- @social_networks do %>
                     <div>
                       <.input
+                        class="text-base"
                         name={"profile[social_links_#{network}]"}
                         value={@social_links[Atom.to_string(network)]}
                         type="url"

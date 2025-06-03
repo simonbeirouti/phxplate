@@ -87,7 +87,10 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
             invite_email: "",
             form_changed: false,
             pending_invitations: pending_invitations,
-            confirming_delete_company: false
+            confirming_delete_company: false,
+            show_dialog: false,
+            mode: "dialog",
+            screen_mode: "dialog"
           )
 
         {:ok, socket}
@@ -458,10 +461,8 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
   end
 
   def handle_event("open_invite_dialog", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:invite_email, "")
-     |> push_event("reset-form", %{id: "invite-form"})}
+    # Reset the invite email field and set show_dialog to true
+    {:noreply, assign(socket, invite_email: "", show_dialog: true)}
   end
 
   def handle_event("send_invite", %{"email" => email}, socket) do
@@ -469,13 +470,13 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
       {:ok, _invitation} ->
         activities = Phxplate.Tracking.get_company_activities(socket.assigns.company.id)
 
+        # Use a single function to close all dialogs
         {:noreply,
          socket
          |> assign(:activities, activities)
          |> assign(:invite_email, "")
-         |> push_event("reset-form", %{id: "invite-form"})
          |> put_flash(:info, "Invitation sent successfully to #{email}")
-         |> push_event("hide-modal", %{id: "invite-user-dialog"})}
+         |> close_all_invite_dialogs()}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         error_message =
@@ -563,8 +564,17 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     {:noreply, assign(socket, :confirming_delete_company, true)}
   end
 
+  def handle_event("set_screen_mode", %{"mode" => mode}, socket) do
+    {:noreply, assign(socket, screen_mode: mode, mode: mode)}
+  end
+
   def handle_event("cancel_delete_company", _params, socket) do
     {:noreply, assign(socket, :confirming_delete_company, false)}
+  end
+
+  def handle_event("close_invite_dialog", _params, socket) do
+    # Set show_dialog to false to close the dialog
+    {:noreply, assign(socket, :show_dialog, false)}
   end
 
   def handle_event("delete_company", _params, socket) do
@@ -623,27 +633,27 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
               <div class="grid grid-cols-2 gap-4">
                 <div class="col-span-2 sm:col-span-1 space-y-2">
                   <.label for="company_name">Name</.label>
-                  <.input field={@form[:name]} type="text" />
+                  <.input class="text-base" field={@form[:name]} type="text" />
                 </div>
                 <div class="col-span-2 sm:col-span-1 space-y-2">
                   <.label for="company_email">Email</.label>
-                  <.input field={@form[:email]} type="email" />
+                  <.input class="text-base" field={@form[:email]} type="email" />
                 </div>
                 <div class="col-span-2 sm:col-span-1 space-y-2">
                   <.label for="company_phone">Phone</.label>
-                  <.input field={@form[:phone]} type="tel" />
+                  <.input class="text-base" field={@form[:phone]} type="tel" />
                 </div>
                 <div class="col-span-2 sm:col-span-1 space-y-2">
                   <.label for="company_website">Website</.label>
-                  <.input field={@form[:website]} type="url" />
+                  <.input class="text-base" field={@form[:website]} type="url" />
                 </div>
                 <div class="col-span-2 sm:col-span-1 space-y-2">
                   <.label for="company_address">Address</.label>
-                  <.input field={@form[:address]} type="text" />
+                  <.input class="text-base" field={@form[:address]} type="text" />
                 </div>
                 <div class="col-span-2 space-y-2">
                   <.label for="company_description">Description</.label>
-                  <.input field={@form[:description]} type="textarea" />
+                  <.input class="text-base" field={@form[:description]} type="textarea" />
                 </div>
               </div>
               <div class="flex flex-col gap-4 lg:flex-row lg:justify-between w-full">
@@ -718,56 +728,75 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
     """
   end
 
-  defp invite_user_dialog(assigns) do
-    assigns = assign_new(assigns, :invite_email, fn -> "" end)
+  # Helper to render the employees tab
+  # Helper function to close all invite dialogs
+  defp close_all_invite_dialogs(socket) do
+    # Simply set show_dialog to false
+    assign(socket, :show_dialog, false)
+  end
+
+  # Helper to create an invite dialog with consistent behavior
+  defp invite_dialog(assigns) do
+    assigns = assign_new(assigns, :mode, fn -> "dialog" end)
+    assigns = assign_new(assigns, :show_dialog, fn -> false end)
 
     ~H"""
-    <div class="mt-4" id="invite-user-container" phx-hook="Modal">
+    <div class={["mt-4", assigns[:container_class]]} id={assigns.container_id}>
       <.button
         class="w-full"
         variant="outline"
+        id={assigns.button_id}
         phx-click={
           JS.push("open_invite_dialog")
-          |> JS.show(to: "#invite-user-dialog")
+          |> JS.show(to: "##{assigns.dialog_id}-wrapper", transition: {"ease-out duration-300", "opacity-0", "opacity-100"})
         }
       >
         <Lucideicons.plus class="w-4 h-4 mr-2" /> Invite User
       </.button>
-      <.dialog id="invite-user-dialog" show={false} on_cancel={JS.hide(to: "#invite-user-dialog")}>
+
+      <PhxplateWeb.Components.UI.DialogDrawerWrapper.dialog_drawer_wrapper
+        id={assigns.dialog_id}
+        show={@show_dialog}
+        mode={@mode}
+        hook="DialogDrawerMode"
+        name="Invite User"
+        description="Send an invitation to join this company"
+        on_cancel={JS.push("close_invite_dialog")}
+      >
         <div class="relative grid gap-4 border-none p-2">
-          <form id="invite-form" phx-submit="send_invite" class="space-y-4" phx-hook="ResetForm">
+          <form id={assigns.form_id} phx-submit="send_invite" class="space-y-4">
             <div class="flex flex-col">
-              <.label for="email">
+              <.label for={assigns.input_id}>
                 Email
               </.label>
               <.input
-                id="email"
+                class="text-base"
+                id={assigns.input_id}
                 name="email"
                 type="email"
-                value={@invite_email}
+                value={assigns.invite_email}
                 placeholder="user@example.com"
                 required
               />
             </div>
-            <.dialog_footer class="flex flex-col gap-2">
+            <div class="flex flex-col gap-2 mt-4">
               <.button type="submit" class="w-full">Send Invite</.button>
               <.button
                 variant="outline"
                 type="button"
-                phx-click={JS.hide(to: "#invite-user-dialog")}
+                phx-click={JS.push("close_invite_dialog")}
                 class="w-full"
               >
                 Cancel
               </.button>
-            </.dialog_footer>
+            </div>
           </form>
         </div>
-      </.dialog>
+      </PhxplateWeb.Components.UI.DialogDrawerWrapper.dialog_drawer_wrapper>
     </div>
     """
   end
 
-  # Helper to render the employees tab
   defp render_employees_tab(assigns) do
     ~H"""
     <div class="space-y-4">
@@ -801,15 +830,15 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                   </div>
                 </.table_cell>
                 <.table_cell class="font-medium">
-                  {if employee.profile do
+                  <%= if employee.profile do
                     "#{employee.profile.first_name} #{employee.profile.last_name}"
                   else
                     "Profile Deleted"
-                  end}
+                  end %>
                 </.table_cell>
                 <.table_cell>{employee.email}</.table_cell>
                 <.table_cell>
-                  {if employee.profile, do: employee.profile.phone || "N/A", else: "N/A"}
+                  <%= if employee.profile, do: employee.profile.phone || "N/A", else: "N/A" %>
                 </.table_cell>
                 <.table_cell>{employee.position || "N/A"}</.table_cell>
                 <.table_cell>{employee.department || "N/A"}</.table_cell>
@@ -852,13 +881,30 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
             <% end %>
           </.table_body>
         </.table>
-        <div class="w-1/4">
-          <.invite_user_dialog invite_email={@invite_email} />
-        </div>
+        <.invite_dialog
+          container_id="invite-user-container"
+          button_id="invite-user-button"
+          dialog_id="invite-user-dialog"
+          form_id="invite-form"
+          input_id="email"
+          invite_email={@invite_email}
+          container_class="w-1/4"
+          mode={@screen_mode}
+          show_dialog={@show_dialog}
+        />
       </div>
 
-      <div class="lg:hidden space-y-4" class="h-[calc(100vh-250px)]">
-        <.invite_user_dialog invite_email={@invite_email} />
+      <div class="lg:hidden space-y-4 h-[calc(100vh-250px)]" id="mobile-employees-container">
+        <.invite_dialog
+          container_id="mobile-invite-user-container"
+          button_id="mobile-invite-user-button"
+          dialog_id="mobile-invite-user-dialog"
+          form_id="mobile-invite-form"
+          input_id="mobile-email"
+          invite_email={@invite_email}
+          mode={@screen_mode}
+          show_dialog={@show_dialog}
+        />
         <%= for invitation <- @pending_invitations do %>
           <div class="bg-gray-100/80 rounded-lg p-4 relative">
             <div class="flex justify-between items-center">
@@ -882,11 +928,11 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
             <div class="flex justify-between items-start mb-4">
               <div>
                 <h3 class="text-lg font-medium">
-                  {if employee.profile do
+                  <%= if employee.profile do
                     "#{employee.profile.first_name} #{employee.profile.last_name}"
                   else
                     "Profile Deleted"
-                  end}
+                  end %>
                 </h3>
                 <p class="text-sm text-gray-500">{employee.position || "No position"}</p>
               </div>
@@ -927,7 +973,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
               </div>
               <div>
                 <dt class="text-gray-500">Phone</dt>
-                <dd>{if employee.profile, do: employee.profile.phone || "N/A", else: "N/A"}</dd>
+                <dd><%= if employee.profile, do: employee.profile.phone || "N/A", else: "N/A" %></dd>
               </div>
               <div>
                 <dt class="text-gray-500">Department</dt>

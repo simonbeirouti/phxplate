@@ -10,7 +10,9 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
   use PhxplateWeb, :verified_routes
   alias Phxplate.Companies
   alias Phoenix.LiveView.JS
-  alias SaladUI.{Button, Dialog, Input, Label}
+  import PhxplateWeb.Components.UI.DialogDrawerWrapper
+  import SaladUI.Button, only: [button: 1]
+  alias SaladUI.Input
 
   attr :companies, :list, required: true, doc: "List of companies to display"
 
@@ -19,6 +21,10 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
     doc: "The user's subscription to determine company limits"
 
   attr :on_create, :any, required: true, doc: "The event to trigger when creating a new company"
+
+  attr :show_dialog, :boolean, default: false, doc: "Whether to show the create company dialog"
+
+  attr :mode, :string, default: "dialog", doc: "The mode of the dialog (dialog or drawer)"
 
   @doc """
   Renders a grid of company cards with a create option if allowed by subscription.
@@ -55,10 +61,7 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
       <%= if @can_create_company do %>
         <div
           class="bg-white rounded-lg p-4 border-2 border-dashed border-gray-300 flex flex-col items-center justify-center hover:border-gray-400 transition-colors cursor-pointer h-40"
-          phx-click={
-            JS.push("open_create_company_dialog")
-            |> JS.show(to: "#create-company-dialog")
-          }
+          phx-click={JS.push("open_create_company_dialog")}
         >
           <Lucideicons.plus class="w-10 h-10 bg-blue-50 rounded-full p-2 text-blue-600 mb-2" />
           <h3 class="text-base font-medium text-gray-900">Create New Company</h3>
@@ -72,13 +75,17 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
       <% end %>
     </div>
 
-    <div class="mt-4" id="create-company-container" phx-hook="Modal">
-      <Dialog.dialog
+    <div class="mt-4" id="create-company-container">
+      <.dialog_drawer_wrapper
         id="create-company-dialog"
-        show={false}
-        on_cancel={JS.hide(to: "#create-company-dialog")}
+        show={@show_dialog}
+        mode={@mode}
+        hook="DialogDrawerMode"
+        name="Create New Company"
+        description="Add a new company to your dashboard"
+        on_cancel={JS.push("close_create_company_dialog")}
       >
-        <div class="relative grid gap-4 border-none p-2">
+        <div class="relative grid gap-4 border-none">
           <form
             id="create-company-form"
             phx-submit={@on_create}
@@ -86,9 +93,9 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
             phx-hook="ResetForm"
           >
             <div class="flex flex-col">
-              <Label.label for="name">
+              <label for="name" class="block text-sm font-medium text-gray-700 mb-2">
                 Company Name
-              </Label.label>
+              </label>
               <Input.input
                 id="name"
                 name="name"
@@ -100,9 +107,9 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
             </div>
 
             <div class="flex flex-col">
-              <Label.label for="phone">
+              <label for="phone" class="block text-sm font-medium text-gray-700 mb-2">
                 Phone Number
-              </Label.label>
+              </label>
               <Input.input
                 id="phone"
                 name="phone"
@@ -113,9 +120,9 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
             </div>
 
             <div class="flex flex-col">
-              <Label.label for="website">
+              <label for="website" class="block text-sm font-medium text-gray-700 mb-2">
                 Website
-              </Label.label>
+              </label>
               <Input.input
                 id="website"
                 name="website"
@@ -126,9 +133,9 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
             </div>
 
             <div class="flex flex-col">
-              <Label.label for="email">
+              <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
                 Email
-              </Label.label>
+              </label>
               <Input.input
                 id="email"
                 name="email"
@@ -139,9 +146,9 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
             </div>
 
             <div class="flex flex-col">
-              <Label.label for="address">
+              <label for="address" class="block text-sm font-medium text-gray-700 mb-2">
                 Address
-              </Label.label>
+              </label>
               <Input.input
                 id="address"
                 name="address"
@@ -152,9 +159,9 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
             </div>
 
             <div class="flex flex-col">
-              <Label.label for="description">
+              <label for="description" class="block text-sm font-medium text-gray-700 mb-2">
                 Description
-              </Label.label>
+              </label>
               <textarea
                 id="description"
                 name="description"
@@ -164,20 +171,20 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
               />
             </div>
 
-            <Dialog.dialog_footer class="flex flex-col gap-2">
-              <Button.button type="submit" class="w-full">Create Company</Button.button>
-              <Button.button
+            <div class="flex flex-col gap-2 mt-4">
+              <.button type="submit" class="w-full">Create Company</.button>
+              <.button
                 variant="outline"
                 type="button"
-                phx-click={JS.hide(to: "#create-company-dialog")}
+                phx-click={JS.push("close_create_company_dialog")}
                 class="w-full"
               >
                 Cancel
-              </Button.button>
-            </Dialog.dialog_footer>
+              </.button>
+            </div>
           </form>
         </div>
-      </Dialog.dialog>
+      </.dialog_drawer_wrapper>
     </div>
     """
   end

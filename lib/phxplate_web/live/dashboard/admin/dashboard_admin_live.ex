@@ -56,7 +56,9 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
      |> assign(
        companies: companies,
        employee_count: employee_count,
-       subscription: subscription
+       subscription: subscription,
+       show_dialog: false,
+       mode: "dialog"
      )}
   end
 
@@ -145,7 +147,15 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
 
   @impl true
   def handle_event("open_create_company_dialog", _params, socket) do
-    handle_open_create_company_dialog(socket)
+    {:noreply, assign(socket, show_dialog: true)}
+  end
+
+  def handle_event("close_create_company_dialog", _params, socket) do
+    {:noreply, assign(socket, show_dialog: false)}
+  end
+
+  def handle_event("set_screen_mode", %{"mode" => mode}, socket) do
+    {:noreply, assign(socket, mode: mode)}
   end
 
   def handle_event("create_company", params, socket) do
@@ -194,6 +204,8 @@ defmodule PhxplateWeb.Dashboard.Admin.AdminLive do
         companies={@companies}
         subscription={@subscription}
         on_create="create_company"
+        show_dialog={@show_dialog}
+        mode={@mode}
       />
     </div>
     """

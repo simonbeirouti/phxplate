@@ -16,6 +16,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
   alias Phxplate.PubSub.DataSync
   alias PhxplateWeb.Components.Markdown
   import PhxplateWeb.Components.UI.Drawer
+  import PhxplateWeb.Components.UI.DialogDrawerWrapper
 
   @impl true
   def mount(_params, _session, socket) do
@@ -32,6 +33,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
       |> assign(:post_activities, [])
       |> assign(:show_drawer, false)
       |> assign(:form_changed, false)
+      |> assign(:show_new_post_form, false)
+      |> assign(:new_post_form_mode, "dialog")
 
     {:ok, load_posts(socket, 1)}
   end
@@ -73,7 +76,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
 
   def handle_event("open_new_post_dialog", _params, socket) do
     changeset = Blog.change_post(%Post{})
-    {:noreply, assign(socket, new_post_changeset: changeset)}
+    {:noreply, assign(socket, new_post_changeset: changeset, show_new_post_form: true)}
+  end
+
+  def handle_event("set_screen_mode", %{"mode" => mode}, socket) do
+    # Only update the mode without changing visibility
+    {:noreply, assign(socket, new_post_form_mode: mode)}
   end
 
   def handle_event("create_post", %{"post" => post_params}, socket) do
@@ -82,7 +90,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
         socket =
           socket
           |> put_flash(:info, "Post created successfully.")
-          |> assign(:new_post_changeset, Blog.change_post(%Post{}))
+          |> assign(show_new_post_form: false)
+          |> assign(new_post_changeset: Blog.change_post(%Post{}))
+          |> load_posts(1)
 
         {:noreply, socket}
 
@@ -109,11 +119,10 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
   end
 
   def handle_event("cancel", _params, socket) do
-    {:noreply, assign(socket, selected_post: nil, changeset: nil, show_drawer: false, form_changed: false)}
+    {:noreply, assign(socket, show_new_post_form: false)}
   end
 
   def handle_event("validate", %{"post" => post_params}, socket) do
-    # Get original post data for comparison
     original_data = %{
       "title" => socket.assigns.selected_post.title || "",
       "slug" => socket.assigns.selected_post.slug || "",
@@ -221,7 +230,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
         socket =
           socket
           |> put_flash(:info, "Post created successfully.")
-          |> assign(selected_post: post, changeset: changeset, post_activities: activities, form_changed: false)
+          |> assign(
+            selected_post: post,
+            changeset: changeset,
+            post_activities: activities,
+            form_changed: false
+          )
 
         {:noreply, socket}
 
@@ -262,16 +276,15 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
 
   @impl true
   def render(assigns) do
+    assigns = assign(assigns, :page_id, "blog-live-view")
+
     ~H"""
-    <div class="flex-1 h-[calc(100vh-100px)]">
+    <div class="flex-1 h-[calc(100vh-100px)]" id={@page_id}>
       <.header>
         Blog Management
         <:subtitle>View and manage blog posts</:subtitle>
         <:actions>
-          <.button phx-click={
-            JS.push("open_new_post_dialog")
-            |> JS.show(to: "#new-post-dialog")
-          }>
+          <.button phx-click="open_new_post_dialog">
             <Lucideicons.plus class="-ml-0.5 mr-2 h-4 w-4" /> New Post
           </.button>
         </:actions>
@@ -292,27 +305,28 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             <div class="divide-y">
               <%= for post <- @posts do %>
                 <div
-                  class="py-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                  class={"cursor-pointer p-3 rounded-md hover:bg-gray-50 relative #{if @selected_post && @selected_post.id == post.id, do: "bg-gray-100 border-l-4 border-blue-500", else: ""}"}
                   phx-click="select_post"
                   phx-value-id={post.id}
                 >
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center justify-between space-x-2 ml-2">
-                      <p class="font-medium">{post.title}</p>
-                      <div class="flex items-center gap-2 text-sm text-gray-500">
-                        <span class={[
-                          "px-2 py-0.5 rounded-full text-xs",
-                          case post.published do
-                            :published -> "bg-green-100 text-green-800"
-                            :draft -> "bg-yellow-100 text-yellow-800"
-                            :unpublished -> "bg-gray-100 text-gray-800"
-                          end
-                        ]}>
-                          {post.published}
-                        </span>
-                      </div>
-                    </div>
-                    <Lucideicons.arrow_right class="w-5 h-5 mr-2" />
+                  <!-- Post content -->
+                  <div class="flex justify-between items-center">
+                    <h4 class="text-sm font-medium text-gray-900">{post.title}</h4>
+                    <span class={[
+                      "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
+                      case post.published do
+                        :published -> "bg-green-100 text-green-800"
+                        :draft -> "bg-yellow-100 text-yellow-800"
+                        :unpublished -> "bg-gray-100 text-gray-800"
+                      end
+                    ]}>
+                      {post.published}
+                    </span>
+                  </div>
+                  <div class="mt-1">
+                    <p class="text-xs text-gray-500">
+                      Created: {Calendar.strftime(post.inserted_at, "%B %d, %Y at %H:%M")}
+                    </p>
                   </div>
                 </div>
               <% end %>
@@ -356,7 +370,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
           <% end %>
         </div>
 
-        <!-- Desktop Details View (hidden on mobile) -->
+    <!-- Desktop Details View (hidden on mobile) -->
         <div class="hidden lg:block col-span-2 overflow-y-auto">
           <h2 class="text-xl font-semibold mb-4">Post Details</h2>
           <%= if @selected_post do %>
@@ -388,31 +402,30 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
         </.drawer>
       </div>
 
-    <!-- New Post Dialog -->
-      <.dialog id="new-post-dialog" show={false} on_cancel={JS.hide(to: "#new-post-dialog")}>
-        <.dialog_header>
-          <.dialog_title>Create New Post</.dialog_title>
-          <.dialog_description>
-            Create a new blog post. You can edit additional details after creation.
-          </.dialog_description>
-        </.dialog_header>
-
-        <div class="relative grid gap-4 border-none p-2">
+    <!-- New Post Dialog/Drawer -->
+      <.dialog_drawer_wrapper
+        id="new-post-form"
+        show={@show_new_post_form}
+        mode={@new_post_form_mode}
+        on_cancel={JS.push("cancel")}
+        hook="DialogDrawerMode"
+        name="Create New Post"
+        description="Create a new blog post. You can edit additional details after creation."
+      >
+        <div class="relative grid gap-4 border-none">
           <form
             id="new-post-form"
             phx-change="validate_new_post"
-            phx-submit={
-              JS.push("create_post")
-              |> JS.hide(to: "#new-post-dialog")
-            }
+            phx-submit="create_post"
             class="space-y-4"
             phx-hook="ResetForm"
           >
             <div class="flex flex-col">
-              <SLabel.label class="mb-2" for="title">
+              <label for="title" class="block text-sm font-medium text-gray-700">
                 Title
-              </SLabel.label>
-              <SInput.input
+              </label>
+              <.input
+                class="text-base"
                 id="title"
                 name="post[title]"
                 type="text"
@@ -428,10 +441,11 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             </div>
 
             <div class="flex flex-col">
-              <SLabel.label class="mb-2" for="description">
+              <label for="description" class="block text-sm font-medium text-gray-700">
                 Description
-              </SLabel.label>
-              <SInput.input
+              </label>
+              <.input
+                class="text-base"
                 id="description"
                 name="post[description]"
                 type="text"
@@ -446,15 +460,15 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             </div>
 
             <div class="flex flex-col">
-              <SLabel.label class="mb-2" for="content">
+              <label for="content" class="block text-sm font-medium text-gray-700 mb-2">
                 Content
-              </SLabel.label>
+              </label>
               <textarea
                 id="content"
                 name="post[content]"
                 placeholder="Write your post content here..."
                 rows="8"
-                class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                class="text-base flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 required
               ><%= Ecto.Changeset.get_field(@new_post_changeset, :content) || "" %></textarea>
               <%= if @new_post_changeset.errors[:content] do %>
@@ -464,13 +478,13 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
               <% end %>
             </div>
 
-            <div class="pt-5 flex justify-end space-x-3 col-span-2">
-              <.button variant="secondary" phx-click="cancel">Cancel</.button>
-              <.button type="submit">Save</.button>
+            <div class="flex flex-col gap-2 mt-4">
+              <.button class="w-full" type="submit">Save</.button>
+              <.button class="w-full" variant="outline" phx-click="cancel">Cancel</.button>
             </div>
           </form>
         </div>
-      </.dialog>
+      </.dialog_drawer_wrapper>
     </div>
     """
   end
@@ -515,10 +529,11 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
         >
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-2 col-span-1">
-              <SLabel.label for={"post_title_#{@context}"}>
+              <label for={"post_title_#{@context}"} class="block text-sm font-medium text-gray-700">
                 Title
-              </SLabel.label>
-              <SInput.input
+              </label>
+              <.input
+                class="text-base"
                 id={"post_title_#{@context}"}
                 name="post[title]"
                 type="text"
@@ -534,10 +549,11 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             </div>
 
             <div class="space-y-2 col-span-1">
-              <SLabel.label for={"post_slug_#{@context}"}>
+              <label for={"post_slug_#{@context}"} class="block text-sm font-medium text-gray-700">
                 Slug
-              </SLabel.label>
-              <SInput.input
+              </label>
+              <.input
+                class="text-base"
                 id={"post_slug_#{@context}"}
                 name="post[slug]"
                 type="text"
@@ -552,10 +568,11 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             </div>
 
             <div class="space-y-2 col-span-2">
-              <SLabel.label for={"post_description_#{@context}"}>
+              <label for={"post_description_#{@context}"} class="block text-sm font-medium text-gray-700">
                 Description
-              </SLabel.label>
-              <SInput.input
+              </label>
+              <.input
+                class="text-base"
                 id={"post_description_#{@context}"}
                 name="post[description]"
                 type="text"
@@ -570,15 +587,15 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             </div>
 
             <div class="space-y-2 col-span-2">
-              <SLabel.label for={"post_content_#{@context}"}>
+              <label for={"post_content_#{@context}"} class="block text-sm font-medium text-gray-700 mb-2">
                 Content
-              </SLabel.label>
+              </label>
               <textarea
                 id={"post_content_#{@context}"}
                 name="post[content]"
                 placeholder="Write your post content here..."
                 rows="10"
-                class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                class="text-base flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 required
               ><%= Ecto.Changeset.get_field(@changeset || Blog.change_post(@selected_post), :content) || "" %></textarea>
             </div>
@@ -586,7 +603,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             <%= if @form_changed do %>
               <div class="pt-5 col-span-2">
                 <div class="flex flex-col gap-3 lg:flex-row lg:justify-end lg:gap-3">
-                  <.button type="button" variant="outline" phx-click="reset_post" class="w-full lg:w-auto">
+                  <.button
+                    type="button"
+                    variant="outline"
+                    phx-click="reset_post"
+                    class="w-full lg:w-auto"
+                  >
                     Reset
                   </.button>
                   <.button type="submit" class="w-full lg:w-auto">Save Changes</.button>
@@ -639,7 +661,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             </div>
             <div>
               <h4 class="text-sm font-medium text-gray-500">Slug</h4>
-              <div class="flex items-center space-x-2">
+              <div class="flex items-center space-x-2 mt-1">
                 <code class="bg-gray-100 px-2 py-1 rounded text-sm">
                   /blog/{@selected_post.slug}
                 </code>

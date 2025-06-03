@@ -311,17 +311,21 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
           <h2 class="text-xl font-semibold mb-4">User List</h2>
           <div class="divide-y">
             <%= for user <- @users do %>
-              <div
-                class="py-4 cursor-pointer hover:bg-gray-50 transition-colors"
+              <div class={"cursor-pointer p-3 rounded-md hover:bg-gray-50 relative #{if @selected_user && @selected_user.id == user.id, do: "bg-gray-100 border-l-4 border-blue-500", else: ""}"}
                 phx-click="select_user"
                 phx-value-id={user.id}
               >
-                <div class="flex items-center justify-between">
-                  <div class="ml-2">
-                    <p class="font-medium">{user.email}</p>
-                    <p class="text-sm text-gray-500">ID: {user.id}</p>
-                  </div>
-                  <Lucideicons.arrow_right class="w-5 h-5 mr-2" />
+                <!-- User content -->
+                <div class="flex justify-between items-center">
+                  <h4 class="text-sm font-medium text-gray-900">{user.email}</h4>
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                    {user.role}
+                  </span>
+                </div>
+                <div class="mt-1">
+                  <p class="text-xs text-gray-500">
+                    ID: {user.id} • Created: {Calendar.strftime(user.inserted_at, "%B %d, %Y at %H:%M")}
+                  </p>
                 </div>
               </div>
             <% end %>

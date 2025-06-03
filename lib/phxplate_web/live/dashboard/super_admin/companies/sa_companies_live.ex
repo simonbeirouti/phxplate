@@ -290,16 +290,18 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
           <h2 class="text-xl font-semibold mb-4">Company List</h2>
           <div class="divide-y">
             <%= for company <- @companies do %>
-              <div
-                class="py-4 cursor-pointer hover:bg-gray-50 transition-colors"
+              <div class={"cursor-pointer p-3 rounded-md hover:bg-gray-50 relative #{if @selected_company && @selected_company.id == company.id, do: "bg-gray-100 border-l-4 border-blue-500", else: ""}"}
                 phx-click="select_company"
                 phx-value-id={company.id}
               >
-                <div class="flex items-center justify-between">
-                  <div class="ml-2">
-                    <p class="font-medium">{company.name}</p>
-                  </div>
-                  <Lucideicons.arrow_right class="w-5 h-5 mr-2" />
+                <!-- Company content -->
+                <div class="flex justify-between items-center">
+                  <h4 class="text-sm font-medium text-gray-900">{company.name}</h4>
+                </div>
+                <div class="mt-1">
+                  <p class="text-xs text-gray-500">
+                    Created: {Calendar.strftime(company.inserted_at, "%B %d, %Y at %H:%M")}
+                  </p>
                 </div>
               </div>
             <% end %>
