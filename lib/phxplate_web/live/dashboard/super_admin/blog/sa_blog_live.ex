@@ -291,28 +291,28 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
           <% else %>
             <div class="divide-y">
               <%= for post <- @posts do %>
-                <div
-                  class="py-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                <div class={"cursor-pointer p-3 rounded-md hover:bg-gray-50 relative #{if @selected_post && @selected_post.id == post.id, do: "bg-gray-100 border-l-4 border-blue-500", else: ""}"}
                   phx-click="select_post"
                   phx-value-id={post.id}
                 >
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center justify-between space-x-2 ml-2">
-                      <p class="font-medium">{post.title}</p>
-                      <div class="flex items-center gap-2 text-sm text-gray-500">
-                        <span class={[
-                          "px-2 py-0.5 rounded-full text-xs",
-                          case post.published do
-                            :published -> "bg-green-100 text-green-800"
-                            :draft -> "bg-yellow-100 text-yellow-800"
-                            :unpublished -> "bg-gray-100 text-gray-800"
-                          end
-                        ]}>
-                          {post.published}
-                        </span>
-                      </div>
-                    </div>
-                    <Lucideicons.arrow_right class="w-5 h-5 mr-2" />
+                  <!-- Post content -->
+                  <div class="flex justify-between items-center">
+                    <h4 class="text-sm font-medium text-gray-900">{post.title}</h4>
+                    <span class={[
+                      "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
+                      case post.published do
+                        :published -> "bg-green-100 text-green-800"
+                        :draft -> "bg-yellow-100 text-yellow-800"
+                        :unpublished -> "bg-gray-100 text-gray-800"
+                      end
+                    ]}>
+                      {post.published}
+                    </span>
+                  </div>
+                  <div class="mt-1">
+                    <p class="text-xs text-gray-500">
+                      Created: {Calendar.strftime(post.inserted_at, "%B %d, %Y at %H:%M")}
+                    </p>
                   </div>
                 </div>
               <% end %>

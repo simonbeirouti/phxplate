@@ -70,8 +70,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.FeedbackRequestsLive do
       <div class="grid grid-cols-1 lg:grid-cols-2 lg:gap-8 mt-4 h-[calc(100vh-200px)]">
         <div class="h-[calc(100vh-200px)] col-span-1">
           <div class="flex flex-col justify-start">
-            <h2 class="text-xl font-semibold">Requests</h2>
-            <div class="flex gap-2 mt-2">
+            <h2 class="text-xl font-semibold mb-4">Requests</h2>
+            <div class="flex space-x-2 mb-4">
               <.button
                 phx-click="filter_requests"
                 phx-value-type="all"
@@ -106,36 +106,34 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.FeedbackRequestsLive do
           <% else %>
             <div class="divide-y">
               <%= for request <- @requests do %>
-                <div
-                  class="py-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                <div class={"cursor-pointer p-3 rounded-md hover:bg-gray-50 relative #{if @selected_request && @selected_request.id == request.id, do: "bg-gray-100 border-l-4 border-blue-500", else: ""}"}
                   phx-click="select_request"
                   phx-value-id={request.id}
                 >
+                  <!-- Request content -->
                   <div class="flex items-center justify-between">
-                    <div class="flex flex-col space-y-1 ml-2 flex-1">
+                    <div class="flex flex-col space-y-1 flex-1">
                       <div class="flex items-center justify-between">
-                        <p class="font-medium truncate max-w-[200px]">
+                        <p class="text-sm font-medium text-gray-900 truncate max-w-[200px]">
                           <%= PhxplateWeb.Components.Markdown.excerpt(request.feature_description, 30) %>
                         </p>
-                        <div class="flex items-center gap-2 text-sm text-gray-500">
-                          <span class={[
-                            "px-2 py-0.5 rounded-full text-xs",
-                            case request.feasibility_rating do
-                              1 -> "bg-blue-100 text-blue-800"
-                              2 -> "bg-purple-100 text-purple-800"
-                              _ -> "bg-gray-100 text-gray-800"
-                            end
-                          ]}>
-                            <%= if request.feasibility_rating == 1, do: "Feature", else: "Feedback" %>
-                          </span>
-                        </div>
+                        <span class={[
+                          "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
+                          case request.feasibility_rating do
+                            1 -> "bg-blue-100 text-blue-800"
+                            2 -> "bg-purple-100 text-purple-800"
+                            _ -> "bg-gray-100 text-gray-800"
+                          end
+                        ]}>
+                          <%= if request.feasibility_rating == 1, do: "Feature", else: "Feedback" %>
+                        </span>
                       </div>
-                      <div class="flex justify-between items-center text-xs text-gray-500">
-                        <span>Priority: <%= request.priority_rating %>/10</span>
-                        <span><%= Calendar.strftime(request.inserted_at, "%Y-%m-%d at %H:%M:%S") %></span>
+                      <div class="mt-1">
+                        <p class="text-xs text-gray-500">
+                          Priority: <%= request.priority_rating %>/10 • <%= Calendar.strftime(request.inserted_at, "%B %d, %Y at %H:%M") %>
+                        </p>
                       </div>
                     </div>
-                    <Lucideicons.arrow_right class="w-5 h-5 mr-2 flex-shrink-0" />
                   </div>
                 </div>
               <% end %>
@@ -376,7 +374,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.FeedbackRequestsLive do
     # No need to reload requests here as the PubSub event will trigger an update
     {:noreply, socket}
   end
-  
+
   @impl true
   def handle_info({:created, feature_request}, socket) do
     # Reload the requests when a new feature request is created
@@ -387,7 +385,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.FeedbackRequestsLive do
   def handle_info({:updated, feature_request}, socket) do
     # Reload the requests when a feature request is updated
     socket = load_requests(socket, socket.assigns.page)
-    
+
     # If the updated request is currently selected, update it with the new data
     socket =
       if socket.assigns.selected_request && socket.assigns.selected_request.id == feature_request.id do
@@ -396,7 +394,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.FeedbackRequestsLive do
       else
         socket
       end
-    
+
     {:noreply, socket}
   end
 
@@ -404,7 +402,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.FeedbackRequestsLive do
   def handle_info({:deleted, request_id}, socket) do
     # Reload the requests when a feature request is deleted
     socket = load_requests(socket, socket.assigns.page)
-    
+
     # If the deleted request is currently selected, clear the selection
     socket =
       if socket.assigns.selected_request && socket.assigns.selected_request.id == request_id do
@@ -412,7 +410,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.FeedbackRequestsLive do
       else
         socket
       end
-    
+
     {:noreply, socket}
   end
 end
