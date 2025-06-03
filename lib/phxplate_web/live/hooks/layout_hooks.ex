@@ -172,6 +172,10 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
             url: "/dashboard/super_admin/chat"
           },
           %{
+            title: "Feature Requests",
+            url: "/dashboard/super_admin/feature-feedbacks"
+          },
+          %{
             title: "Platform Blogs",
             url: "/dashboard/super_admin/blogs"
           },

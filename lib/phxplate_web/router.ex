@@ -80,7 +80,7 @@ defmodule PhxplateWeb.Router do
 
     get "/", PageController, :home
     get "/about", PageController, :about
-    
+
     # Chat is now handled by the ChatButton component in the root layout
 
     live_session :public,
@@ -113,7 +113,7 @@ defmodule PhxplateWeb.Router do
   # API routes for chat functionality
   scope "/api", PhxplateWeb do
     pipe_through :api
-    
+
     post "/chat", ChatController, :create
     get "/chat/anonymous/:email", ChatController, :get_anonymous_sessions
     get "/chat/:id", ChatController, :get_session
@@ -215,6 +215,7 @@ defmodule PhxplateWeb.Router do
       pipe_through [:super_admin]
       live "/super_admin", Dashboard.SuperAdmin.SuperAdminLive, :index
       live "/super_admin/blogs", Dashboard.SuperAdmin.BlogsLive, :index
+      live "/super_admin/feature-feedbacks", Dashboard.SuperAdmin.FeedbackRequestsLive, :index
       live "/super_admin/users", Dashboard.SuperAdmin.UsersLive, :index
       live "/super_admin/companies", Dashboard.SuperAdmin.CompaniesLive, :index
       live "/super_admin/chat", Admin.ChatDashboardLive, :index
