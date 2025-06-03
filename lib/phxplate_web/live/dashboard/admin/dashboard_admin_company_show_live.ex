@@ -801,15 +801,15 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
                   </div>
                 </.table_cell>
                 <.table_cell class="font-medium">
-                  {if employee.profile do
+                  <%= if employee.profile do
                     "#{employee.profile.first_name} #{employee.profile.last_name}"
                   else
                     "Profile Deleted"
-                  end}
+                  end %>
                 </.table_cell>
                 <.table_cell>{employee.email}</.table_cell>
                 <.table_cell>
-                  {if employee.profile, do: employee.profile.phone || "N/A", else: "N/A"}
+                  <%= if employee.profile, do: employee.profile.phone || "N/A", else: "N/A" %>
                 </.table_cell>
                 <.table_cell>{employee.position || "N/A"}</.table_cell>
                 <.table_cell>{employee.department || "N/A"}</.table_cell>
@@ -882,11 +882,11 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
             <div class="flex justify-between items-start mb-4">
               <div>
                 <h3 class="text-lg font-medium">
-                  {if employee.profile do
+                  <%= if employee.profile do
                     "#{employee.profile.first_name} #{employee.profile.last_name}"
                   else
                     "Profile Deleted"
-                  end}
+                  end %>
                 </h3>
                 <p class="text-sm text-gray-500">{employee.position || "No position"}</p>
               </div>
@@ -927,7 +927,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
               </div>
               <div>
                 <dt class="text-gray-500">Phone</dt>
-                <dd>{if employee.profile, do: employee.profile.phone || "N/A", else: "N/A"}</dd>
+                <dd><%= if employee.profile, do: employee.profile.phone || "N/A", else: "N/A" %></dd>
               </div>
               <div>
                 <dt class="text-gray-500">Department</dt>
