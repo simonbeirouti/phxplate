@@ -396,7 +396,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
           </.drawer_header>
           <.drawer_content>
             <%= if @selected_post do %>
-              {render_post_details(assign(assigns, :context, "mobile"))}
+              <%= render_post_details(assign(assigns, :context, "mobile")) %>
             <% end %>
           </.drawer_content>
         </.drawer>
@@ -412,7 +412,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
         name="Create New Post"
         description="Create a new blog post. You can edit additional details after creation."
       >
-        <div class="relative grid gap-4 border-none p-2">
+        <div class="relative grid gap-4 border-none">
           <form
             id="new-post-form"
             phx-change="validate_new_post"
@@ -421,9 +421,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             phx-hook="ResetForm"
           >
             <div class="flex flex-col">
-              <.label for="title">
+              <label for="title" class="block text-sm font-medium text-gray-700">
                 Title
-              </.label>
+              </label>
               <.input
                 id="title"
                 name="post[title]"
@@ -440,9 +440,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             </div>
 
             <div class="flex flex-col">
-              <.label for="description">
+              <label for="description" class="block text-sm font-medium text-gray-700">
                 Description
-              </.label>
+              </label>
               <.input
                 id="description"
                 name="post[description]"
@@ -458,9 +458,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             </div>
 
             <div class="flex flex-col">
-              <.label for="content">
+              <label for="content" class="block text-sm font-medium text-gray-700 mb-2">
                 Content
-              </.label>
+              </label>
               <textarea
                 id="content"
                 name="post[content]"
@@ -476,9 +476,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
               <% end %>
             </div>
 
-            <div class="pt-5 flex justify-end space-x-3 col-span-2">
-              <.button variant="secondary" phx-click="cancel">Cancel</.button>
-              <.button type="submit">Save</.button>
+            <div class="flex flex-col gap-2 mt-4">
+              <.button class="w-full" type="submit">Save</.button>
+              <.button class="w-full" variant="outline" phx-click="cancel">Cancel</.button>
             </div>
           </form>
         </div>
@@ -527,9 +527,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
         >
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-2 col-span-1">
-              <.label for={"post_title_#{@context}"}>
+              <label for={"post_title_#{@context}"} class="block text-sm font-medium text-gray-700">
                 Title
-              </.label>
+              </label>
               <.input
                 id={"post_title_#{@context}"}
                 name="post[title]"
@@ -546,9 +546,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             </div>
 
             <div class="space-y-2 col-span-1">
-              <.label for={"post_slug_#{@context}"}>
+              <label for={"post_slug_#{@context}"} class="block text-sm font-medium text-gray-700">
                 Slug
-              </.label>
+              </label>
               <.input
                 id={"post_slug_#{@context}"}
                 name="post[slug]"
@@ -564,9 +564,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             </div>
 
             <div class="space-y-2 col-span-2">
-              <.label for={"post_description_#{@context}"}>
+              <label for={"post_description_#{@context}"} class="block text-sm font-medium text-gray-700">
                 Description
-              </.label>
+              </label>
               <.input
                 id={"post_description_#{@context}"}
                 name="post[description]"
@@ -582,9 +582,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             </div>
 
             <div class="space-y-2 col-span-2">
-              <.label for={"post_content_#{@context}"}>
+              <label for={"post_content_#{@context}"} class="block text-sm font-medium text-gray-700 mb-2">
                 Content
-              </.label>
+              </label>
               <textarea
                 id={"post_content_#{@context}"}
                 name="post[content]"
@@ -656,7 +656,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             </div>
             <div>
               <h4 class="text-sm font-medium text-gray-500">Slug</h4>
-              <div class="flex items-center space-x-2">
+              <div class="flex items-center space-x-2 mt-1">
                 <code class="bg-gray-100 px-2 py-1 rounded text-sm">
                   /blog/{@selected_post.slug}
                 </code>
