@@ -13,7 +13,14 @@ const STORAGE_KEYS = {
 // Initialize the socket
 function initSocket() {
   if (!socket) {
-    socket = new Socket("/socket");
+    // Get user token from meta tag if available (for authenticated users)
+    const userToken = document.querySelector("meta[name='user-token']")?.getAttribute("content");
+    
+    if (userToken) {
+      socket = new Socket("/socket", {params: {token: userToken}});
+    } else {
+      socket = new Socket("/socket");
+    }
     socket.connect();
   }
   return socket;
@@ -130,6 +137,8 @@ const ChatHooks = {
       this.showingSettings = false;
       this.supportStatusChannel = null;
       this.currentSupportStatus = "offline"; // Default to offline
+      this.typingTimeout = null; // For debouncing typing events
+      this.isTyping = false; // Track if user is currently typing
 
       // Check if we have user data from the server (authenticated user)
       const userData = this.el.dataset.user ? JSON.parse(this.el.dataset.user) : null;
@@ -160,6 +169,7 @@ const ChatHooks = {
         closeButton.addEventListener("click", () => {
           this.el.classList.add("hidden");
           if (this.channel) {
+            this.stopTyping(); // Clean up typing status
             this.channel.leave();
             this.channel = null;
           }
@@ -936,6 +946,13 @@ const ChatHooks = {
         this.renderSessionClosed();
       });
 
+      // Handle typing status from admin
+      channel.on("typing_status", (payload) => {
+        if (payload.sender_type === "admin") {
+          this.showTypingIndicator(payload.typing);
+        }
+      });
+
       this.channel = channel;
     },
 
@@ -963,6 +980,9 @@ const ChatHooks = {
         <div class="chat-interface-container flex flex-col h-[400px]">
           <div class="flex-grow overflow-y-auto">
             <div class="chat-messages flex flex-col gap-0.75rem pr-0.5" id="chat-messages"></div>
+            <div id="typing-indicator" class="typing-indicator hidden px-4 py-2 text-sm text-gray-500">
+              Support is typing<span class="typing-dots">...</span>
+            </div>
           </div>
           <div class="mt-auto pt-4">
             <form id="message-form" class="chat-message-form">
@@ -992,6 +1012,7 @@ const ChatHooks = {
         closeButton.addEventListener("click", () => {
           this.el.classList.add("hidden");
           if (this.channel) {
+            this.stopTyping(); // Clean up typing status
             this.channel.leave();
             this.channel = null;
           }
@@ -1009,12 +1030,16 @@ const ChatHooks = {
 
       // Add event listener for the message form
       const messageForm = modalBody.querySelector("#message-form");
+      const messageInput = messageForm.querySelector("input[name='message']");
+      
       messageForm.addEventListener("submit", (e) => {
         e.preventDefault();
-        const messageInput = messageForm.querySelector("input[name='message']");
         const content = messageInput.value.trim();
 
         if (content && this.channel) {
+          // Stop typing when sending message
+          this.stopTyping();
+          
           this.channel.push("new_message", { content })
             .receive("ok", (resp) => {
               messageInput.value = "";
@@ -1026,6 +1051,66 @@ const ChatHooks = {
             });
         }
       });
+
+      // Add typing detection for the message input
+      messageInput.addEventListener("input", () => {
+        this.handleTyping();
+      });
+
+      messageInput.addEventListener("blur", () => {
+        this.stopTyping();
+      });
+
+      // Ensure typing indicator starts hidden
+      const typingIndicator = modalBody.querySelector("#typing-indicator");
+      if (typingIndicator) {
+        typingIndicator.classList.add("hidden");
+      }
+    },
+
+    handleTyping() {
+      if (!this.channel) return;
+
+      // If not already typing, start typing
+      if (!this.isTyping) {
+        this.isTyping = true;
+        this.channel.push("typing_start", {});
+      }
+
+      // Clear existing timeout and set a new one
+      if (this.typingTimeout) {
+        clearTimeout(this.typingTimeout);
+      }
+
+      // Stop typing after 3 seconds of inactivity
+      this.typingTimeout = setTimeout(() => {
+        this.stopTyping();
+      }, 3000);
+    },
+
+    stopTyping() {
+      if (!this.channel || !this.isTyping) return;
+
+      this.isTyping = false;
+      this.channel.push("typing_stop", {});
+
+      if (this.typingTimeout) {
+        clearTimeout(this.typingTimeout);
+        this.typingTimeout = null;
+      }
+    },
+
+    showTypingIndicator(isTyping) {
+      const typingIndicator = this.el.querySelector("#typing-indicator");
+      if (!typingIndicator) return;
+
+      if (isTyping) {
+        typingIndicator.classList.remove("hidden");
+        // Scroll to bottom to show typing indicator
+        this.scrollToBottom();
+      } else {
+        typingIndicator.classList.add("hidden");
+      }
     },
 
     renderMessages(messages) {
@@ -1286,7 +1371,150 @@ const ChatHooks = {
 
       this.channel = channel;
     }
+  },
+
+  // Hook for admin chat typing indicators
+  AdminChatTyping: {
+    mounted() {
+      this.socket = initSocket();
+      this.adminChannel = null;
+      this.typingTimeout = null;
+      this.isTyping = false;
+      this.currentSessionId = null;
+      this.typingIndicator = null; // Track the indicator element
+
+      // Get the current session ID from the element's data attribute
+      this.currentSessionId = this.el.dataset.sessionId;
+
+      // Connect to admin channel for typing events
+      this.connectToAdminChannel();
+
+      // Add event listeners for typing
+      this.setupTypingEvents();
+    },
+
+    connectToAdminChannel() {
+      if (!this.adminChannel && this.currentSessionId) {
+        // Connect to the specific session channel to receive typing events from users
+        this.adminChannel = this.socket.channel(`chat:session:${this.currentSessionId}`);
+        
+        this.adminChannel.join()
+          .receive("ok", (resp) => {
+            console.log("Joined session channel for admin typing");
+          })
+          .receive("error", (resp) => {
+            console.error("Unable to join session channel for admin typing", resp);
+          });
+
+        // Listen for typing status from users in this specific session
+        this.adminChannel.on("typing_status", (payload) => {
+          if (payload.sender_type === "user") {
+            this.showUserTypingIndicator(payload.typing);
+          }
+        });
+      }
+    },
+
+    setupTypingEvents() {
+      // Find the message input field
+      const messageInput = this.el.querySelector('input[name="message[content]"]');
+      if (!messageInput) return;
+
+      // Add typing detection
+      messageInput.addEventListener("input", () => {
+        this.handleAdminTyping();
+      });
+
+      messageInput.addEventListener("blur", () => {
+        this.stopAdminTyping();
+      });
+
+      // Add form submit handler to stop typing
+      const form = this.el.querySelector('form');
+      if (form) {
+        form.addEventListener("submit", () => {
+          this.stopAdminTyping();
+        });
+      }
+    },
+
+    handleAdminTyping() {
+      if (!this.adminChannel || !this.currentSessionId) return;
+
+      // If not already typing, start typing
+      if (!this.isTyping) {
+        this.isTyping = true;
+        // Send typing start to the session channel (will be picked up by user)
+        this.adminChannel.push("typing_start", {});
+      }
+
+      // Clear existing timeout and set a new one
+      if (this.typingTimeout) {
+        clearTimeout(this.typingTimeout);
+      }
+
+      // Stop typing after 3 seconds of inactivity
+      this.typingTimeout = setTimeout(() => {
+        this.stopAdminTyping();
+      }, 3000);
+    },
+
+    stopAdminTyping() {
+      if (!this.adminChannel || !this.isTyping || !this.currentSessionId) return;
+
+      this.isTyping = false;
+      // Send typing stop to the session channel
+      this.adminChannel.push("typing_stop", {});
+
+      if (this.typingTimeout) {
+        clearTimeout(this.typingTimeout);
+        this.typingTimeout = null;
+      }
+    },
+
+    showUserTypingIndicator(isTyping) {
+      if (isTyping) {
+        // Create indicator if it doesn't exist
+        if (!this.typingIndicator) {
+          this.typingIndicator = document.createElement('div');
+          this.typingIndicator.className = 'user-typing-indicator px-4 py-2 text-sm text-gray-500 italic';
+          this.typingIndicator.innerHTML = 'User is typing<span class="typing-dots">...</span>';
+          this.typingIndicator.style.display = 'none'; // Start hidden
+          
+          // Insert it before the message form
+          const messageForm = this.el.querySelector('form');
+          if (messageForm && messageForm.parentNode) {
+            messageForm.parentNode.insertBefore(this.typingIndicator, messageForm);
+          }
+        }
+        
+        // Show the indicator
+        if (this.typingIndicator) {
+          this.typingIndicator.style.display = 'block';
+        }
+      } else {
+        // Hide the indicator
+        if (this.typingIndicator) {
+          this.typingIndicator.style.display = 'none';
+        }
+      }
+    },
+
+    destroyed() {
+      // Clean up when component is destroyed
+      this.stopAdminTyping();
+      
+      // Remove typing indicator
+      if (this.typingIndicator && this.typingIndicator.parentNode) {
+        this.typingIndicator.parentNode.removeChild(this.typingIndicator);
+      }
+      
+      if (this.adminChannel) {
+        this.adminChannel.leave();
+      }
+    }
   }
 };
 
 export default ChatHooks;
+

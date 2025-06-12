@@ -263,12 +263,15 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
             variant="destructive"
             class={[
               "transition-all duration-200",
-              (if @support_status == "online", do: "bg-green-700 text-white hover:bg-red-600", else: "hover:bg-green-600 hover:text-white")
+              if(@support_status == "online",
+                do: "bg-green-700 text-white hover:bg-red-600",
+                else: "hover:bg-green-600 hover:text-white"
+              )
             ]}
             onmouseover={"this.textContent = '#{if @support_status == "online", do: "Go offline", else: "Go online"}'"}
             onmouseout={"this.textContent = 'Support #{String.capitalize(@support_status)}'"}
           >
-            Support <%= String.capitalize(@support_status) %>
+            Support {String.capitalize(@support_status)}
           </.button>
         </:actions>
       </.header>
@@ -485,7 +488,12 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
 
     <!-- Message Input Area - Fixed at bottom -->
       <%= if @selected_session.status == "active" do %>
-        <div class="py-3 bg-white border-t mt-auto">
+        <div
+          class="py-3 bg-white border-t mt-auto"
+          id={"admin-chat-typing-mobile-#{@selected_session.id}"}
+          phx-hook="AdminChatTyping"
+          data-session-id={@selected_session.id}
+        >
           <.form for={%{}} as={:message} phx-submit="send_message" phx-change="update_message">
             <div class="flex items-center gap-2">
               <input
@@ -551,7 +559,12 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
           </div>
 
           <%= if @selected_session.status == "active" do %>
-            <div class="pt-3 sticky bottom-0 bg-white border-t mt-auto">
+            <div
+              class="pt-3 sticky bottom-0 bg-white border-t mt-auto"
+              id={"admin-chat-typing-desktop-#{@selected_session.id}"}
+              phx-hook="AdminChatTyping"
+              data-session-id={@selected_session.id}
+            >
               <.form for={%{}} as={:message} phx-submit="send_message" phx-change="update_message">
                 <div class="flex items-center gap-2">
                   <input
