@@ -265,7 +265,7 @@ const ChatHooks = {
     connectToSupportStatus() {
       if (!this.supportStatusChannel) {
         this.supportStatusChannel = this.socket.channel("support:status");
-        
+
         this.supportStatusChannel.join()
           .receive("ok", (resp) => {
             console.log("Joined support status channel successfully", resp);
@@ -742,10 +742,9 @@ const ChatHooks = {
           e.preventDefault();
 
           const nameInput = form.querySelector('#chat-name');
-          const emailInput = form.querySelector('#chat-email');
+          const email = form.querySelector('#chat-email').value.trim();
 
           const name = nameInput.value.trim();
-          const email = emailInput.value.trim();
 
           if (name && email) {
             // Store the anonymous user data
@@ -842,6 +841,8 @@ const ChatHooks = {
       } else {
         // For open or pending sessions, join the existing session
         this.sessionId = sessionIdStr;
+        // This is an existing session by definition
+        this.hasExistingMessages = true;
         // Skip the API call for creating a new session - just join the channel directly
         this.joinChatChannel();
         this.renderChatInterface();
@@ -926,6 +927,8 @@ const ChatHooks = {
       // If we're joining an existing session, use the session_id directly
       if (userData.session_id) {
         this.sessionId = userData.session_id;
+        // This is an existing session by definition
+        this.hasExistingMessages = true;
         this.joinChatChannel();
         this.renderChatInterface();
         return;
@@ -994,7 +997,8 @@ const ChatHooks = {
       channel.join()
         .receive("ok", (resp) => {
           console.log("Joined chat session successfully", resp);
-          if (resp.messages) {
+          if (resp.messages && resp.messages.length > 0) {
+            this.hasExistingMessages = true;
             this.renderMessages(resp.messages);
           }
         })
@@ -1023,6 +1027,11 @@ const ChatHooks = {
     },
 
     renderChatInterface() {
+      // Reset offline notification tracking for this chat session
+      this.offlineNotificationShown = false;
+      // Track if we have existing messages (will be set when messages are loaded)
+      this.hasExistingMessages = false;
+      
       // Update the header to include only End Chat button (no X button)
       const modalHeader = this.el.querySelector(".chat-modal-header");
       modalHeader.innerHTML = `
@@ -1039,6 +1048,17 @@ const ChatHooks = {
 
       // Apply current support status to the newly rendered header
       this.applySupportStatusToHeader();
+
+      // Show offline notification immediately if support is offline and this is a new session
+      if (this.currentSupportStatus === "offline") {
+        // Use setTimeout to ensure the chat messages container is ready
+        setTimeout(() => {
+          if (this.isNewSession()) {
+            this.showInitialOfflineNotification();
+          }
+          this.updateMessagePlaceholder();
+        }, 100);
+      }
 
       // Clear the content area
       const modalBody = this.el.querySelector(".chat-modal-body");
@@ -1098,17 +1118,57 @@ const ChatHooks = {
       const messageForm = modalBody.querySelector("#message-form");
       const messageInput = messageForm.querySelector("input[name='message']");
       
+      // Hide initial offline notification when user starts typing and update character count
+      messageInput.addEventListener("input", (e) => {
+        if (e.target.value.length > 0) {
+          this.hideInitialOfflineNotification();
+        }
+        
+        // Update character count for offline mode
+        this.updateCharacterCount(e.target);
+        
+        // Remove any existing error messages when user types
+        const existingError = document.getElementById("min-char-error");
+        if (existingError) {
+          existingError.remove();
+        }
+      });
+      
       messageForm.addEventListener("submit", (e) => {
         e.preventDefault();
         const content = messageInput.value.trim();
 
         if (content && this.channel) {
+          // Check if support is offline and this is the first message in a new session
+          if (this.currentSupportStatus === "offline" && !this.offlineNotificationShown && this.isNewSession()) {
+            // For the first message during offline mode in a new session, require minimum 40 characters
+            if (content.length < 40) {
+              // Show validation error
+              this.showMinCharacterError();
+              return;
+            }
+          }
+
           // Stop typing when sending message
           this.stopTyping();
           
           this.channel.push("new_message", { content })
             .receive("ok", (resp) => {
               messageInput.value = "";
+              
+              // If support is offline, show an informational message
+              if (this.currentSupportStatus === "offline") {
+                this.showOfflineNotification();
+                // Update placeholder after first message
+                this.updateMessagePlaceholder();
+              }
+              
+              // Remove character counter if it exists
+              const existingCounter = document.getElementById("char-counter");
+              if (existingCounter) {
+                existingCounter.remove();
+              }
+              
               // Don't add the message here as it will be broadcast back from the server
               // and handled by the channel.on("new_message") event
             })
@@ -1396,6 +1456,251 @@ const ChatHooks = {
           email: this.anonymousEmail
         });
       });
+    },
+
+    showInitialOfflineNotification() {
+      // Show the initial offline notification when chat starts in offline mode
+      const chatMessages = this.el.querySelector("#chat-messages");
+      if (!chatMessages) return;
+
+      const initialNotificationElement = document.createElement("div");
+      initialNotificationElement.className = "initial-offline-notification";
+      initialNotificationElement.id = "initial-offline-notification";
+      initialNotificationElement.style.cssText = `
+        background-color: #fef3c7;
+        border: 1px solid #f59e0b;
+        color: #92400e;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin: 0.5rem 0;
+        font-size: 0.875rem;
+        text-align: left;
+        line-height: 1.5;
+      `;
+      initialNotificationElement.innerHTML = `
+        <div class="flex items-start space-x-2">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-yellow-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+            </svg>
+          </div>
+          <div>
+            <div class="font-semibold">Support is currently offline</div>
+            <div class="mt-1">
+              <p>📧 Please describe your issue in detail (at least 40 characters) and we'll email our support team.</p>
+              <p class="mt-2">💬 You can continue the conversation here - we'll see all your messages when we return online.</p>
+            </div>
+          </div>
+        </div>
+      `;
+
+      chatMessages.appendChild(initialNotificationElement);
+      this.scrollToBottom();
+    },
+
+    hideInitialOfflineNotification() {
+      const notification = document.getElementById("initial-offline-notification");
+      if (notification) {
+        notification.style.transition = 'opacity 0.3s';
+        notification.style.opacity = '0';
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 300);
+      }
+    },
+
+    showMinCharacterError() {
+      // Remove any existing error message
+      const existingError = document.getElementById("min-char-error");
+      if (existingError) {
+        existingError.remove();
+      }
+
+      const messageForm = this.el.querySelector("#message-form");
+      if (!messageForm) return;
+
+      const errorElement = document.createElement("div");
+      errorElement.id = "min-char-error";
+      errorElement.className = "min-char-error";
+      errorElement.style.cssText = `
+        background-color: #fef2f2;
+        border: 1px solid #fca5a5;
+        color: #dc2626;
+        padding: 0.5rem;
+        border-radius: 0.375rem;
+        margin-top: 0.5rem;
+        font-size: 0.875rem;
+        text-align: center;
+      `;
+      errorElement.innerHTML = `⚠️ Please provide at least 40 characters to describe your issue so our support team can help you effectively.`;
+
+      messageForm.appendChild(errorElement);
+
+      // Remove the error after 5 seconds
+      setTimeout(() => {
+        if (errorElement.parentNode) {
+          errorElement.parentNode.removeChild(errorElement);
+        }
+      }, 5000);
+    },
+
+    updateCharacterCount(input) {
+      // Only show character count during offline mode for first message in new sessions
+      if (this.currentSupportStatus === "offline" && !this.offlineNotificationShown && this.isNewSession()) {
+        const currentLength = input.value.trim().length;
+        const remaining = Math.max(0, 40 - currentLength);
+        
+        // Remove existing counter
+        const existingCounter = document.getElementById("char-counter");
+        if (existingCounter) {
+          existingCounter.remove();
+        }
+
+        // Only show counter if we're under 40 characters
+        if (remaining > 0) {
+          const messageForm = this.el.querySelector("#message-form");
+          const counterElement = document.createElement("div");
+          counterElement.id = "char-counter";
+          counterElement.className = "char-counter";
+          counterElement.style.cssText = `
+            font-size: 0.75rem;
+            color: #6b7280;
+            text-align: right;
+            margin-top: 0.25rem;
+          `;
+          counterElement.innerHTML = `${remaining} more characters needed for support notification`;
+          
+          messageForm.appendChild(counterElement);
+        }
+      }
+    },
+
+    updateMessagePlaceholder() {
+      const messageInput = this.el.querySelector("input[name='message']");
+      if (!messageInput) return;
+
+      if (this.currentSupportStatus === "offline" && !this.offlineNotificationShown && this.isNewSession()) {
+        messageInput.placeholder = "Describe your issue...";
+      } else {
+        messageInput.placeholder = "Type your message...";
+      }
+    },
+
+    isNewSession() {
+      // If we've loaded existing messages from the server, this is not a new session
+      if (this.hasExistingMessages) {
+        return false;
+      }
+
+      // Also check DOM for any rendered messages as a fallback
+      const chatMessages = this.el.querySelector("#chat-messages");
+      if (!chatMessages) return true;
+
+      // If there are any user messages already, this is not a new session
+      const existingMessages = chatMessages.querySelectorAll('.message-bubble, .user-message, .admin-message');
+      return existingMessages.length === 0;
+    },
+
+    showBriefOfflineNotification() {
+      // Show a brief confirmation for messages sent while offline
+      const chatMessages = this.el.querySelector("#chat-messages");
+      if (!chatMessages) return;
+
+      const briefNotification = document.createElement("div");
+      briefNotification.className = "offline-brief-notification";
+      briefNotification.style.cssText = `
+        background-color: #e0f2fe;
+        border: 1px solid #0284c7;
+        color: #0c4a6e;
+        padding: 0.5rem;
+        border-radius: 0.375rem;
+        margin: 0.5rem 0;
+        font-size: 0.8rem;
+        text-align: center;
+        opacity: 0.9;
+      `;
+      briefNotification.innerHTML = `Message sent - we'll see it when we return online`;
+
+      chatMessages.appendChild(briefNotification);
+
+      // Scroll to bottom
+      this.scrollToBottom();
+
+      // Remove the brief notification after 3 seconds
+      setTimeout(() => {
+        if (briefNotification.parentNode) {
+          briefNotification.parentNode.removeChild(briefNotification);
+        }
+      }, 3000);
+    },
+
+    showOfflineNotification() {
+      // Hide the initial notification when first message is sent
+      this.hideInitialOfflineNotification();
+      
+      // For existing sessions, always show the brief notification
+      if (!this.isNewSession()) {
+        this.showBriefOfflineNotification();
+        return;
+      }
+      
+      // Track if this is the first message for email logic in new sessions
+      if (!this.offlineNotificationShown) {
+        // Create a comprehensive notification for the first message
+        const chatMessages = this.el.querySelector("#chat-messages");
+        if (!chatMessages) return;
+
+        const notificationElement = document.createElement("div");
+        notificationElement.className = "offline-notification";
+        notificationElement.style.cssText = `
+          background-color: #fef3c7;
+          border: 1px solid #f59e0b;
+          color: #92400e;
+          padding: 1rem;
+          border-radius: 0.5rem;
+          margin: 0.5rem 0;
+          font-size: 0.875rem;
+          text-align: left;
+          line-height: 1.5;
+        `;
+        notificationElement.innerHTML = `
+          <div class="flex items-start space-x-2">
+            <div class="flex-shrink-0">
+              <svg class="h-5 w-5 text-yellow-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+              </svg>
+            </div>
+            <div>
+              <div class="font-semibold">Support is currently offline</div>
+              <div class="mt-1">
+                <p>📧 Your message has been sent and our support team has been notified via email.</p>
+                <p class="mt-2">💬 You can continue sending messages here - we'll see them all when we return.</p>
+                <p class="mt-2 text-xs">📝 Tip: Please provide detailed information about your issue in your first message (at least 40 characters) to help us assist you better.</p>
+              </div>
+            </div>
+          </div>
+        `;
+
+        chatMessages.appendChild(notificationElement);
+        this.offlineNotificationShown = true;
+
+        // Scroll to bottom to show the notification
+        this.scrollToBottom();
+
+        // Keep this notification visible for longer since it's important
+        setTimeout(() => {
+          if (notificationElement.parentNode) {
+            notificationElement.style.transition = 'opacity 0.5s';
+            notificationElement.style.opacity = '0.7';
+          }
+        }, 15000);
+
+      } else {
+        // For subsequent messages in new sessions, show a brief confirmation
+        this.showBriefOfflineNotification();
+      }
     }
   },
 
@@ -1444,7 +1749,7 @@ const ChatHooks = {
     mounted() {
       this.socket = initSocket();
       this.adminChannel = null;
-      this.typingTimeout = null;
+      this.typingTimer = null;
       this.isTyping = false;
       this.currentSessionId = null;
       this.typingIndicator = null; // Track the indicator element
@@ -1515,12 +1820,12 @@ const ChatHooks = {
       }
 
       // Clear existing timeout and set a new one
-      if (this.typingTimeout) {
-        clearTimeout(this.typingTimeout);
+      if (this.typingTimer) {
+        clearTimeout(this.typingTimer);
       }
 
       // Stop typing after 3 seconds of inactivity
-      this.typingTimeout = setTimeout(() => {
+      this.typingTimer = setTimeout(() => {
         this.stopAdminTyping();
       }, 3000);
     },
@@ -1532,9 +1837,9 @@ const ChatHooks = {
       // Send typing stop to the session channel
       this.adminChannel.push("typing_stop", {});
 
-      if (this.typingTimeout) {
-        clearTimeout(this.typingTimeout);
-        this.typingTimeout = null;
+      if (this.typingTimer) {
+        clearTimeout(this.typingTimer);
+        this.typingTimer = null;
       }
     },
 

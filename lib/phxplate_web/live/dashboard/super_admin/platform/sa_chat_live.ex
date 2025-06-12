@@ -11,6 +11,7 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
   alias Phxplate.Repo
   alias Phxplate.Accounts
   alias PhxplateWeb.PageMeta
+  alias PhxplateWeb.Components.ActivityTimelineComponent
   import PhxplateWeb.Components.UI.Drawer
   alias Phoenix.LiveView.JS
   import PhxplateWeb.CoreComponents
@@ -33,7 +34,8 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
        current_message: "",
        show_drawer: false,
        filter: "active",
-       support_status: current_status
+       support_status: current_status,
+       session_activities: []
      )
      |> PageMeta.assign_metadata(
        title: "Chat Management",
@@ -193,10 +195,17 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
           }
         end)
 
+      # Get session activities for the history tab
+      activities = Chat.get_session_activities(session_id, 20)
+
       {:noreply,
        socket
        |> stream(:messages, messages, reset: true)
-       |> assign(selected_session: session, show_drawer: show_drawer)}
+       |> assign(
+         selected_session: session,
+         show_drawer: show_drawer,
+         session_activities: activities
+       )}
     else
       {:noreply, socket}
     end
@@ -207,6 +216,7 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
     active_sessions = [session | socket.assigns.active_sessions]
     {:noreply, assign(socket, active_sessions: active_sessions)}
   end
+
 
   def handle_info({:new_message, message}, socket) do
     # Update messages if this is for the selected session
@@ -476,10 +486,13 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
       <.tabs_list class="grid w-full grid-cols-3">
         <.tabs_trigger builder={builder} value="chat">Chat</.tabs_trigger>
         <.tabs_trigger builder={builder} value="info">Information</.tabs_trigger>
-        <.tabs_trigger builder={builder} value="device">Device</.tabs_trigger>
+        <.tabs_trigger builder={builder} value="history">History</.tabs_trigger>
       </.tabs_list>
 
-      <.tabs_content value="chat" class={"#{if @context == "mobile", do: "h-[55vh]", else: "h-[calc(100vh-300px)]"} flex flex-col"}>
+      <.tabs_content
+        value="chat"
+        class={"#{if @context == "mobile", do: "h-[55vh]", else: "h-[calc(100vh-300px)]"} flex flex-col"}
+      >
         <div class="flex-1 overflow-hidden flex flex-col h-full">
           <div
             class="chat-messages flex-1 overflow-y-auto"
@@ -539,63 +552,113 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
       </.tabs_content>
 
       <.tabs_content value="info">
-        <div>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">Session ID</h4>
-              <p class="mt-1">{@selected_session.id}</p>
-            </div>
+        <div class="space-y-6">
+          <!-- Session Information Section -->
+          <div>
+            <h3 class="text-lg font-medium text-gray-900 mb-3">Session Information</h3>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <h4 class="text-sm font-medium text-gray-500">Session ID</h4>
+                <p class="mt-1">{@selected_session.id}</p>
+              </div>
 
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">Status</h4>
-              <div class="mt-1">
-                <span class={"inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium #{if @selected_session.status == :active, do: "bg-green-100 text-green-800", else: "bg-red-100 text-red-800"}"}>
-                  {@selected_session.status}
-                </span>
+              <div>
+                <h4 class="text-sm font-medium text-gray-500">Status</h4>
+                <div class="mt-1">
+                  <span class={"inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium #{if @selected_session.status == :active, do: "bg-green-100 text-green-800", else: "bg-red-100 text-red-800"}"}>
+                    {@selected_session.status}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <h4 class="text-sm font-medium text-gray-500">Started At</h4>
+                <p class="mt-1">
+                  {Calendar.strftime(@selected_session.started_at, "%B %d, %Y at %I:%M %p")}
+                </p>
+              </div>
+
+              <div>
+                <h4 class="text-sm font-medium text-gray-500">Last Activity</h4>
+                <p class="mt-1">
+                  <%= if @selected_session.messages && length(@selected_session.messages) > 0 do %>
+                    <% latest_message =
+                      @selected_session.messages
+                      |> Enum.sort_by(fn msg -> msg.inserted_at end, {:desc, NaiveDateTime})
+                      |> hd() %>
+                    {Calendar.strftime(latest_message.inserted_at, "%B %d, %Y at %I:%M %p")}
+                  <% else %>
+                    No messages yet
+                  <% end %>
+                </p>
+              </div>
+
+              <div>
+                <h4 class="text-sm font-medium text-gray-500">Message Count</h4>
+                <p class="mt-1">{length(@selected_session.messages)}</p>
+              </div>
+
+              <div>
+                <h4 class="text-sm font-medium text-gray-500">User Information</h4>
+                <p class="mt-1">
+                  <%= if @selected_session.user_id do %>
+                    User ID: {@selected_session.user_id}
+                  <% else %>
+                    Anonymous User
+                  <% end %>
+                </p>
               </div>
             </div>
+          </div>
 
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">Started At</h4>
-              <p class="mt-1">
-                {Calendar.strftime(@selected_session.started_at, "%B %d, %Y at %I:%M %p")}
-              </p>
-            </div>
+    <!-- Device Information Section -->
+          <div>
+            <h3 class="text-lg font-medium text-gray-900 mb-3">Device Information</h3>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <h4 class="text-sm font-medium text-gray-500">Operating System</h4>
+                <p class="mt-1">{@selected_session.device_os || "Unknown"}</p>
+              </div>
 
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">Last Activity</h4>
-              <p class="mt-1">
-                <%= if @selected_session.messages && length(@selected_session.messages) > 0 do %>
-                  <% latest_message =
-                    @selected_session.messages
-                    |> Enum.sort_by(fn msg -> msg.inserted_at end, {:desc, NaiveDateTime})
-                    |> hd() %>
-                  {Calendar.strftime(latest_message.inserted_at, "%B %d, %Y at %I:%M %p")}
-                <% else %>
-                  No messages yet
-                <% end %>
-              </p>
-            </div>
+              <div>
+                <h4 class="text-sm font-medium text-gray-500">Browser</h4>
+                <p class="mt-1">{@selected_session.device_browser || "Unknown"}</p>
+              </div>
 
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">Message Count</h4>
-              <p class="mt-1">{length(@selected_session.messages)}</p>
-            </div>
+              <div>
+                <h4 class="text-sm font-medium text-gray-500">Device Type</h4>
+                <p class="mt-1">{@selected_session.device_type || "Unknown"}</p>
+              </div>
 
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">User Information</h4>
-              <p class="mt-1">
-                <%= if @selected_session.user_id do %>
-                  User ID: {@selected_session.user_id}
-                <% else %>
-                  Anonymous User
-                <% end %>
-              </p>
+              <div>
+                <h4 class="text-sm font-medium text-gray-500">Screen Resolution</h4>
+                <p class="mt-1">{@selected_session.screen_resolution || "Unknown"}</p>
+              </div>
+
+              <div>
+                <h4 class="text-sm font-medium text-gray-500">Timezone</h4>
+                <p class="mt-1">{@selected_session.timezone || "Unknown"}</p>
+              </div>
+
+              <div>
+                <h4 class="text-sm font-medium text-gray-500">Language</h4>
+                <p class="mt-1">{@selected_session.language || "Unknown"}</p>
+              </div>
+
+              <div>
+                <h4 class="text-sm font-medium text-gray-500">IP Address</h4>
+                <p class="mt-1">{@selected_session.ip_address || "Unknown"}</p>
+              </div>
+
+              <div class="col-span-2">
+                <h4 class="text-sm font-medium text-gray-500">User Agent</h4>
+                <p class="mt-1 text-sm break-all">{@selected_session.user_agent || "Unknown"}</p>
+              </div>
             </div>
           </div>
 
           <%= if @selected_session.status == "active" do %>
-            <div class="mt-6">
+            <div class="py-4 border-t">
               <.button phx-click="close_session" variant="destructive" class="w-full">
                 Close Session
               </.button>
@@ -604,49 +667,18 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
         </div>
       </.tabs_content>
 
-      <.tabs_content value="device">
+      <.tabs_content value="history">
         <div>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">Operating System</h4>
-              <p class="mt-1">{@selected_session.device_os || "Unknown"}</p>
-            </div>
-
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">Browser</h4>
-              <p class="mt-1">{@selected_session.device_browser || "Unknown"}</p>
-            </div>
-
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">Device Type</h4>
-              <p class="mt-1">{@selected_session.device_type || "Unknown"}</p>
-            </div>
-
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">Screen Resolution</h4>
-              <p class="mt-1">{@selected_session.screen_resolution || "Unknown"}</p>
-            </div>
-
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">Timezone</h4>
-              <p class="mt-1">{@selected_session.timezone || "Unknown"}</p>
-            </div>
-
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">Language</h4>
-              <p class="mt-1">{@selected_session.language || "Unknown"}</p>
-            </div>
-
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">IP Address</h4>
-              <p class="mt-1">{@selected_session.ip_address || "Unknown"}</p>
-            </div>
-
-            <div class="col-span-2">
-              <h4 class="text-sm font-medium text-gray-500">User Agent</h4>
-              <p class="mt-1 text-sm break-all">{@selected_session.user_agent || "Unknown"}</p>
-            </div>
-          </div>
+          <%= if @selected_session do %>
+            <.live_component
+              module={ActivityTimelineComponent}
+              id={"chat-activity-timeline-#{@selected_session.id}-#{@context}"}
+              activities={@session_activities}
+              show_timestamps={true}
+            />
+          <% else %>
+            <p class="text-gray-500 text-center py-4">No session selected</p>
+          <% end %>
         </div>
       </.tabs_content>
     </.tabs>

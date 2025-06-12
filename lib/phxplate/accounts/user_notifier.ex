@@ -199,6 +199,32 @@ defmodule Phxplate.Accounts.UserNotifier do
         </div>
         """
 
+      "offline_support_notification" ->
+        """
+        <h1>New Chat Message While Support Offline</h1>
+        <div class="message-box">
+          <p>A customer has sent a message while support is offline:</p>
+        </div>
+
+        <div class="message-box" style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; background-color: #f9fafb;">
+          <h3 style="margin-top: 0; color: #374151;">Customer Information</h3>
+          <p><strong>Name:</strong> #{assigns.customer_name}</p>
+          <p><strong>Email:</strong> #{assigns.customer_email}</p>
+          <p><strong>Session ID:</strong> #{assigns.session_id}</p>
+        </div>
+
+        <h3>Message:</h3>
+        <div class="message-box" style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; background-color: white;">
+          <p>#{assigns.message_content}</p>
+        </div>
+
+        <div style="text-align: center; margin: 20px 0;">
+          <a href="#{assigns.chat_url}" class="button">View in Admin Panel</a>
+        </div>
+
+        <p><strong>Please respond as soon as possible to maintain good customer service.</strong></p>
+        """
+
       "contact_form_confirmation" ->
         """
         <h1>Thank you for contacting us</h1>
@@ -222,6 +248,8 @@ defmodule Phxplate.Accounts.UserNotifier do
       "company_invitation" -> "Invitation to join #{assigns.company.name}"
       "contact_form_email" -> "Contact Form: #{assigns.subject}"
       "contact_form_confirmation" -> "Thank you for contacting us"
+      "chat_transcript" -> "Your Chat Transcript"
+      "offline_support_notification" -> "New Chat Message While Support Offline"
     end
 
     recipient_email = cond do
@@ -408,6 +436,55 @@ defmodule Phxplate.Accounts.UserNotifier do
 
     user_subject = "Thank you for contacting us"
     deliver(email, user_subject, user_text_body, render_email_template(user_template_assigns))
+  end
+
+  @doc """
+  Deliver offline support notification to support team.
+
+  Sends an email to the support team when a user sends a message while support is offline.
+  """
+  def deliver_offline_support_notification(customer_email, customer_name, message_content, session_id) do
+    app_name = Phxplate.config([:title])
+    year = DateTime.utc_now().year
+    support_email = Application.get_env(:phxplate, :support_email, "support@example.com")
+
+    # Create template assigns
+    template_assigns = %{
+      template: "offline_support_notification",
+      app_name: app_name,
+      year: year,
+      customer_email: customer_email,
+      customer_name: customer_name,
+      message_content: message_content,
+      session_id: session_id,
+      chat_url: "#{PhxplateWeb.Endpoint.url()}/dashboard/super_admin/chat",
+      recipient_email: support_email
+    }
+
+    # Plain text version
+    text_body = """
+    ==============================
+
+    New Chat Message Received While Support Offline
+
+    A customer has sent a message while support is offline:
+
+    Customer: #{customer_name} (#{customer_email})
+    Session ID: #{session_id}
+    Message: #{String.slice(message_content, 0, 200)}#{if String.length(message_content) > 200, do: "...", else: ""}
+
+    Please respond as soon as possible.
+
+    View in admin panel: #{template_assigns.chat_url}
+
+    ==============================
+    """
+
+    # HTML content is handled in render_email_template
+    content = render_email_template(template_assigns)
+
+    # Send the email
+    deliver(support_email, "New Chat Message While Support Offline - Session ##{session_id}", text_body, content)
   end
 
   @doc """

@@ -221,4 +221,21 @@ defmodule Phxplate.Tracking do
   def get_blog_post_activities(post_id, limit \\ 10) do
     Activity.get_entity_activities("blog_post", post_id, limit)
   end
+
+  @doc """
+  Gets activities for any entity type.
+
+  This is a generic function to retrieve activities for any entity type and ID.
+
+  ## Parameters
+    - entity_type: The type of entity (e.g., "chat_session", "user", "company")
+    - entity_id: The ID of the entity
+    - limit: Maximum number of activities to retrieve (default: 10)
+
+  ## Returns
+    - List of activity records with associated actors
+  """
+  def get_activities_for_entity(entity_type, entity_id, limit \\ 10) do
+    Activity.get_entity_activities(entity_type, entity_id, limit)
+  end
 end

@@ -13,6 +13,7 @@ config :phxplate,
     "Your starting place for a SaaS using Phoenix and Elixir.",
   base_url: if(config_env() == :prod, do: "https://#{System.get_env("PHX_HOST")}", else: "http://localhost:4000"),
   email: "no-reply@cmpnd.cc",
+  support_email: "hello@simonbeirouti.com",
   ecto_repos: [Phxplate.Repo],
   generators: [timestamp_type: :utc_datetime]
 
