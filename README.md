@@ -53,6 +53,61 @@ The application includes three default subscription plans:
 
 You can customize these plans by modifying the `plan_data` array in `lib/phxplate/application.ex`.
 
+### Company Management System
+
+A comprehensive company management system with role-based access:
+
+- **Company Creation:** Admin users can create and manage companies
+- **Employee Management:** Invite and manage employees with role-based permissions
+- **Public Company Directory:** Browse and bookmark companies in the public directory
+- **Company Profiles:** Detailed company information, logos, and descriptions
+- **Employee Invitations:** Email-based invitation system for company onboarding
+
+### Live Chat Support
+
+The platform includes a comprehensive live chat support system:
+
+- **User Access:** Both anonymous and signed-in users can initiate chat sessions
+- **Admin Management:** Super admins can view and respond to all chat sessions via the admin panel
+- **Real-time Features:** 
+  - Live messaging with typing indicators
+  - Session status tracking (active/closed)
+  - Support status indicator (online/offline)
+- **Device Information:** Automatically collects device details for troubleshooting:
+  - Operating system, browser, and device type
+  - Screen resolution, timezone, and language
+  - IP address and user agent for technical support
+- **Session Management:** Admins can close sessions and send email transcripts to users
+
+### Feedback and Feature Requests
+
+The platform provides a streamlined way for users to submit feedback and feature requests:
+
+- **User Submission:** Signed-in users can submit feature requests and feedback via a dedicated form
+- **Admin Tracking:** Super admins can view, manage, and respond to all submissions
+- **User Linking:** Each submission is linked to the user's account for follow-up communication
+- **Priority System:** 1-10 priority rating system for request categorization
+- **Real-time Updates:** Live updates across admin interfaces using PubSub
+
+### Content Management
+
+Built-in content management capabilities:
+
+- **Blog System:** Create and manage platform blog posts with rich content
+- **Public Pages:** Dedicated pages for About, Pricing, and Contact information
+- **Contact Forms:** Integrated contact form with email notifications
+- **User Profiles:** Comprehensive user profile management with avatar uploads
+
+### Administrative Features
+
+Powerful administrative capabilities for platform management:
+
+- **User Management:** View, edit, and manage all platform users
+- **Role Management:** Assign and modify user roles (Basic, Admin, Super Admin)
+- **Subscription Management:** Handle user subscriptions and plan changes
+- **Platform Statistics:** Dashboard with key metrics and analytics
+- **User Impersonation:** Super admin ability to impersonate users for support
+
 ## Development Setup
 
 1. Clone the repository and navigate to the project directory
