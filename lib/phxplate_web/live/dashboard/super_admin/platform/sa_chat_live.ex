@@ -21,6 +21,9 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
       Phoenix.PubSub.subscribe(Phxplate.PubSub, "admin:chat")
     end
 
+    # Get current support status
+    current_status = Phxplate.SupportStatus.get_status()
+
     {:ok,
      socket
      |> stream_configure(:messages, dom_id: &"msg-#{&1.id}")
@@ -29,7 +32,8 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
        selected_session: nil,
        current_message: "",
        show_drawer: false,
-       filter: "active"
+       filter: "active",
+       support_status: current_status
      )
      |> PageMeta.assign_metadata(
        title: "Chat Management",
@@ -136,18 +140,33 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
     end
   end
 
+  def handle_event("toggle_support_status", _params, socket) do
+    new_status = if socket.assigns.support_status == "offline", do: "online", else: "offline"
+
+    # Persist the status
+    Phxplate.SupportStatus.set_status(new_status)
+
+    # Broadcast to all support status channels
+    PhxplateWeb.Endpoint.broadcast("support:status", "status_changed", %{status: new_status})
+
+    {:noreply, assign(socket, support_status: new_status)}
+  end
+
   # Helper function to send the transcript email
   defp send_transcript_email(session) do
     # Get the recipient email based on the session type (user or anonymous)
-    recipient_email = cond do
-      session.user_id ->
-        user = Repo.get(Accounts.User, session.user_id)
-        user && user.email
-      session.anonymous_email ->
-        session.anonymous_email
-      true ->
-        nil
-    end
+    recipient_email =
+      cond do
+        session.user_id ->
+          user = Repo.get(Accounts.User, session.user_id)
+          user && user.email
+
+        session.anonymous_email ->
+          session.anonymous_email
+
+        true ->
+          nil
+      end
 
     # Only send if we have a valid email
     if recipient_email do
@@ -238,6 +257,20 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
       <.header>
         Chat Management
         <:subtitle>Manage customer support chat sessions</:subtitle>
+        <:actions>
+          <.button
+            phx-click="toggle_support_status"
+            variant="destructive"
+            class={[
+              "transition-all duration-200",
+              (if @support_status == "online", do: "bg-green-700 text-white hover:bg-red-600", else: "hover:bg-green-600 hover:text-white")
+            ]}
+            onmouseover={"this.textContent = '#{if @support_status == "online", do: "Go offline", else: "Go online"}'"}
+            onmouseout={"this.textContent = 'Support #{String.capitalize(@support_status)}'"}
+          >
+            Support <%= String.capitalize(@support_status) %>
+          </.button>
+        </:actions>
       </.header>
 
       <div
@@ -352,7 +385,7 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
           <% end %>
         </div>
 
-        <!-- Chat Content (Right Side) -->
+    <!-- Chat Content (Right Side) -->
         <div class="hidden lg:block col-span-2 h-[calc(100vh-200px)] overflow-hidden">
           <h2 class="text-xl font-semibold mb-4">Chat Details</h2>
           <%= if @selected_session do %>
@@ -385,7 +418,7 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
         </div>
       </div>
 
-      <!-- Mobile Drawer -->
+    <!-- Mobile Drawer -->
       <.drawer show={@show_drawer} on_cancel={JS.push("close_drawer")}>
         <.drawer_header>
           <.drawer_title>Chat Details</.drawer_title>
@@ -423,17 +456,17 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
   # Separate function for mobile drawer to ensure proper layout
   defp render_mobile_chat_details(assigns) do
     assigns = assign(assigns, :context, "mobile")
-    
+
     ~H"""
     <div class="flex flex-col h-[60vh]">
       <!-- Chat Messages Area - Takes available space and scrolls -->
-      <div class="flex-1 overflow-y-auto" id="mobile-chat-messages" phx-hook="ScrollChat" data-auto-scroll="true">
-        <div
-          id="messages-mobile"
-          phx-update="stream"
-          phx-stream="messages"
-          class="space-y-3 p-2"
-        >
+      <div
+        class="flex-1 overflow-y-auto"
+        id="mobile-chat-messages"
+        phx-hook="ScrollChat"
+        data-auto-scroll="true"
+      >
+        <div id="messages-mobile" phx-update="stream" phx-stream="messages" class="space-y-3 p-2">
           <%= for {msg_id, message} <- @streams.messages do %>
             <div
               class={"flex #{if message.sender_type == "admin", do: "justify-end", else: "justify-start"}"}
@@ -450,7 +483,7 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
         </div>
       </div>
 
-      <!-- Message Input Area - Fixed at bottom -->
+    <!-- Message Input Area - Fixed at bottom -->
       <%= if @selected_session.status == "active" do %>
         <div class="py-3 bg-white border-t mt-auto">
           <.form for={%{}} as={:message} phx-submit="send_message" phx-change="update_message">

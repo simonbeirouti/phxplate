@@ -35,7 +35,7 @@ defmodule PhxplateWeb.Components.ChatButton do
       else
         nil
       end
-      
+
       # Properly assign the data to assigns to avoid LiveView template warning
       assigns = assign(assigns, :encoded_user_data, encoded_user_data)
 
@@ -57,7 +57,10 @@ defmodule PhxplateWeb.Components.ChatButton do
         data-user={@encoded_user_data}
       >
         <div class="chat-modal-header flex justify-between items-center p-4 bg-primary text-white rounded-t-lg">
-          <h3 class="text-lg font-semibold">Chat with Support</h3>
+          <div class="flex flex-col">
+            <h3 class="text-lg font-semibold">Chat with Support</h3>
+            <span id="support-status" class="text-lg opacity-75">Support offline</span>
+          </div>
           <button id="close-chat-button" class="text-white hover:text-gray-200">
             <Lucideicons.x class="h-6 w-6" />
           </button>
@@ -74,13 +77,13 @@ defmodule PhxplateWeb.Components.ChatButton do
   # Helper function to get the user's name from profile or email
   defp get_user_name(user) do
     profile = Phxplate.Repo.get_by(Phxplate.Accounts.Profile, user_id: user.id)
-    
+
     cond do
-      profile && profile.first_name && profile.last_name -> 
+      profile && profile.first_name && profile.last_name ->
         "#{profile.first_name} #{profile.last_name}"
-      profile && profile.first_name -> 
+      profile && profile.first_name ->
         profile.first_name
-      true -> 
+      true ->
         # Extract name from email (part before @)
         user.email |> String.split("@") |> hd() |> String.capitalize()
     end

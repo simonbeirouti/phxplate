@@ -468,7 +468,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
                 name="post[content]"
                 placeholder="Write your post content here..."
                 rows="8"
-                class="text-base flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                class="text-base flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 required
               ><%= Ecto.Changeset.get_field(@new_post_changeset, :content) || "" %></textarea>
               <%= if @new_post_changeset.errors[:content] do %>

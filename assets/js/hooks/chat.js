@@ -128,6 +128,8 @@ const ChatHooks = {
       this.channel = null;
       this.sessionId = null;
       this.showingSettings = false;
+      this.supportStatusChannel = null;
+      this.currentSupportStatus = "offline"; // Default to offline
 
       // Check if we have user data from the server (authenticated user)
       const userData = this.el.dataset.user ? JSON.parse(this.el.dataset.user) : null;
@@ -183,6 +185,53 @@ const ChatHooks = {
 
       // Initialize the chat interface based on user state
       this.initializeChatInterface();
+
+      // Connect to support status
+      this.connectToSupportStatus();
+    },
+
+    connectToSupportStatus() {
+      if (!this.supportStatusChannel) {
+        this.supportStatusChannel = this.socket.channel("support:status");
+        
+        this.supportStatusChannel.join()
+          .receive("ok", (resp) => {
+            console.log("Joined support status channel successfully", resp);
+            if (resp.status) {
+              this.updateSupportStatus(resp.status);
+            }
+          })
+          .receive("error", (resp) => {
+            console.error("Unable to join support status channel", resp);
+          });
+
+        // Listen for status changes
+        this.supportStatusChannel.on("status_changed", (payload) => {
+          console.log("Received status change:", payload);
+          this.updateSupportStatus(payload.status);
+        });
+      }
+    },
+
+    updateSupportStatus(status) {
+      console.log("Customer side updating support status to:", status);
+      // Store the current status
+      this.currentSupportStatus = status;
+      
+      const statusElement = document.getElementById("support-status");
+      if (statusElement) {
+        statusElement.textContent = status === "online" ? "Support online" : "Support offline";
+        console.log("Customer status element updated to:", statusElement.textContent);
+      } else {
+        console.log("Customer status element not found");
+      }
+    },
+
+    // Helper method to apply current status to newly rendered headers
+    applySupportStatusToHeader() {
+      if (this.currentSupportStatus) {
+        this.updateSupportStatus(this.currentSupportStatus);
+      }
     },
 
     initializeChatInterface() {
@@ -424,7 +473,10 @@ const ChatHooks = {
       // Update the header to include settings button
       const modalHeader = this.el.querySelector(".chat-modal-header");
       modalHeader.innerHTML = `
-        <h3 class="text-lg font-semibold">Chat with Support</h3>
+        <div class="flex flex-col">
+          <h3 class="text-lg font-semibold">Chat with Support</h3>
+          <span id="support-status" class="text-sm opacity-75">Support online</span>
+        </div>
         <div class="flex items-center gap-2">
           <button id="chat-settings-button" class="text-white hover:text-gray-200 bg-gray-600 hover:bg-gray-700 px-2 py-1 text-sm rounded">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -442,6 +494,9 @@ const ChatHooks = {
           this.renderSettingsForm();
         });
       }
+
+      // Apply current support status to the newly rendered header
+      this.applySupportStatusToHeader();
 
       const modalBody = this.el.querySelector(".chat-modal-body");
       if (!modalBody) return;
@@ -888,13 +943,19 @@ const ChatHooks = {
       // Update the header to include only End Chat button (no X button)
       const modalHeader = this.el.querySelector(".chat-modal-header");
       modalHeader.innerHTML = `
-        <h3 class="text-lg font-semibold">Chat with Support</h3>
+        <div class="flex flex-col">
+          <h3 class="text-lg font-semibold">Chat with Support</h3>
+          <span id="support-status" class="text-sm opacity-75">Support online</span>
+        </div>
         <div class="flex items-center gap-2">
           <button id="end-chat-button" class="text-white hover:text-gray-200 bg-red-600 hover:bg-red-700 px-2 py-1 text-sm rounded">
             End Chat
           </button>
         </div>
       `;
+
+      // Apply current support status to the newly rendered header
+      this.applySupportStatusToHeader();
 
       // Clear the content area
       const modalBody = this.el.querySelector(".chat-modal-body");
@@ -1090,13 +1151,19 @@ const ChatHooks = {
       // Update the header to remove the End Chat button
       const modalHeader = this.el.querySelector(".chat-modal-header");
       modalHeader.innerHTML = `
-        <h3 class="text-lg font-semibold">Chat with Support</h3>
+        <div class="flex flex-col">
+          <h3 class="text-lg font-semibold">Chat with Support</h3>
+          <span id="support-status" class="text-sm opacity-75">Support online</span>
+        </div>
         <button id="close-chat-button" class="text-white hover:text-gray-200">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       `;
+
+      // Apply current support status to the newly rendered header
+      this.applySupportStatusToHeader();
 
       // Re-add the close button event listener
       const closeButton = this.el.querySelector("#close-chat-button");
