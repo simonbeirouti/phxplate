@@ -65,19 +65,44 @@ A comprehensive company management system with role-based access:
 
 ### Live Chat Support
 
-The platform includes a comprehensive live chat support system:
+The platform includes a comprehensive live chat support system with advanced features for troubleshooting and support management:
 
-- **User Access:** Both anonymous and signed-in users can initiate chat sessions
-- **Admin Management:** Super admins can view and respond to all chat sessions via the admin panel
-- **Real-time Features:** 
-  - Live messaging with typing indicators
-  - Session status tracking (active/closed)
-  - Support status indicator (online/offline)
-- **Device Information:** Automatically collects device details for troubleshooting:
-  - Operating system, browser, and device type
-  - Screen resolution, timezone, and language
-  - IP address and user agent for technical support
+#### **User Features:**
+- **Multi-Access Support:** Both anonymous and signed-in users can initiate chat sessions
+- **Real-time Messaging:** Live messaging with typing indicators and instant delivery
+- **Offline Support:** When support is offline, users can still send messages and support team gets email notifications
+- **Session Continuity:** Chat sessions remain active even when support agents are offline
+
+#### **Admin Management:**
+- **Unified Dashboard:** Super admins can view and respond to all chat sessions via the admin panel
 - **Session Management:** Admins can close sessions and send email transcripts to users
+- **Real-time Updates:** Live session monitoring with status tracking (active/closed)
+- **Support Status Control:** Toggle between online/offline status with real-time updates
+
+#### **Advanced Features:**
+- **Device Information Collection:** Automatically collects troubleshooting data including:
+  - Operating system, browser, and device type
+  - Screen resolution, timezone, and language preferences
+  - IP address and user agent for technical support
+  - All collected non-intrusively for better support assistance
+
+- **Session History & Timeline:** Comprehensive activity tracking showing:
+  - Chat session started/ended events
+  - Offline message attempts with email notifications sent
+  - Session duration and message counts
+  - Complete audit trail for support quality assurance
+
+- **Offline Support Workflow:**
+  - Users can message anytime, even when support is offline
+  - Support team receives immediate email notifications with customer details
+  - Chat sessions remain active for seamless support when agents return
+  - Automatic activity logging for follow-up and response tracking
+
+#### **Technical Integration:**
+- **Real-time Channels:** WebSocket-based communication for instant messaging
+- **Email Notifications:** Automated email alerts for offline support requests
+- **Activity Tracking:** Complete audit trail using the platform's activity system
+- **Device Detection:** Smart device information collection for enhanced troubleshooting
 
 ### Feedback and Feature Requests
 

@@ -364,6 +364,10 @@ defmodule PhxplateWeb.ComponentHelpers do
   def humanize_action("employee_delete"), do: "Employee Deleted"
   def humanize_action("login"), do: "User Logged In"
   def humanize_action("logout"), do: "User Logged Out"
+  def humanize_action("chat_started"), do: "Chat Session Started"
+  def humanize_action("chat_message_offline"), do: "Message Sent (Support Offline)"
+  def humanize_action("chat_ended"), do: "Chat Session Ended"
+  def humanize_action("email_sent"), do: "Email Notification Sent"
   def humanize_action(action) when is_binary(action) do
     action
     |> String.replace("_", " ")
