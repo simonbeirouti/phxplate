@@ -461,58 +461,8 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
     assigns = assign(assigns, :context, "mobile")
 
     ~H"""
-    <div class="flex flex-col h-[60vh]">
-      <!-- Chat Messages Area - Takes available space and scrolls -->
-      <div
-        class="flex-1 overflow-y-auto"
-        id="mobile-chat-messages"
-        phx-hook="ScrollChat"
-        data-auto-scroll="true"
-      >
-        <div id="messages-mobile" phx-update="stream" phx-stream="messages" class="space-y-3 p-2">
-          <%= for {msg_id, message} <- @streams.messages do %>
-            <div
-              class={"flex #{if message.sender_type == "admin", do: "justify-end", else: "justify-start"}"}
-              id={msg_id}
-            >
-              <div class={"max-w-3/4 px-4 py-2 rounded-lg #{if message.sender_type == "admin", do: "bg-blue-100", else: "bg-gray-100"}"}>
-                <div class="text-sm">{message.content}</div>
-                <div class="text-xs text-gray-500 mt-1">
-                  {Calendar.strftime(message.inserted_at, "%H:%M")}
-                </div>
-              </div>
-            </div>
-          <% end %>
-        </div>
-      </div>
-
-    <!-- Message Input Area - Fixed at bottom -->
-      <%= if @selected_session.status == "active" do %>
-        <div
-          class="py-3 bg-white border-t mt-auto"
-          id={"admin-chat-typing-mobile-#{@selected_session.id}"}
-          phx-hook="AdminChatTyping"
-          data-session-id={@selected_session.id}
-        >
-          <.form for={%{}} as={:message} phx-submit="send_message" phx-change="update_message">
-            <div class="flex items-center gap-2">
-              <input
-                type="text"
-                name="message[content]"
-                value={@current_message}
-                placeholder="Type your message..."
-                class="flex-grow block rounded-md shadow-sm"
-              />
-              <div class="flex-shrink-0 flex gap-2">
-                <.button type="submit">Send</.button>
-                <.button phx-click="close_session" variant="destructive">
-                  <Lucideicons.fingerprint class="w-5 h-5" />
-                </.button>
-              </div>
-            </div>
-          </.form>
-        </div>
-      <% end %>
+    <div class="h-[60vh]">
+      {render_chat_details(assigns)}
     </div>
     """
   end
@@ -523,12 +473,13 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
 
     ~H"""
     <.tabs :let={builder} default="chat" id={"chat-details-#{@context}"}>
-      <.tabs_list class="grid w-full grid-cols-2">
+      <.tabs_list class="grid w-full grid-cols-3">
         <.tabs_trigger builder={builder} value="chat">Chat</.tabs_trigger>
         <.tabs_trigger builder={builder} value="info">Information</.tabs_trigger>
+        <.tabs_trigger builder={builder} value="device">Device</.tabs_trigger>
       </.tabs_list>
 
-      <.tabs_content value="chat" class="h-[calc(100vh-300px)] flex flex-col">
+      <.tabs_content value="chat" class={"#{if @context == "mobile", do: "h-[55vh]", else: "h-[calc(100vh-300px)]"} flex flex-col"}>
         <div class="flex-1 overflow-hidden flex flex-col h-full">
           <div
             class="chat-messages flex-1 overflow-y-auto"
@@ -650,6 +601,52 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
               </.button>
             </div>
           <% end %>
+        </div>
+      </.tabs_content>
+
+      <.tabs_content value="device">
+        <div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Operating System</h4>
+              <p class="mt-1">{@selected_session.device_os || "Unknown"}</p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Browser</h4>
+              <p class="mt-1">{@selected_session.device_browser || "Unknown"}</p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Device Type</h4>
+              <p class="mt-1">{@selected_session.device_type || "Unknown"}</p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Screen Resolution</h4>
+              <p class="mt-1">{@selected_session.screen_resolution || "Unknown"}</p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Timezone</h4>
+              <p class="mt-1">{@selected_session.timezone || "Unknown"}</p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">Language</h4>
+              <p class="mt-1">{@selected_session.language || "Unknown"}</p>
+            </div>
+
+            <div>
+              <h4 class="text-sm font-medium text-gray-500">IP Address</h4>
+              <p class="mt-1">{@selected_session.ip_address || "Unknown"}</p>
+            </div>
+
+            <div class="col-span-2">
+              <h4 class="text-sm font-medium text-gray-500">User Agent</h4>
+              <p class="mt-1 text-sm break-all">{@selected_session.user_agent || "Unknown"}</p>
+            </div>
+          </div>
         </div>
       </.tabs_content>
     </.tabs>

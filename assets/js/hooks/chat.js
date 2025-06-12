@@ -26,6 +26,68 @@ function initSocket() {
   return socket;
 }
 
+// Function to collect device information
+function collectDeviceInfo() {
+  const deviceInfo = {};
+  
+  // Get operating system
+  const userAgent = navigator.userAgent;
+  deviceInfo.user_agent = userAgent;
+  
+  if (userAgent.includes('Windows NT')) {
+    deviceInfo.device_os = 'Windows';
+  } else if (userAgent.includes('Mac OS X')) {
+    deviceInfo.device_os = 'macOS';
+  } else if (userAgent.includes('Linux')) {
+    deviceInfo.device_os = 'Linux';
+  } else if (userAgent.includes('iPhone OS') || userAgent.includes('iOS')) {
+    deviceInfo.device_os = 'iOS';
+  } else if (userAgent.includes('Android')) {
+    deviceInfo.device_os = 'Android';
+  } else {
+    deviceInfo.device_os = 'Unknown';
+  }
+  
+  // Get browser
+  if (userAgent.includes('Chrome') && !userAgent.includes('Edg')) {
+    deviceInfo.device_browser = 'Chrome';
+  } else if (userAgent.includes('Firefox')) {
+    deviceInfo.device_browser = 'Firefox';
+  } else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) {
+    deviceInfo.device_browser = 'Safari';
+  } else if (userAgent.includes('Edg')) {
+    deviceInfo.device_browser = 'Edge';
+  } else if (userAgent.includes('Opera') || userAgent.includes('OPR')) {
+    deviceInfo.device_browser = 'Opera';
+  } else {
+    deviceInfo.device_browser = 'Unknown';
+  }
+  
+  // Get device type
+  if (/Mobi|Android/i.test(userAgent)) {
+    deviceInfo.device_type = 'Mobile';
+  } else if (/Tablet|iPad/i.test(userAgent)) {
+    deviceInfo.device_type = 'Tablet';
+  } else {
+    deviceInfo.device_type = 'Desktop';
+  }
+  
+  // Get screen resolution
+  deviceInfo.screen_resolution = `${screen.width}x${screen.height}`;
+  
+  // Get timezone
+  try {
+    deviceInfo.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch (e) {
+    deviceInfo.timezone = 'Unknown';
+  }
+  
+  // Get language
+  deviceInfo.language = navigator.language || navigator.userLanguage || 'Unknown';
+  
+  return deviceInfo;
+}
+
 // Chat hooks for the application
 const ChatHooks = {
   // Hook for scrolling chat messages
@@ -871,6 +933,10 @@ const ChatHooks = {
 
       // Prepare chat data - if user_id is available, use it instead of anonymous fields
       const chatData = { ...userData };
+
+      // Collect device information
+      const deviceInfo = collectDeviceInfo();
+      Object.assign(chatData, deviceInfo);
 
       // If we have a user_id (from authenticated user), include it and remove anonymous fields
       if (this.userId) {
