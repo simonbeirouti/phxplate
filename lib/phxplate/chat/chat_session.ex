@@ -13,6 +13,16 @@ defmodule Phxplate.Chat.ChatSession do
     field :started_at, :utc_datetime
     field :ended_at, :utc_datetime
 
+    # Device information fields
+    field :device_os, :string
+    field :device_browser, :string
+    field :device_type, :string
+    field :user_agent, :string
+    field :screen_resolution, :string
+    field :timezone, :string
+    field :language, :string
+    field :ip_address, :string
+
     belongs_to :user, User
     has_many :messages, ChatMessage
 
@@ -24,7 +34,11 @@ defmodule Phxplate.Chat.ChatSession do
   """
   def changeset(chat_session, attrs) do
     chat_session
-    |> cast(attrs, [:status, :user_id, :anonymous_name, :anonymous_email, :started_at, :ended_at])
+    |> cast(attrs, [
+      :status, :user_id, :anonymous_name, :anonymous_email, :started_at, :ended_at,
+      :device_os, :device_browser, :device_type, :user_agent, :screen_resolution,
+      :timezone, :language, :ip_address
+    ])
     |> validate_required([:status, :started_at])
     |> validate_user_or_anonymous()
   end
@@ -95,7 +109,7 @@ defmodule Phxplate.Chat.ChatSession do
     |> order_by([s], desc: s.inserted_at)
     |> Repo.all()
   end
-  
+
   @doc """
   Gets all chat sessions for an anonymous user by email.
   """
@@ -106,12 +120,12 @@ defmodule Phxplate.Chat.ChatSession do
     |> Repo.all()
     |> Repo.preload(messages: from(m in ChatMessage, order_by: [asc: m.inserted_at]))
   end
-  
+
   @doc """
   Lists chat sessions with pagination and optional status filtering.
-  
+
   ## Parameters
-  
+
     * `page` - The page number (starting from 1)
     * `per_page` - Number of items per page
     * `opts` - Additional options
@@ -120,15 +134,15 @@ defmodule Phxplate.Chat.ChatSession do
   def list_sessions(page, per_page, opts \\ []) do
     status = Keyword.get(opts, :status)
     offset = (page - 1) * per_page
-    
+
     query = __MODULE__
-    
+
     query = if status do
       where(query, [s], s.status == ^status)
     else
       query
     end
-    
+
     query
     |> order_by([s], desc: s.inserted_at)
     |> limit(^per_page)
@@ -136,32 +150,32 @@ defmodule Phxplate.Chat.ChatSession do
     |> Repo.all()
     |> Repo.preload(:user)
   end
-  
+
   @doc """
   Returns the total count of chat sessions.
   """
   def count_sessions do
     Repo.aggregate(__MODULE__, :count, :id)
   end
-  
+
   @doc """
   Returns the total count of chat sessions with optional filtering by status.
-  
+
   ## Options
-  
+
     * `:status` - Filter sessions by status ("active" or "closed")
   """
   def count_sessions(opts) do
     status = Keyword.get(opts, :status)
-    
+
     query = __MODULE__
-    
+
     query = if status do
       where(query, [s], s.status == ^status)
     else
       query
     end
-    
+
     Repo.aggregate(query, :count, :id)
   end
 end

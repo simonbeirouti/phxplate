@@ -47,4 +47,5 @@ defmodule PhxplateWeb.UserSocket do
   # Define the channels that can be joined
   channel "chat:session:*", PhxplateWeb.ChatChannel
   channel "admin:chat", PhxplateWeb.AdminChannel
+  channel "support:status", PhxplateWeb.SupportStatusChannel
 end

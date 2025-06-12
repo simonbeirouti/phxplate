@@ -13,10 +13,79 @@ const STORAGE_KEYS = {
 // Initialize the socket
 function initSocket() {
   if (!socket) {
-    socket = new Socket("/socket");
+    // Get user token from meta tag if available (for authenticated users)
+    const userToken = document.querySelector("meta[name='user-token']")?.getAttribute("content");
+    
+    if (userToken) {
+      socket = new Socket("/socket", {params: {token: userToken}});
+    } else {
+      socket = new Socket("/socket");
+    }
     socket.connect();
   }
   return socket;
+}
+
+// Function to collect device information
+function collectDeviceInfo() {
+  const deviceInfo = {};
+  
+  // Get operating system
+  const userAgent = navigator.userAgent;
+  deviceInfo.user_agent = userAgent;
+  
+  if (userAgent.includes('Windows NT')) {
+    deviceInfo.device_os = 'Windows';
+  } else if (userAgent.includes('Mac OS X')) {
+    deviceInfo.device_os = 'macOS';
+  } else if (userAgent.includes('Linux')) {
+    deviceInfo.device_os = 'Linux';
+  } else if (userAgent.includes('iPhone OS') || userAgent.includes('iOS')) {
+    deviceInfo.device_os = 'iOS';
+  } else if (userAgent.includes('Android')) {
+    deviceInfo.device_os = 'Android';
+  } else {
+    deviceInfo.device_os = 'Unknown';
+  }
+  
+  // Get browser
+  if (userAgent.includes('Chrome') && !userAgent.includes('Edg')) {
+    deviceInfo.device_browser = 'Chrome';
+  } else if (userAgent.includes('Firefox')) {
+    deviceInfo.device_browser = 'Firefox';
+  } else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) {
+    deviceInfo.device_browser = 'Safari';
+  } else if (userAgent.includes('Edg')) {
+    deviceInfo.device_browser = 'Edge';
+  } else if (userAgent.includes('Opera') || userAgent.includes('OPR')) {
+    deviceInfo.device_browser = 'Opera';
+  } else {
+    deviceInfo.device_browser = 'Unknown';
+  }
+  
+  // Get device type
+  if (/Mobi|Android/i.test(userAgent)) {
+    deviceInfo.device_type = 'Mobile';
+  } else if (/Tablet|iPad/i.test(userAgent)) {
+    deviceInfo.device_type = 'Tablet';
+  } else {
+    deviceInfo.device_type = 'Desktop';
+  }
+  
+  // Get screen resolution
+  deviceInfo.screen_resolution = `${screen.width}x${screen.height}`;
+  
+  // Get timezone
+  try {
+    deviceInfo.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch (e) {
+    deviceInfo.timezone = 'Unknown';
+  }
+  
+  // Get language
+  deviceInfo.language = navigator.language || navigator.userLanguage || 'Unknown';
+  
+  return deviceInfo;
 }
 
 // Chat hooks for the application
@@ -128,6 +197,10 @@ const ChatHooks = {
       this.channel = null;
       this.sessionId = null;
       this.showingSettings = false;
+      this.supportStatusChannel = null;
+      this.currentSupportStatus = "offline"; // Default to offline
+      this.typingTimeout = null; // For debouncing typing events
+      this.isTyping = false; // Track if user is currently typing
 
       // Check if we have user data from the server (authenticated user)
       const userData = this.el.dataset.user ? JSON.parse(this.el.dataset.user) : null;
@@ -158,6 +231,7 @@ const ChatHooks = {
         closeButton.addEventListener("click", () => {
           this.el.classList.add("hidden");
           if (this.channel) {
+            this.stopTyping(); // Clean up typing status
             this.channel.leave();
             this.channel = null;
           }
@@ -183,6 +257,53 @@ const ChatHooks = {
 
       // Initialize the chat interface based on user state
       this.initializeChatInterface();
+
+      // Connect to support status
+      this.connectToSupportStatus();
+    },
+
+    connectToSupportStatus() {
+      if (!this.supportStatusChannel) {
+        this.supportStatusChannel = this.socket.channel("support:status");
+        
+        this.supportStatusChannel.join()
+          .receive("ok", (resp) => {
+            console.log("Joined support status channel successfully", resp);
+            if (resp.status) {
+              this.updateSupportStatus(resp.status);
+            }
+          })
+          .receive("error", (resp) => {
+            console.error("Unable to join support status channel", resp);
+          });
+
+        // Listen for status changes
+        this.supportStatusChannel.on("status_changed", (payload) => {
+          console.log("Received status change:", payload);
+          this.updateSupportStatus(payload.status);
+        });
+      }
+    },
+
+    updateSupportStatus(status) {
+      console.log("Customer side updating support status to:", status);
+      // Store the current status
+      this.currentSupportStatus = status;
+      
+      const statusElement = document.getElementById("support-status");
+      if (statusElement) {
+        statusElement.textContent = status === "online" ? "Support online" : "Support offline";
+        console.log("Customer status element updated to:", statusElement.textContent);
+      } else {
+        console.log("Customer status element not found");
+      }
+    },
+
+    // Helper method to apply current status to newly rendered headers
+    applySupportStatusToHeader() {
+      if (this.currentSupportStatus) {
+        this.updateSupportStatus(this.currentSupportStatus);
+      }
     },
 
     initializeChatInterface() {
@@ -424,7 +545,10 @@ const ChatHooks = {
       // Update the header to include settings button
       const modalHeader = this.el.querySelector(".chat-modal-header");
       modalHeader.innerHTML = `
-        <h3 class="text-lg font-semibold">Chat with Support</h3>
+        <div class="flex flex-col">
+          <h3 class="text-lg font-semibold">Chat with Support</h3>
+          <span id="support-status" class="text-sm opacity-75">Support online</span>
+        </div>
         <div class="flex items-center gap-2">
           <button id="chat-settings-button" class="text-white hover:text-gray-200 bg-gray-600 hover:bg-gray-700 px-2 py-1 text-sm rounded">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -442,6 +566,9 @@ const ChatHooks = {
           this.renderSettingsForm();
         });
       }
+
+      // Apply current support status to the newly rendered header
+      this.applySupportStatusToHeader();
 
       const modalBody = this.el.querySelector(".chat-modal-body");
       if (!modalBody) return;
@@ -807,6 +934,10 @@ const ChatHooks = {
       // Prepare chat data - if user_id is available, use it instead of anonymous fields
       const chatData = { ...userData };
 
+      // Collect device information
+      const deviceInfo = collectDeviceInfo();
+      Object.assign(chatData, deviceInfo);
+
       // If we have a user_id (from authenticated user), include it and remove anonymous fields
       if (this.userId) {
         chatData.user_id = this.userId;
@@ -881,6 +1012,13 @@ const ChatHooks = {
         this.renderSessionClosed();
       });
 
+      // Handle typing status from admin
+      channel.on("typing_status", (payload) => {
+        if (payload.sender_type === "admin") {
+          this.showTypingIndicator(payload.typing);
+        }
+      });
+
       this.channel = channel;
     },
 
@@ -888,7 +1026,10 @@ const ChatHooks = {
       // Update the header to include only End Chat button (no X button)
       const modalHeader = this.el.querySelector(".chat-modal-header");
       modalHeader.innerHTML = `
-        <h3 class="text-lg font-semibold">Chat with Support</h3>
+        <div class="flex flex-col">
+          <h3 class="text-lg font-semibold">Chat with Support</h3>
+          <span id="support-status" class="text-sm opacity-75">Support online</span>
+        </div>
         <div class="flex items-center gap-2">
           <button id="end-chat-button" class="text-white hover:text-gray-200 bg-red-600 hover:bg-red-700 px-2 py-1 text-sm rounded">
             End Chat
@@ -896,12 +1037,18 @@ const ChatHooks = {
         </div>
       `;
 
+      // Apply current support status to the newly rendered header
+      this.applySupportStatusToHeader();
+
       // Clear the content area
       const modalBody = this.el.querySelector(".chat-modal-body");
       modalBody.innerHTML = `
         <div class="chat-interface-container flex flex-col h-[400px]">
           <div class="flex-grow overflow-y-auto">
             <div class="chat-messages flex flex-col gap-0.75rem pr-0.5" id="chat-messages"></div>
+            <div id="typing-indicator" class="typing-indicator hidden px-4 py-2 text-sm text-gray-500">
+              Support is typing<span class="typing-dots">...</span>
+            </div>
           </div>
           <div class="mt-auto pt-4">
             <form id="message-form" class="chat-message-form">
@@ -931,6 +1078,7 @@ const ChatHooks = {
         closeButton.addEventListener("click", () => {
           this.el.classList.add("hidden");
           if (this.channel) {
+            this.stopTyping(); // Clean up typing status
             this.channel.leave();
             this.channel = null;
           }
@@ -948,12 +1096,16 @@ const ChatHooks = {
 
       // Add event listener for the message form
       const messageForm = modalBody.querySelector("#message-form");
+      const messageInput = messageForm.querySelector("input[name='message']");
+      
       messageForm.addEventListener("submit", (e) => {
         e.preventDefault();
-        const messageInput = messageForm.querySelector("input[name='message']");
         const content = messageInput.value.trim();
 
         if (content && this.channel) {
+          // Stop typing when sending message
+          this.stopTyping();
+          
           this.channel.push("new_message", { content })
             .receive("ok", (resp) => {
               messageInput.value = "";
@@ -965,6 +1117,66 @@ const ChatHooks = {
             });
         }
       });
+
+      // Add typing detection for the message input
+      messageInput.addEventListener("input", () => {
+        this.handleTyping();
+      });
+
+      messageInput.addEventListener("blur", () => {
+        this.stopTyping();
+      });
+
+      // Ensure typing indicator starts hidden
+      const typingIndicator = modalBody.querySelector("#typing-indicator");
+      if (typingIndicator) {
+        typingIndicator.classList.add("hidden");
+      }
+    },
+
+    handleTyping() {
+      if (!this.channel) return;
+
+      // If not already typing, start typing
+      if (!this.isTyping) {
+        this.isTyping = true;
+        this.channel.push("typing_start", {});
+      }
+
+      // Clear existing timeout and set a new one
+      if (this.typingTimeout) {
+        clearTimeout(this.typingTimeout);
+      }
+
+      // Stop typing after 3 seconds of inactivity
+      this.typingTimeout = setTimeout(() => {
+        this.stopTyping();
+      }, 3000);
+    },
+
+    stopTyping() {
+      if (!this.channel || !this.isTyping) return;
+
+      this.isTyping = false;
+      this.channel.push("typing_stop", {});
+
+      if (this.typingTimeout) {
+        clearTimeout(this.typingTimeout);
+        this.typingTimeout = null;
+      }
+    },
+
+    showTypingIndicator(isTyping) {
+      const typingIndicator = this.el.querySelector("#typing-indicator");
+      if (!typingIndicator) return;
+
+      if (isTyping) {
+        typingIndicator.classList.remove("hidden");
+        // Scroll to bottom to show typing indicator
+        this.scrollToBottom();
+      } else {
+        typingIndicator.classList.add("hidden");
+      }
     },
 
     renderMessages(messages) {
@@ -1090,13 +1302,19 @@ const ChatHooks = {
       // Update the header to remove the End Chat button
       const modalHeader = this.el.querySelector(".chat-modal-header");
       modalHeader.innerHTML = `
-        <h3 class="text-lg font-semibold">Chat with Support</h3>
+        <div class="flex flex-col">
+          <h3 class="text-lg font-semibold">Chat with Support</h3>
+          <span id="support-status" class="text-sm opacity-75">Support online</span>
+        </div>
         <button id="close-chat-button" class="text-white hover:text-gray-200">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       `;
+
+      // Apply current support status to the newly rendered header
+      this.applySupportStatusToHeader();
 
       // Re-add the close button event listener
       const closeButton = this.el.querySelector("#close-chat-button");
@@ -1219,7 +1437,150 @@ const ChatHooks = {
 
       this.channel = channel;
     }
+  },
+
+  // Hook for admin chat typing indicators
+  AdminChatTyping: {
+    mounted() {
+      this.socket = initSocket();
+      this.adminChannel = null;
+      this.typingTimeout = null;
+      this.isTyping = false;
+      this.currentSessionId = null;
+      this.typingIndicator = null; // Track the indicator element
+
+      // Get the current session ID from the element's data attribute
+      this.currentSessionId = this.el.dataset.sessionId;
+
+      // Connect to admin channel for typing events
+      this.connectToAdminChannel();
+
+      // Add event listeners for typing
+      this.setupTypingEvents();
+    },
+
+    connectToAdminChannel() {
+      if (!this.adminChannel && this.currentSessionId) {
+        // Connect to the specific session channel to receive typing events from users
+        this.adminChannel = this.socket.channel(`chat:session:${this.currentSessionId}`);
+        
+        this.adminChannel.join()
+          .receive("ok", (resp) => {
+            console.log("Joined session channel for admin typing");
+          })
+          .receive("error", (resp) => {
+            console.error("Unable to join session channel for admin typing", resp);
+          });
+
+        // Listen for typing status from users in this specific session
+        this.adminChannel.on("typing_status", (payload) => {
+          if (payload.sender_type === "user") {
+            this.showUserTypingIndicator(payload.typing);
+          }
+        });
+      }
+    },
+
+    setupTypingEvents() {
+      // Find the message input field
+      const messageInput = this.el.querySelector('input[name="message[content]"]');
+      if (!messageInput) return;
+
+      // Add typing detection
+      messageInput.addEventListener("input", () => {
+        this.handleAdminTyping();
+      });
+
+      messageInput.addEventListener("blur", () => {
+        this.stopAdminTyping();
+      });
+
+      // Add form submit handler to stop typing
+      const form = this.el.querySelector('form');
+      if (form) {
+        form.addEventListener("submit", () => {
+          this.stopAdminTyping();
+        });
+      }
+    },
+
+    handleAdminTyping() {
+      if (!this.adminChannel || !this.currentSessionId) return;
+
+      // If not already typing, start typing
+      if (!this.isTyping) {
+        this.isTyping = true;
+        // Send typing start to the session channel (will be picked up by user)
+        this.adminChannel.push("typing_start", {});
+      }
+
+      // Clear existing timeout and set a new one
+      if (this.typingTimeout) {
+        clearTimeout(this.typingTimeout);
+      }
+
+      // Stop typing after 3 seconds of inactivity
+      this.typingTimeout = setTimeout(() => {
+        this.stopAdminTyping();
+      }, 3000);
+    },
+
+    stopAdminTyping() {
+      if (!this.adminChannel || !this.isTyping || !this.currentSessionId) return;
+
+      this.isTyping = false;
+      // Send typing stop to the session channel
+      this.adminChannel.push("typing_stop", {});
+
+      if (this.typingTimeout) {
+        clearTimeout(this.typingTimeout);
+        this.typingTimeout = null;
+      }
+    },
+
+    showUserTypingIndicator(isTyping) {
+      if (isTyping) {
+        // Create indicator if it doesn't exist
+        if (!this.typingIndicator) {
+          this.typingIndicator = document.createElement('div');
+          this.typingIndicator.className = 'user-typing-indicator px-4 py-2 text-sm text-gray-500 italic';
+          this.typingIndicator.innerHTML = 'User is typing<span class="typing-dots">...</span>';
+          this.typingIndicator.style.display = 'none'; // Start hidden
+          
+          // Insert it before the message form
+          const messageForm = this.el.querySelector('form');
+          if (messageForm && messageForm.parentNode) {
+            messageForm.parentNode.insertBefore(this.typingIndicator, messageForm);
+          }
+        }
+        
+        // Show the indicator
+        if (this.typingIndicator) {
+          this.typingIndicator.style.display = 'block';
+        }
+      } else {
+        // Hide the indicator
+        if (this.typingIndicator) {
+          this.typingIndicator.style.display = 'none';
+        }
+      }
+    },
+
+    destroyed() {
+      // Clean up when component is destroyed
+      this.stopAdminTyping();
+      
+      // Remove typing indicator
+      if (this.typingIndicator && this.typingIndicator.parentNode) {
+        this.typingIndicator.parentNode.removeChild(this.typingIndicator);
+      }
+      
+      if (this.adminChannel) {
+        this.adminChannel.leave();
+      }
+    }
   }
 };
 
 export default ChatHooks;
+

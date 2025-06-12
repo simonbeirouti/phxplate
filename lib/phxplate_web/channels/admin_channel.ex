@@ -2,14 +2,14 @@ defmodule PhxplateWeb.AdminChannel do
   use PhxplateWeb, :channel
   alias Phxplate.Chat
   alias Phxplate.Accounts
-  
+
   @impl true
   def join("admin:chat", _payload, socket) do
     if authorized?(socket) do
       # Get all active chat sessions for admins
       active_sessions = Chat.list_active_sessions()
       formatted_sessions = format_sessions(active_sessions)
-      
+
       {:ok, %{sessions: formatted_sessions}, socket}
     else
       {:error, %{reason: "unauthorized"}}
@@ -21,14 +21,14 @@ defmodule PhxplateWeb.AdminChannel do
     if authorized?(socket) do
       session_id = String.to_integer(session_id)
       user_id = socket.assigns.current_user.id
-      
+
       attrs = %{
         content: content,
         sender_type: "admin",
         chat_session_id: session_id,
         user_id: user_id
       }
-      
+
       case Chat.create_message(attrs) do
         {:ok, message} ->
           # The broadcast is handled in the Chat context
@@ -46,7 +46,7 @@ defmodule PhxplateWeb.AdminChannel do
     if authorized?(socket) do
       session_id = String.to_integer(session_id)
       session = Chat.get_session(session_id)
-      
+
       case Chat.close_session(session) do
         {:ok, session} ->
           # Generate and send transcript via email in a separate process
@@ -65,7 +65,7 @@ defmodule PhxplateWeb.AdminChannel do
     if authorized?(socket) do
       push(socket, "new_session", %{session: format_session(session)})
     end
-    
+
     {:noreply, socket}
   end
 
@@ -74,7 +74,7 @@ defmodule PhxplateWeb.AdminChannel do
     if authorized?(socket) do
       push(socket, "new_message", %{message: format_message(message)})
     end
-    
+
     {:noreply, socket}
   end
 
@@ -83,12 +83,12 @@ defmodule PhxplateWeb.AdminChannel do
     if authorized?(socket) do
       push(socket, "session_closed", %{session: format_session(session)})
     end
-    
+
     {:noreply, socket}
   end
 
   # Helper functions
-  
+
   defp format_sessions(sessions) do
     Enum.map(sessions, &format_session/1)
   end
@@ -96,7 +96,7 @@ defmodule PhxplateWeb.AdminChannel do
   defp format_session(session) do
     # Get the latest message for this session
     latest_message = Chat.get_latest_message(session.id)
-    
+
     # Get user info if available
     user_info = if session.user_id do
       user = Accounts.get_user!(session.user_id)
@@ -104,7 +104,7 @@ defmodule PhxplateWeb.AdminChannel do
     else
       %{email: session.anonymous_email, name: session.anonymous_name, logged_in: false}
     end
-    
+
     %{
       id: session.id,
       status: session.status,
@@ -142,17 +142,17 @@ defmodule PhxplateWeb.AdminChannel do
   defp send_transcript(session_id) do
     session = Chat.get_session_with_messages(session_id)
     transcript = Chat.generate_transcript(session_id)
-    
+
     # Determine the email to send to
     email = cond do
-      session.user_id -> 
+      session.user_id ->
         user = Accounts.get_user!(session.user_id)
         user.email
-      session.anonymous_email -> 
+      session.anonymous_email ->
         session.anonymous_email
       true -> nil
     end
-    
+
     if email do
       # Send email with transcript
       # This would use your email service (e.g., Swoosh)

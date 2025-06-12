@@ -3,21 +3,41 @@ defmodule PhxplateWeb.ChatController do
   alias Phxplate.Chat
 
   def create(conn, %{"chat" => chat_params}) do
+    # Extract IP address from the connection
+    ip_address = case conn.remote_ip do
+      {a, b, c, d} -> "#{a}.#{b}.#{c}.#{d}"
+      {a, b, c, d, e, f, g, h} ->
+        ":#{Integer.to_string(a, 16)}:#{Integer.to_string(b, 16)}:#{Integer.to_string(c, 16)}:#{Integer.to_string(d, 16)}:#{Integer.to_string(e, 16)}:#{Integer.to_string(f, 16)}:#{Integer.to_string(g, 16)}:#{Integer.to_string(h, 16)}"
+      _ -> "Unknown"
+    end
+
+    # Extract device information from chat_params
+    device_info = %{
+      device_os: chat_params["device_os"],
+      device_browser: chat_params["device_browser"],
+      device_type: chat_params["device_type"],
+      user_agent: chat_params["user_agent"],
+      screen_resolution: chat_params["screen_resolution"],
+      timezone: chat_params["timezone"],
+      language: chat_params["language"],
+      ip_address: ip_address
+    }
+
     # Extract user information if logged in
     attrs = case conn.assigns[:current_user] do
       nil ->
         # For anonymous users, require name and email
-        %{
+        Map.merge(%{
           anonymous_name: chat_params["name"],
           anonymous_email: chat_params["email"],
           started_at: DateTime.utc_now()
-        }
+        }, device_info)
       user ->
         # For logged in users, use their account info
-        %{
+        Map.merge(%{
           user_id: user.id,
           started_at: DateTime.utc_now()
-        }
+        }, device_info)
     end
 
     case Chat.create_session(attrs) do

@@ -2,11 +2,11 @@ defmodule PhxplateWeb.ChatChannel do
   use PhxplateWeb, :channel
   alias Phxplate.Chat
   alias Phxplate.Accounts
-  
+
   @impl true
   def join("chat:session:" <> session_id, _payload, socket) do
     session_id = String.to_integer(session_id)
-    
+
     case Chat.get_session_with_messages(session_id) do
       nil ->
         {:error, %{reason: "Chat session not found"}}
@@ -25,17 +25,17 @@ defmodule PhxplateWeb.ChatChannel do
     session_id = socket.assigns.session_id
     # Get session but don't use it directly (we just need to verify it exists)
     _session = Chat.get_session(session_id)
-    
+
     sender_type = "user"
     user_id = socket.assigns[:current_user_id]
-    
+
     attrs = %{
       content: content,
       sender_type: sender_type,
       chat_session_id: session_id,
       user_id: user_id
     }
-    
+
     case Chat.create_message(attrs) do
       {:ok, message} ->
         # The broadcast is handled in the Chat context
@@ -45,11 +45,43 @@ defmodule PhxplateWeb.ChatChannel do
     end
   end
 
+    @impl true
+  def handle_in("typing_start", _params, socket) do
+    session_id = socket.assigns.session_id
+    sender_type = get_sender_type(socket)
+
+    # Broadcast typing status to other participants in the session
+    Phoenix.PubSub.broadcast_from(
+      Phxplate.PubSub,
+      self(),
+      "chat:session:#{session_id}",
+      {:typing_status, %{sender_type: sender_type, typing: true}}
+    )
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_in("typing_stop", _params, socket) do
+    session_id = socket.assigns.session_id
+    sender_type = get_sender_type(socket)
+
+    # Broadcast typing stop status to other participants in the session
+    Phoenix.PubSub.broadcast_from(
+      Phxplate.PubSub,
+      self(),
+      "chat:session:#{session_id}",
+      {:typing_status, %{sender_type: sender_type, typing: false}}
+    )
+
+    {:noreply, socket}
+  end
+
   @impl true
   def handle_in("close_session", _params, socket) do
     session_id = socket.assigns.session_id
     session = Chat.get_session(session_id)
-    
+
     case Chat.close_session(session) do
       {:ok, _session} ->
         # Generate and send transcript via email in a separate process
@@ -65,7 +97,7 @@ defmodule PhxplateWeb.ChatChannel do
     if message.chat_session_id == socket.assigns.session_id do
       push(socket, "new_message", %{message: format_message(message)})
     end
-    
+
     {:noreply, socket}
   end
 
@@ -74,12 +106,32 @@ defmodule PhxplateWeb.ChatChannel do
     if session.id == socket.assigns.session_id do
       push(socket, "session_closed", %{})
     end
-    
+
+    {:noreply, socket}
+  end
+
+    @impl true
+  def handle_info({:typing_status, typing_data}, socket) do
+    # Forward typing status to all participants in the session
+    push(socket, "typing_status", typing_data)
     {:noreply, socket}
   end
 
   # Helper functions
-  
+
+  defp get_sender_type(socket) do
+    # Check if this is an admin user by checking the user_id and fetching their role
+    case socket.assigns do
+      %{current_user_id: user_id} when not is_nil(user_id) ->
+        # Fetch user to check their role
+        case Accounts.get_user!(user_id) do
+          %{role: role} when role in [:admin, :super_admin] -> "admin"
+          _ -> "user"
+        end
+      _ -> "user"
+    end
+  end
+
   defp format_messages(messages) do
     Enum.map(messages, &format_message/1)
   end
@@ -104,17 +156,17 @@ defmodule PhxplateWeb.ChatChannel do
   defp send_transcript(session_id) do
     session = Chat.get_session_with_messages(session_id)
     transcript = Chat.generate_transcript(session_id)
-    
+
     # Determine the email to send to
     email = cond do
-      session.user_id -> 
+      session.user_id ->
         user = Accounts.get_user!(session.user_id)
         user.email
-      session.anonymous_email -> 
+      session.anonymous_email ->
         session.anonymous_email
       true -> nil
     end
-    
+
     if email do
       # Send email with transcript
       # This would use your email service (e.g., Swoosh)

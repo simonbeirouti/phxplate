@@ -110,6 +110,46 @@
   }
 }
 
+/* Typing Indicator Styles */
+.typing-indicator {
+  padding: 0.5rem 1rem;
+  color: #6b7280;
+  font-style: italic;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.typing-indicator:not(.hidden) {
+  display: flex;
+}
+
+.typing-dots {
+  display: inline-block;
+  font-size: 1rem;
+}
+
+.typing-dots::after {
+  content: "...";
+  animation: typing-dots-pulse 1.4s infinite;
+}
+
+@keyframes typing-dots-pulse {
+  0%, 60% {
+    opacity: 0.3;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+.user-typing-indicator {
+  padding: 0.5rem 1rem;
+  color: #6b7280;
+  font-style: italic;
+  border-top: 1px solid #e5e7eb;
+  background-color: #f9fafb;
+}
+
 /* Admin Chat Dashboard Styles */
 .admin-chat-dashboard {
   display: grid;
