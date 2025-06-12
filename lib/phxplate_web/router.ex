@@ -219,6 +219,7 @@ defmodule PhxplateWeb.Router do
       live "/super_admin/users", Dashboard.SuperAdmin.UsersLive, :index
       live "/super_admin/companies", Dashboard.SuperAdmin.CompaniesLive, :index
       live "/super_admin/chat", Admin.ChatDashboardLive, :index
+      live "/super_admin/ai-chat", Dashboard.SuperAdmin.AiChatLive, :index
     end
   end
 end

@@ -186,6 +186,10 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
           %{
             title: "Platform Companies",
             url: "/dashboard/super_admin/companies"
+          },
+          %{
+            title: "AI Chat",
+            url: "/dashboard/super_admin/ai-chat"
           }
         ],
         required_role: :super_admin

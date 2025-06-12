@@ -7,7 +7,14 @@ defmodule Phxplate.AI do
   Initialize an Anthropix client using the configured API key.
   """
   def client do
-    Anthropix.init()
+    case Application.get_env(:anthropix, :api_key) do
+      nil ->
+        raise "ANTHROPIC_API_KEY environment variable is not set. Please set it in your environment or config."
+      api_key when is_binary(api_key) and api_key != "" ->
+        Anthropix.init(api_key)
+      _ ->
+        raise "Invalid ANTHROPIC_API_KEY. Please check your environment variable."
+    end
   end
 
   @doc """
