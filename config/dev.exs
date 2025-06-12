@@ -100,5 +100,8 @@ config :ex_aws,
   secret_access_key: System.get_env("AWS_SECRET_ACCESS_KEY"),
   region: System.get_env("AWS_REGION")
 
+# Anthropic configuration
+config :anthropix, api_key: System.get_env("ANTHROPIC_API_KEY")
+
 # Path to install SaladUI components
 config :salad_ui, components_path: Path.join(File.cwd!(), "lib/phxplate_web/components")

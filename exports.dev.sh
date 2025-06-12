@@ -13,5 +13,8 @@ export AWS_ACCESS_KEY_ID="xxxx"
 export AWS_SECRET_ACCESS_KEY="xxxx"
 export AWS_REGION="xxxx"
 
+# Anthropic Claude API Key
+export ANTHROPIC_API_KEY="sk-ant-your-key-here"
+
 echo "Environment variables exported successfully!"
 echo "You can now run Phoenix with these environment variables."

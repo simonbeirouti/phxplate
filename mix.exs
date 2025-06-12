@@ -71,7 +71,8 @@ defmodule Phxplate.MixProject do
       {:resend, "~> 0.4.0"},
       {:premailex, "~> 0.3.20"},
       {:mdex, "~> 0.7.0"},
-      {:tidewave, "~> 0.1", only: :dev}
+      {:tidewave, "~> 0.1", only: :dev},
+      {:anthropix, "~> 0.6.1"}
     ]
   end
 
