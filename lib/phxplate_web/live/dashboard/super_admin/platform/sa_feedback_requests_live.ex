@@ -376,7 +376,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.FeedbackRequestsLive do
   end
 
   @impl true
-  def handle_info({:created, feature_request}, socket) do
+  def handle_info({:created, _feature_request}, socket) do
     # Reload the requests when a new feature request is created
     {:noreply, load_requests(socket, socket.assigns.page)}
   end

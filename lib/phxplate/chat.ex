@@ -9,7 +9,6 @@ defmodule Phxplate.Chat do
   alias Phxplate.Accounts.User
   alias Phxplate.Repo
   alias Phoenix.PubSub
-  import Ecto.Query
 
   # Session-related functions
 
@@ -341,15 +340,6 @@ defmodule Phxplate.Chat do
     end
   end
 
-  defp count_session_messages(session_id) do
-    from(m in ChatMessage, where: m.chat_session_id == ^session_id)
-    |> Repo.aggregate(:count, :id)
-  end
-
-  @doc """
-  Determines if an offline email should be sent for this message.
-  Only sends email for the first substantial message (40+ characters) during an offline period.
-  """
   defp should_send_offline_email?(session_id, content) do
     # Check if message meets minimum character requirement
     if String.length(content) < 40 do

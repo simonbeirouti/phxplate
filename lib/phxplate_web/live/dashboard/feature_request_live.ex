@@ -218,7 +218,7 @@ defmodule PhxplateWeb.Dashboard.FeatureRequestLive do
     case FeatureRequestController.create_feature_request(params) do
       {:ok, _feature_request} ->
         # Use push_event to send a message to the parent LiveView
-        parent_id = socket.assigns.parent_id
+        _parent_id = socket.assigns.parent_id
 
         # Send message to the parent LiveView using push_event to a specific target
         # This will trigger the handle_event in the dashboard layout component
@@ -241,7 +241,7 @@ defmodule PhxplateWeb.Dashboard.FeatureRequestLive do
 
       {:error, %Ecto.Changeset{} = changeset} ->
         # Keep dialog open and show validation errors
-        parent_id = socket.assigns.parent_id
+        _parent_id = socket.assigns.parent_id
 
         # Send error message to the parent LiveView using push_event
         socket = push_event(socket, "feature_request_error", %{message: "Please fix the errors in the form."})
