@@ -78,6 +78,39 @@ defmodule Phxplate.AI do
     end
   end
 
+  @doc """
+  Auto-generate a title for a conversation based on the first user message.
+  """
+  def auto_generate_conversation_title(conversation_id, user_id, first_message) do
+    title_prompt = """
+    Based on this user message, generate a short, descriptive title (3-6 words max) for a chat conversation.
+    The title should capture the main topic or intent. Respond with ONLY the title, no quotes or extra text.
+
+    User message: #{first_message}
+    """
+
+    case chat(title_prompt, "You are a helpful assistant that creates concise, descriptive titles.", "claude-3-5-haiku-20241022") do
+      {:ok, generated_title} ->
+        # Clean up the title (remove quotes, trim, limit length)
+        clean_title = generated_title
+          |> String.trim()
+          |> String.replace(~r/^["']|["']$/, "")  # Remove surrounding quotes
+          |> String.slice(0, 50)  # Limit to 50 characters
+
+        update_conversation_title(conversation_id, user_id, clean_title)
+
+      {:error, _reason} ->
+        # If auto-generation fails, use a fallback based on the first few words
+        fallback_title = first_message
+          |> String.split()
+          |> Enum.take(4)
+          |> Enum.join(" ")
+          |> String.slice(0, 30)
+
+        update_conversation_title(conversation_id, user_id, fallback_title)
+    end
+  end
+
 
 
   @doc """

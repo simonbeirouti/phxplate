@@ -315,6 +315,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
       AI.complete_streaming_conversation(conversation_id, full_response, model_api_id)
     end)
 
+    # Check if this is the first AI response in the conversation (for auto-naming)
+    is_first_response = length(socket.assigns.messages) == 1  # Only user message exists
+
     # Add the complete streamed message to the chat display
     ai_message = %{
       role: "assistant",
@@ -324,6 +327,24 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     }
 
     messages = socket.assigns.messages ++ [ai_message]
+
+    # Auto-generate title if this is the first response
+    if is_first_response and socket.assigns.current_conversation do
+      user_message = List.first(socket.assigns.messages)
+      if user_message && user_message.role == "user" do
+        user_id = socket.assigns.current_user.id
+        pid = self()
+        Task.start(fn ->
+          case AI.auto_generate_conversation_title(conversation_id, user_id, user_message.content) do
+            {:ok, updated_conversation} ->
+              send(pid, {:title_generated, updated_conversation})
+            {:error, _reason} ->
+              # Silently fail - the conversation will keep its default title
+              :ok
+          end
+        end)
+      end
+    end
 
     # Update conversations list to reflect the updated timestamp
     user_id = socket.assigns.current_user.id
@@ -355,6 +376,26 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
      |> assign(:loading, false)
      |> assign(:streaming, false)
      |> assign(:current_stream, "")}
+  end
+
+  @impl true
+  def handle_info({:title_generated, updated_conversation}, socket) do
+    # Update the current conversation and conversations list with the new title
+    user_id = socket.assigns.current_user.id
+    conversations = AI.list_conversations(user_id)
+
+    # Update current conversation if it matches
+    current_conversation = if socket.assigns.current_conversation &&
+                             socket.assigns.current_conversation.id == updated_conversation.id do
+      updated_conversation
+    else
+      socket.assigns.current_conversation
+    end
+
+    {:noreply,
+     socket
+     |> assign(:conversations, conversations)
+     |> assign(:current_conversation, current_conversation)}
   end
 
   # Helper function to convert between short names and API model IDs
