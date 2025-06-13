@@ -123,6 +123,48 @@ Built-in content management capabilities:
 - **Contact Forms:** Integrated contact form with email notifications
 - **User Profiles:** Comprehensive user profile management with avatar uploads
 
+### AI Integration
+
+The platform includes a comprehensive AI integration powered by Anthropic's Claude models, providing intelligent assistance and conversation capabilities:
+
+#### **AI Chat System**
+- **Multiple Claude Models:** Access to the latest Claude models including:
+  - Claude 3 Haiku, Sonnet, and Opus
+  - Claude 3.5 Haiku and Sonnet
+  - Claude 3.7 Sonnet
+  - Claude 4 Sonnet and Opus
+- **Real-time Streaming:** Live streaming responses for immediate feedback
+- **Conversation Management:** Persistent conversations with automatic title generation
+- **Model Selection:** Choose different Claude models per conversation for optimal performance
+
+#### **Conversation Features**
+- **Persistent Chat History:** All conversations are saved and can be resumed anytime
+- **Auto-Generated Titles:** Conversations are automatically titled based on content
+- **Conversation Management:** Create, edit and delete conversations
+- **Message Threading:** Complete conversation context maintained across sessions
+- **Markdown Support:** Rich text formatting in AI responses with code highlighting
+
+#### **Advanced AI Capabilities**
+- **Custom System Prompts:** Configurable AI behavior and personality
+- **Context Awareness:** AI maintains conversation context across multiple exchanges
+- **Code Assistance:** Specialized support for Elixir, Phoenix, and web development
+- **Streaming Responses:** Real-time response generation for better user experience
+- **Error Handling:** Robust error handling with fallback mechanisms
+
+#### **Integration Architecture**
+- **Anthropix Library:** Built on the reliable Anthropix Elixir library
+- **Database Persistence:** All conversations and messages stored in PostgreSQL
+- **Real-time Updates:** LiveView integration for seamless user experience
+- **Role-based Access:** AI features available to super admins with potential for expansion
+- **Scalable Design:** Architecture supports multiple AI providers and models
+
+#### **Technical Features**
+- **Async Processing:** Non-blocking AI requests for optimal performance
+- **Stream Processing:** Efficient handling of streaming AI responses
+- **Message Validation:** Input validation and sanitization
+- **Rate Limiting Ready:** Architecture prepared for rate limiting implementation
+- **Monitoring Support:** Built-in logging and error tracking for AI interactions
+
 ### Administrative Features
 
 Powerful administrative capabilities for platform management:
@@ -132,6 +174,7 @@ Powerful administrative capabilities for platform management:
 - **Subscription Management:** Handle user subscriptions and plan changes
 - **Platform Statistics:** Dashboard with key metrics and analytics
 - **User Impersonation:** Super admin ability to impersonate users for support
+- **AI Chat Testing:** Super admin access to AI chat interface for testing and demonstration
 
 ## Development Setup
 
@@ -150,6 +193,7 @@ Powerful administrative capabilities for platform management:
    # - S3_ACCESS_KEY_ID
    # - S3_SECRET_ACCESS_KEY
    # - S3_REGION
+   # - ANTHROPIC_API_KEY (for AI features)
    
    # Load the environment variables
    source exports.sh
@@ -192,6 +236,162 @@ Powerful administrative capabilities for platform management:
    Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 
 7. Want to get up and running with Tidewave? Follow the docs [here](https://hexdocs.pm/tidewave/installation.html).
+
+## AI Setup and Configuration
+
+The platform includes powerful AI capabilities powered by Anthropic's Claude models. Here's how to set up and configure the AI features:
+
+### Getting Your Anthropic API Key
+
+1. Visit [Anthropic's Console](https://console.anthropic.com/)
+2. Create an account or sign in
+3. Navigate to the API Keys section
+4. Generate a new API key
+5. Copy the key (it starts with `sk-ant-`)
+
+### Environment Configuration
+
+Add your Anthropic API key to your environment variables:
+
+```bash
+# In your exports.sh file
+export ANTHROPIC_API_KEY="sk-ant-your-actual-key-here"
+
+# Load the environment
+source exports.sh
+```
+
+### Available AI Features
+
+Once configured, you'll have access to:
+
+- **AI Chat Interface:** Available at `/dashboard/super_admin/ai-chat`
+- **Multiple Claude Models:** Choose from Haiku, Sonnet, and Opus variants
+- **Persistent Conversations:** All chats are saved and can be resumed
+- **Streaming Responses:** Real-time AI responses for better user experience
+- **Auto-Generated Titles:** Conversations are automatically titled based on content
+
+### AI Models Available
+
+The platform supports the following Claude models:
+
+| Model | API ID | Best For |
+|-------|--------|----------|
+| Haiku 3 | `claude-3-haiku-20240307` | Fast, lightweight tasks |
+| Sonnet 3 | `claude-3-sonnet-20240229` | Balanced performance |
+| Opus 3 | `claude-3-opus-20240229` | Complex reasoning |
+| Haiku 3.5 | `claude-3-5-haiku-20241022` | Improved fast responses |
+| Sonnet 3.5 | `claude-3-5-sonnet-20241022` | Enhanced capabilities |
+| Sonnet 3.7 | `claude-3-7-sonnet-20250219` | Latest improvements |
+| Sonnet 4 | `claude-sonnet-4-20250514` | Next-generation model |
+| Opus 4 | `claude-opus-4-20250514` | Most advanced reasoning |
+
+### Customizing AI Behavior
+
+You can customize the AI's behavior by modifying the system prompt in `lib/phxplate_web/live/dashboard/super_admin/ai_chat_live.ex`:
+
+```elixir
+@system_prompt """
+You are a helpful AI assistant integrated into a Phoenix application.
+You provide clear, concise, and accurate responses while maintaining a professional tone.
+When discussing code or technical topics, you provide practical examples and explanations.
+You are knowledgeable about Elixir, Phoenix, LiveView, and web development in general.
+Keep your responses focused and relevant to the user's questions.
+"""
+```
+
+### Extending AI Features
+
+The AI module (`lib/phxplate/ai.ex`) provides several functions for integrating AI capabilities throughout your application:
+
+- `Phxplate.AI.chat/3` - Simple text-based AI interactions
+- `Phxplate.AI.stream_chat/3` - Streaming AI responses
+- `Phxplate.AI.chat_conversation/3` - Multi-turn conversations
+- `Phxplate.AI.create_conversation/3` - Persistent conversation management
+
+### Troubleshooting AI Setup
+
+If you encounter issues with AI features:
+
+1. **Check API Key:** Ensure your `ANTHROPIC_API_KEY` is correctly set
+2. **Verify Network:** Ensure your server can reach Anthropic's API
+3. **Check Logs:** Look for AI-related errors in your Phoenix logs
+4. **Test Connection:** Use the AI chat interface to test connectivity
+
+The AI integration is designed to fail gracefully - if the API is unavailable, the application will continue to function normally without AI features.
+
+### What You Can Achieve with AI Integration
+
+The AI integration opens up numerous possibilities for enhancing your application:
+
+#### **Customer Support Enhancement**
+- **Intelligent Chatbots:** Create AI-powered customer support bots
+- **FAQ Automation:** Automatically answer common questions
+- **Ticket Triage:** AI can help categorize and prioritize support tickets
+- **Multi-language Support:** Leverage Claude's multilingual capabilities
+
+#### **Content Generation**
+- **Blog Post Assistance:** Generate ideas, outlines, or full blog posts
+- **Marketing Copy:** Create compelling marketing materials and descriptions
+- **Documentation:** Auto-generate API documentation or user guides
+- **Email Templates:** Create personalized email templates and responses
+
+#### **Code Assistance**
+- **Code Review:** AI can help review code and suggest improvements
+- **Bug Debugging:** Assist in identifying and fixing code issues
+- **Feature Development:** Get suggestions for implementing new features
+- **Architecture Advice:** Receive guidance on system design and architecture
+
+#### **Business Intelligence**
+- **Data Analysis:** Analyze business metrics and provide insights
+- **Report Generation:** Create automated reports with AI-generated summaries
+- **Trend Analysis:** Identify patterns and trends in your data
+- **Decision Support:** Get AI-powered recommendations for business decisions
+
+#### **User Experience Enhancement**
+- **Personalized Recommendations:** Provide tailored suggestions to users
+- **Smart Search:** Implement intelligent search with natural language queries
+- **Content Curation:** Automatically curate and organize content
+- **User Onboarding:** Create intelligent onboarding flows
+
+#### **Development and Operations**
+- **Log Analysis:** AI can help analyze application logs for issues
+- **Performance Monitoring:** Get insights into application performance
+- **Security Analysis:** Identify potential security vulnerabilities
+- **Deployment Assistance:** Get help with deployment and configuration
+
+#### **Integration Examples**
+
+Here are some practical ways to extend the AI functionality:
+
+```elixir
+# Example: AI-powered content moderation
+def moderate_content(content) do
+  prompt = "Analyze this content for inappropriate material: #{content}"
+  case Phxplate.AI.chat(prompt, "You are a content moderator.") do
+    {:ok, response} -> parse_moderation_response(response)
+    {:error, _} -> {:error, :moderation_failed}
+  end
+end
+
+# Example: Smart email responses
+def generate_email_response(customer_message, context) do
+  prompt = """
+  Customer message: #{customer_message}
+  Context: #{context}
+  Generate a helpful, professional response.
+  """
+  Phxplate.AI.chat(prompt, "You are a customer service representative.")
+end
+
+# Example: Code documentation generation
+def generate_documentation(code) do
+  prompt = "Generate documentation for this Elixir code: #{code}"
+  Phxplate.AI.chat(prompt, "You are a technical documentation expert.")
+end
+```
+
+The AI integration provides a solid foundation that you can build upon to create intelligent, responsive applications that provide exceptional user experiences.
 
 ## Testing Environment
 
@@ -256,6 +456,7 @@ When deploying to production for the first time:
    # - AWS_ACCESS_KEY_ID
    # - AWS_SECRET_ACCESS_KEY
    # - AWS_REGION
+   # - ANTHROPIC_API_KEY (for AI features)
    ```
 
 2. Deploy using the deployment script:
