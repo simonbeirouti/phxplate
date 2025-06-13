@@ -9,6 +9,14 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
   alias Phxplate.AI
   alias PhxplateWeb.PageMeta
 
+  @system_prompt """
+  You are a helpful AI assistant integrated into a Phoenix application.
+  You provide clear, concise, and accurate responses while maintaining a professional tone.
+  When discussing code or technical topics, you provide practical examples and explanations.
+  You are knowledgeable about Elixir, Phoenix, LiveView, and web development in general.
+  Keep your responses focused and relevant to the user's questions.
+  """
+
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
@@ -16,6 +24,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
      |> assign(:messages, [])
      |> assign(:input_message, "")
      |> assign(:loading, false)
+     |> assign(:streaming, false)
+     |> assign(:current_stream, "")
      |> assign(:page_title, "AI Chat")
      |> PageMeta.assign_metadata(
        title: "AI Chat",
@@ -43,15 +53,20 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
       |> assign(:messages, messages)
       |> assign(:input_message, "")
       |> assign(:loading, true)
+      |> assign(:streaming, true)
+      |> assign(:current_stream, "")
 
     # Send async request to AI
     pid = self()
-
     Task.start(fn ->
-      case AI.chat(message) do
-        {:ok, response} ->
-          send(pid, {:ai_response, response})
-
+      case AI.stream_chat(message, @system_prompt) do
+        {:ok, stream} ->
+          stream
+          |> Stream.each(fn chunk ->
+            send(pid, {:stream_chunk, chunk})
+          end)
+          |> Stream.run()
+          send(pid, :stream_complete)
         {:error, error} ->
           send(pid, {:ai_error, error})
       end
@@ -77,15 +92,27 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
   end
 
   @impl true
-  def handle_info({:ai_response, response}, socket) do
-    # Add AI response to the chat
-    ai_message = %{role: "assistant", content: response, timestamp: DateTime.utc_now()}
+  def handle_info({:stream_chunk, chunk}, socket) do
+    current_stream = socket.assigns.current_stream <> chunk
+    {:noreply, assign(socket, :current_stream, current_stream)}
+  end
+
+  @impl true
+  def handle_info(:stream_complete, socket) do
+    # Add the complete streamed message to the chat
+    ai_message = %{
+      role: "assistant",
+      content: socket.assigns.current_stream,
+      timestamp: DateTime.utc_now()
+    }
     messages = socket.assigns.messages ++ [ai_message]
 
     {:noreply,
      socket
      |> assign(:messages, messages)
-     |> assign(:loading, false)}
+     |> assign(:loading, false)
+     |> assign(:streaming, false)
+     |> assign(:current_stream, "")}
   end
 
   @impl true
@@ -102,7 +129,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     {:noreply,
      socket
      |> assign(:messages, messages)
-     |> assign(:loading, false)}
+     |> assign(:loading, false)
+     |> assign(:streaming, false)
+     |> assign(:current_stream, "")}
   end
 
   defp format_timestamp(timestamp) do
@@ -117,8 +146,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     ~H"""
     <div class="flex-1 flex flex-col h-[calc(100vh-90px)]">
       <.header>
-        AI Chat Test
-        <:subtitle>Test the Anthropic Claude integration</:subtitle>
+        AI Chat
+        <:subtitle>Chat with Claude</:subtitle>
         <:actions>
           <.button
             phx-click="clear_chat"
@@ -151,12 +180,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                 <div class={[
                   "max-w-[70%] rounded-lg px-4 py-2",
                   case message.role do
-                    "user" -> "bg-blue-600 text-white"
+                    "user" -> "bg-black text-white"
                     "assistant" -> "bg-gray-100 text-gray-900"
                     "system" -> "bg-red-100 text-red-800 text-sm"
                   end
                 ]}>
-                  <div class="flex items-center gap-2 mb-1">
+                  <div class="flex items-center gap-2">
                     <%= case message.role do %>
                       <% "user" -> %>
                         <Lucideicons.user class="h-4 w-4" />
@@ -172,7 +201,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                       {format_timestamp(message.timestamp)}
                     </span>
                   </div>
-                  <div class="whitespace-pre-wrap break-words">
+                  <div class="whitespace-pre-line break-words -mt-5">
                     {message.content}
                   </div>
                 </div>
@@ -180,25 +209,22 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
             <% end %>
           <% end %>
 
-          <%= if @loading do %>
+          <%= if @streaming do %>
             <div class="flex justify-start">
               <div class="bg-gray-100 rounded-lg px-4 py-2 max-w-[70%]">
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 mb-1">
                   <Lucideicons.bot class="h-4 w-4" />
                   <span class="text-sm font-medium">Claude</span>
                 </div>
-                <div class="flex items-center gap-1 mt-1">
-                  <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div
-                    class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                    style="animation-delay: 0.1s"
-                  >
+                <%= if @current_stream != "" do %>
+                  <div class="whitespace-pre-line break-words -mt-5">
+                    {@current_stream}
                   </div>
-                  <div
-                    class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                    style="animation-delay: 0.2s"
-                  >
-                  </div>
+                <% end %>
+                <div class="flex items-center gap-1 mt-4">
+                  <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s" />
+                  <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s" />
+                  <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.3s" />
                 </div>
               </div>
             </div>
