@@ -14,6 +14,7 @@ defmodule Phxplate.AI.Message do
   schema "ai_messages" do
     field :role, Ecto.Enum, values: @roles
     field :content, :string
+    field :model, :string
     field :metadata, :map, default: %{}
 
     belongs_to :conversation, Conversation
@@ -26,7 +27,7 @@ defmodule Phxplate.AI.Message do
   """
   def changeset(message, attrs) do
     message
-    |> cast(attrs, [:role, :content, :metadata, :conversation_id])
+    |> cast(attrs, [:role, :content, :model, :metadata, :conversation_id])
     |> validate_required([:role, :content, :conversation_id])
     |> validate_inclusion(:role, @roles)
     |> validate_length(:content, min: 1)

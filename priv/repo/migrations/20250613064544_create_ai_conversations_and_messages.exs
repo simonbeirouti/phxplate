@@ -17,6 +17,7 @@ defmodule Phxplate.Repo.Migrations.CreateAiConversationsAndMessages do
     create table(:ai_messages) do
       add :role, :ai_message_role, null: false
       add :content, :text, null: false
+      add :model, :string, null: true
       add :metadata, :map, default: %{}
       add :conversation_id, references(:ai_conversations, on_delete: :delete_all), null: false
 
@@ -27,6 +28,7 @@ defmodule Phxplate.Repo.Migrations.CreateAiConversationsAndMessages do
     create index(:ai_conversations, [:archived])
     create index(:ai_conversations, [:inserted_at])
     create index(:ai_messages, [:conversation_id])
+    create index(:ai_messages, [:model])
     create index(:ai_messages, [:inserted_at])
   end
 end

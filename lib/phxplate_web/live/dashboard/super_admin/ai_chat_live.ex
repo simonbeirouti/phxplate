@@ -8,6 +8,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
   use PhxplateWeb, :live_view
   alias Phxplate.AI
   alias PhxplateWeb.PageMeta
+  alias PhxplateWeb.Components.Markdown
   import PhxplateWeb.Components.UI.Drawer
 
   @system_prompt """
@@ -17,6 +18,20 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
   You are knowledgeable about Elixir, Phoenix, LiveView, and web development in general.
   Keep your responses focused and relevant to the user's questions.
   """
+
+  # Available Claude models with simplified names
+  @available_models [
+    {"Haiku 3", "claude-3-haiku-20240307"},
+    {"Sonnet 3", "claude-3-sonnet-20240229"},
+    {"Opus 3", "claude-3-opus-20240229"},
+    {"Haiku 3.5", "claude-3-5-haiku-20241022"},
+    {"Sonnet 3.5", "claude-3-5-sonnet-20241022"},
+    {"Sonnet 3.7", "claude-3-7-sonnet-20250219"},
+    {"Sonnet 4", "claude-sonnet-4-20250514"},
+    {"Opus 4", "claude-opus-4-20250514"}
+  ]
+
+  @default_model "Haiku 3.5"
 
   @impl true
   def mount(_params, _session, socket) do
@@ -37,6 +52,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
      |> assign(:editing_title, nil)
      |> assign(:new_title, "")
      |> assign(:deleting_conversation, nil)
+     |> assign(:selected_model, @default_model)
+     |> assign(:available_models, @available_models)
      |> assign(:page_title, "AI Chat")
      |> PageMeta.assign_metadata(
        title: "AI Chat",
@@ -54,12 +71,15 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     case Map.get(params, "conversation_id") do
       nil ->
         {:noreply, socket}
+
       conversation_id ->
         case AI.get_conversation(conversation_id, socket.assigns.current_user.id) do
           nil ->
             {:noreply, push_navigate(socket, to: ~p"/dashboard/super_admin/ai-chat")}
+
           conversation ->
             messages = convert_db_messages_to_display(conversation.messages)
+
             {:noreply,
              socket
              |> assign(:current_conversation, conversation)
@@ -76,6 +96,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     case AI.create_conversation(user_id, title, @system_prompt) do
       {:ok, conversation} ->
         conversations = AI.list_conversations(user_id)
+
         {:noreply,
          socket
          |> assign(:conversations, conversations)
@@ -83,6 +104,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
          |> assign(:messages, [])
          |> assign(:show_mobile_drawer, false)
          |> push_navigate(to: ~p"/dashboard/super_admin/ai-chat/#{conversation.id}")}
+
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, "Failed to create new conversation")}
     end
@@ -97,6 +119,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
   end
 
   @impl true
+  def handle_event("select_model", %{"model" => short_name}, socket) do
+    # Just update the selected model for future messages
+    {:noreply, assign(socket, :selected_model, short_name)}
+  end
+
+  @impl true
   def handle_event("start_delete_conversation", %{"id" => conversation_id}, socket) do
     {:noreply, assign(socket, :deleting_conversation, conversation_id)}
   end
@@ -108,6 +136,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     case AI.delete_conversation(conversation_id, user_id) do
       {:ok, _} ->
         conversations = AI.list_conversations(user_id)
+
         socket =
           socket
           |> assign(:conversations, conversations)
@@ -115,7 +144,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
 
         # If we deleted the current conversation, redirect to main chat
         if socket.assigns.current_conversation &&
-           to_string(socket.assigns.current_conversation.id) == conversation_id do
+             to_string(socket.assigns.current_conversation.id) == conversation_id do
           {:noreply,
            socket
            |> assign(:current_conversation, nil)
@@ -125,6 +154,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
         else
           {:noreply, socket}
         end
+
       {:error, _} ->
         {:noreply,
          socket
@@ -141,6 +171,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
   @impl true
   def handle_event("start_edit_title", %{"id" => conversation_id}, socket) do
     conversation = Enum.find(socket.assigns.conversations, &(to_string(&1.id) == conversation_id))
+
     {:noreply,
      socket
      |> assign(:editing_title, conversation_id)
@@ -162,11 +193,13 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     case AI.update_conversation_title(conversation_id, user_id, String.trim(title)) do
       {:ok, _conversation} ->
         conversations = AI.list_conversations(user_id)
+
         {:noreply,
          socket
          |> assign(:conversations, conversations)
          |> assign(:editing_title, nil)
          |> assign(:new_title, "")}
+
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, "Failed to update conversation title")}
     end
@@ -229,8 +262,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
         user_id = socket.assigns.current_user.id
 
         Task.start(fn ->
-          case AI.stream_chat_in_conversation(conversation.id, user_id, String.trim(message)) do
-            {:ok, stream, _conversation} ->
+          selected_model_api_id = get_model_api_id(socket.assigns.selected_model)
+          case AI.stream_chat_in_conversation(conversation.id, user_id, String.trim(message), selected_model_api_id) do
+            {:ok, stream, _conversation, model_api_id} ->
               accumulated_response =
                 stream
                 |> Stream.map(&AI.extract_text_from_stream/1)
@@ -240,7 +274,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                   new_acc
                 end)
 
-              send(pid, {:stream_complete, accumulated_response, conversation.id})
+              send(pid, {:stream_complete, accumulated_response, conversation.id, model_api_id})
+
             {:error, error} ->
               send(pid, {:ai_error, error})
           end
@@ -274,18 +309,20 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
   end
 
   @impl true
-  def handle_info({:stream_complete, full_response, conversation_id}, socket) do
+  def handle_info({:stream_complete, full_response, conversation_id, model_api_id}, socket) do
     # Save the complete AI response to the database
     Task.start(fn ->
-      AI.complete_streaming_conversation(conversation_id, full_response)
+      AI.complete_streaming_conversation(conversation_id, full_response, model_api_id)
     end)
 
     # Add the complete streamed message to the chat display
     ai_message = %{
       role: "assistant",
       content: full_response,
+      model: get_model_short_name(model_api_id),
       timestamp: DateTime.utc_now()
     }
+
     messages = socket.assigns.messages ++ [ai_message]
 
     # Update conversations list to reflect the updated timestamp
@@ -320,12 +357,45 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
      |> assign(:current_stream, "")}
   end
 
+  # Helper function to convert between short names and API model IDs
+  defp get_model_api_id(short_name) do
+    model_mapping = %{
+      "Haiku 3" => "claude-3-haiku-20240307",
+      "Sonnet 3" => "claude-3-sonnet-20240229",
+      "Opus 3" => "claude-3-opus-20240229",
+      "Haiku 3.5" => "claude-3-5-haiku-20241022",
+      "Sonnet 3.5" => "claude-3-5-sonnet-20241022",
+      "Sonnet 3.7" => "claude-3-7-sonnet-20250219",
+      "Sonnet 4" => "claude-sonnet-4-20250514",
+      "Opus 4" => "claude-opus-4-20250514"
+    }
+
+    Map.get(model_mapping, short_name, short_name)
+  end
+
+  # Helper function to convert from API model ID to short name
+  defp get_model_short_name(api_id) do
+    model_mapping = %{
+      "claude-3-haiku-20240307" => "Haiku 3",
+      "claude-3-sonnet-20240229" => "Sonnet 3",
+      "claude-3-opus-20240229" => "Opus 3",
+      "claude-3-5-haiku-20241022" => "Haiku 3.5",
+      "claude-3-5-sonnet-20241022" => "Sonnet 3.5",
+      "claude-3-7-sonnet-20250219" => "Sonnet 3.7",
+      "claude-sonnet-4-20250514" => "Sonnet 4",
+      "claude-opus-4-20250514" => "Opus 4"
+    }
+
+    Map.get(model_mapping, api_id, api_id)
+  end
+
   # Helper function to convert database messages to display format
   defp convert_db_messages_to_display(db_messages) do
     Enum.map(db_messages, fn msg ->
       %{
         role: Atom.to_string(msg.role),
         content: msg.content,
+        model: if(msg.model, do: get_model_short_name(msg.model), else: nil),
         timestamp: msg.inserted_at
       }
     end)
@@ -392,14 +462,14 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                     <p class="text-sm font-medium text-gray-900 truncate">
                       {truncate_title(conversation.title)}
                     </p>
-                    <p class="text-xs text-gray-500 mt-1">
+                    <p class="text-xs text-gray-400 mt-1">
                       {format_timestamp(conversation.updated_at)}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <!-- Action buttons (shown on hover) -->
+    <!-- Action buttons (shown on hover) -->
               <div class="absolute top-4 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                 <.button
                   phx-click="start_edit_title"
@@ -459,7 +529,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
         </div>
       </div>
 
-      <!-- Mobile History Drawer -->
+    <!-- Mobile History Drawer -->
       <.drawer
         show={@show_mobile_drawer}
         on_cancel={JS.push("hide_mobile_history")}
@@ -485,7 +555,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
         </.drawer_content>
       </.drawer>
 
-      <!-- Main Chat Area -->
+    <!-- Main Chat Area -->
       <div class="flex-1 flex flex-col min-w-0">
         <.header class="ml-2">
           <div class="flex items-center">
@@ -500,15 +570,32 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
               AI Chat
             </div>
           </div>
-                    <:subtitle>
+          <:subtitle>
             <%= if @current_conversation do %>
               {truncate_title(@current_conversation.title, 50)}
             <% end %>
           </:subtitle>
           <:actions>
-            <.button phx-click="new_conversation" class="bg-black hover:bg-gray-800">
-              <Lucideicons.plus class="h-4 w-4 mr-2" /> New Chat
-            </.button>
+            <!-- Model Selector -->
+            <div class="flex items-center gap-3">
+              <div class="flex items-center gap-2">
+                <form phx-change="select_model">
+                  <.select :let={select} id="model-select" name="model" value={@selected_model}>
+                    <.select_trigger builder={select} class="w-[140px]" />
+                    <.select_content class="w-[140px]" builder={select}>
+                      <%= for {name, _api_id} <- @available_models do %>
+                        <.select_item builder={select} value={name} label={name}>
+                          {name}
+                        </.select_item>
+                      <% end %>
+                    </.select_content>
+                  </.select>
+                </form>
+              </div>
+              <.button phx-click="new_conversation" class="bg-black hover:bg-gray-800">
+                <Lucideicons.plus class="h-4 w-4 mr-2" /> New Chat
+              </.button>
+            </div>
           </:actions>
         </.header>
 
@@ -524,6 +611,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                   <% else %>
                     Create a new conversation to start chatting with Claude!
                   <% end %>
+                </p>
+                <p class="text-sm mt-2">
+                  Current model: <span class="font-medium">{@selected_model}</span>
                 </p>
               </div>
             <% else %>
@@ -552,6 +642,11 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                         <% "assistant" -> %>
                           <Lucideicons.bot class="h-4 w-4" />
                           <span class="text-sm font-medium">Claude</span>
+                          <%= if message.model do %>
+                            <span class="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">
+                              {message.model}
+                            </span>
+                          <% end %>
                         <% "system" -> %>
                           <Lucideicons.triangle_alert class="h-4 w-4" />
                           <span class="text-sm font-medium">System</span>
@@ -560,8 +655,17 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                         {format_timestamp(message.timestamp)}
                       </span>
                     </div>
-                    <div class="whitespace-pre-line break-words -mt-5">
-                      {message.content}
+                    <div class="break-words">
+                      <%= case message.role do %>
+                        <% "assistant" -> %>
+                          <div class="mt-1 prose prose-md max-w-none prose-gray prose-headings:text-gray-900 prose-code:text-gray-100 prose-code:bg-gray-800 prose-code:px-1.5 prose-code:py-1 prose-code:rounded prose-code:text-sm prose-code:font-medium prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-pre:text-sm prose-pre:p-4 prose-pre:rounded-lg prose-blockquote:border-l-gray-300">
+                            <%= Markdown.to_html(message.content) %>
+                          </div>
+                        <% _ -> %>
+                          <div class="whitespace-pre-line -mt-5">
+                            {message.content}
+                          </div>
+                      <% end %>
                     </div>
                   </div>
                 </div>
@@ -574,10 +678,15 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                   <div class="flex items-center gap-2 mb-1">
                     <Lucideicons.bot class="h-4 w-4" />
                     <span class="text-sm font-medium">Claude</span>
+                    <span class="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">
+                      {@selected_model}
+                    </span>
                   </div>
                   <%= if @current_stream != "" do %>
-                    <div class="whitespace-pre-line break-words -mt-5">
-                      {@current_stream}
+                    <div class="break-words">
+                      <div class="mt-1 prose prose-md max-w-none prose-gray prose-headings:text-gray-900 prose-code:text-gray-100 prose-code:bg-gray-800 prose-code:px-1.5 prose-code:py-1 prose-code:rounded prose-code:text-sm prose-code:font-medium prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-pre:text-sm prose-pre:p-4 prose-pre:rounded-lg prose-blockquote:border-l-gray-300">
+                        <%= Markdown.to_html(@current_stream) %>
+                      </div>
                     </div>
                   <% end %>
                   <div class="flex items-center gap-1 mt-4">
@@ -623,11 +732,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                   autofocus
                 />
               </div>
-              <.button
-                type="submit"
-                class="mt-2"
-                disabled={@loading || @input_message == ""}
-              >
+              <.button type="submit" class="mt-2" disabled={@loading || @input_message == ""}>
                 <%= if @loading do %>
                   <Lucideicons.loader class="h-4 w-4 animate-spin" />
                 <% else %>
