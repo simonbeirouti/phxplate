@@ -8,6 +8,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
   use PhxplateWeb, :live_view
   alias Phxplate.AI
   alias PhxplateWeb.PageMeta
+  import PhxplateWeb.Components.UI.Drawer
 
   @system_prompt """
   You are a helpful AI assistant integrated into a Phoenix application.
@@ -32,8 +33,10 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
      |> assign(:streaming, false)
      |> assign(:current_stream, "")
      |> assign(:sidebar_open, true)
+     |> assign(:show_mobile_drawer, false)
      |> assign(:editing_title, nil)
      |> assign(:new_title, "")
+     |> assign(:deleting_conversation, nil)
      |> assign(:page_title, "AI Chat")
      |> PageMeta.assign_metadata(
        title: "AI Chat",
@@ -51,15 +54,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     case Map.get(params, "conversation_id") do
       nil ->
         {:noreply, socket}
-
       conversation_id ->
         case AI.get_conversation(conversation_id, socket.assigns.current_user.id) do
           nil ->
             {:noreply, push_navigate(socket, to: ~p"/dashboard/super_admin/ai-chat")}
-
           conversation ->
             messages = convert_db_messages_to_display(conversation.messages)
-
             {:noreply,
              socket
              |> assign(:current_conversation, conversation)
@@ -76,14 +76,13 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     case AI.create_conversation(user_id, title, @system_prompt) do
       {:ok, conversation} ->
         conversations = AI.list_conversations(user_id)
-
         {:noreply,
          socket
          |> assign(:conversations, conversations)
          |> assign(:current_conversation, conversation)
          |> assign(:messages, [])
+         |> assign(:show_mobile_drawer, false)
          |> push_navigate(to: ~p"/dashboard/super_admin/ai-chat/#{conversation.id}")}
-
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, "Failed to create new conversation")}
     end
@@ -91,39 +90,57 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
 
   @impl true
   def handle_event("select_conversation", %{"id" => conversation_id}, socket) do
-    {:noreply, push_navigate(socket, to: ~p"/dashboard/super_admin/ai-chat/#{conversation_id}")}
+    {:noreply,
+     socket
+     |> assign(:show_mobile_drawer, false)
+     |> push_navigate(to: ~p"/dashboard/super_admin/ai-chat/#{conversation_id}")}
   end
 
   @impl true
-  def handle_event("delete_conversation", %{"id" => conversation_id}, socket) do
+  def handle_event("start_delete_conversation", %{"id" => conversation_id}, socket) do
+    {:noreply, assign(socket, :deleting_conversation, conversation_id)}
+  end
+
+  @impl true
+  def handle_event("confirm_delete_conversation", %{"id" => conversation_id}, socket) do
     user_id = socket.assigns.current_user.id
 
     case AI.delete_conversation(conversation_id, user_id) do
       {:ok, _} ->
         conversations = AI.list_conversations(user_id)
-        socket = assign(socket, :conversations, conversations)
+        socket =
+          socket
+          |> assign(:conversations, conversations)
+          |> assign(:deleting_conversation, nil)
 
         # If we deleted the current conversation, redirect to main chat
         if socket.assigns.current_conversation &&
-             to_string(socket.assigns.current_conversation.id) == conversation_id do
+           to_string(socket.assigns.current_conversation.id) == conversation_id do
           {:noreply,
            socket
            |> assign(:current_conversation, nil)
            |> assign(:messages, [])
+           |> assign(:show_mobile_drawer, false)
            |> push_navigate(to: ~p"/dashboard/super_admin/ai-chat")}
         else
           {:noreply, socket}
         end
-
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to delete conversation")}
+        {:noreply,
+         socket
+         |> assign(:deleting_conversation, nil)
+         |> put_flash(:error, "Failed to delete conversation")}
     end
+  end
+
+  @impl true
+  def handle_event("cancel_delete_conversation", _params, socket) do
+    {:noreply, assign(socket, :deleting_conversation, nil)}
   end
 
   @impl true
   def handle_event("start_edit_title", %{"id" => conversation_id}, socket) do
     conversation = Enum.find(socket.assigns.conversations, &(to_string(&1.id) == conversation_id))
-
     {:noreply,
      socket
      |> assign(:editing_title, conversation_id)
@@ -145,13 +162,11 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     case AI.update_conversation_title(conversation_id, user_id, String.trim(title)) do
       {:ok, _conversation} ->
         conversations = AI.list_conversations(user_id)
-
         {:noreply,
          socket
          |> assign(:conversations, conversations)
          |> assign(:editing_title, nil)
          |> assign(:new_title, "")}
-
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, "Failed to update conversation title")}
     end
@@ -165,6 +180,16 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
   @impl true
   def handle_event("toggle_sidebar", _params, socket) do
     {:noreply, assign(socket, :sidebar_open, !socket.assigns.sidebar_open)}
+  end
+
+  @impl true
+  def handle_event("show_mobile_history", _params, socket) do
+    {:noreply, assign(socket, :show_mobile_drawer, true)}
+  end
+
+  @impl true
+  def handle_event("hide_mobile_history", _params, socket) do
+    {:noreply, assign(socket, :show_mobile_drawer, false)}
   end
 
   @impl true
@@ -216,7 +241,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                 end)
 
               send(pid, {:stream_complete, accumulated_response, conversation.id})
-
             {:error, error} ->
               send(pid, {:ai_error, error})
           end
@@ -262,7 +286,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
       content: full_response,
       timestamp: DateTime.utc_now()
     }
-
     messages = socket.assigns.messages ++ [ai_message]
 
     # Update conversations list to reflect the updated timestamp
@@ -323,110 +346,153 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     end
   end
 
-  @impl true
-  def render(assigns) do
+  # Component for rendering conversation list (used in both sidebar and drawer)
+  defp conversation_list(assigns) do
     ~H"""
-    <div class="flex h-[calc(100vh-90px)]">
-      <!-- Sidebar -->
-      <div class={[
-        "bg-white transition-all duration-300 bg-blue-100 flex-shrink-0",
-        if(@sidebar_open, do: "w-80", else: "w-0 overflow-hidden")
-      ]}>
-        <div class="h-full flex flex-col">
-          <!-- Conversations List -->
-          <div class="flex-1 overflow-y-auto">
-            <%= if Enum.empty?(@conversations) do %>
-              <div class="p-4 text-center text-gray-500">
-                <Lucideicons.message_circle class="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                <p class="text-sm">No conversations yet</p>
-              </div>
+    <%= if Enum.empty?(@conversations) do %>
+      <div class="p-4 text-center text-gray-500">
+        <Lucideicons.message_circle class="h-8 w-8 mx-auto mb-2 text-gray-300" />
+        <p class="text-sm">No conversations yet</p>
+      </div>
+    <% else %>
+      <div class="py-2 pr-2 space-y-1">
+        <%= for conversation <- @conversations do %>
+          <div class={[
+            "group relative p-3 rounded-lg cursor-pointer transition-colors",
+            if(@current_conversation && @current_conversation.id == conversation.id,
+              do: "bg-gray-100 border border-gray-200",
+              else: "hover:bg-gray-50"
+            )
+          ]}>
+            <%= if @editing_title == to_string(conversation.id) do %>
+              <form
+                phx-submit="save_title"
+                phx-value-id={conversation.id}
+                class="flex items-center gap-1"
+              >
+                <input
+                  type="text"
+                  name="title"
+                  value={@new_title}
+                  phx-change="update_title_input"
+                  class="flex-1 text-sm border border-gray-300 rounded px-2 py-1"
+                  autofocus
+                />
+                <.button variant="outline" type="submit">
+                  <Lucideicons.check class="h-4 w-4" />
+                </.button>
+                <.button variant="outline" phx-click="cancel_edit_title">
+                  <Lucideicons.x class="h-4 w-4" />
+                </.button>
+              </form>
             <% else %>
-              <div class="py-2 pr-2 space-y-1">
-                <%= for conversation <- @conversations do %>
-                  <div class={[
-                    "group relative p-3 rounded-lg cursor-pointer transition-colors",
-                    if(@current_conversation && @current_conversation.id == conversation.id,
-                      do: "bg-gray-100 border border-gray-200",
-                      else: "hover:bg-gray-50"
-                    )
-                  ]}>
-                    <%= if @editing_title == to_string(conversation.id) do %>
-                      <form
-                        phx-submit="save_title"
-                        phx-value-id={conversation.id}
-                        class="flex items-center gap-2"
-                      >
-                        <input
-                          type="text"
-                          name="title"
-                          value={@new_title}
-                          phx-change="update_title_input"
-                          class="flex-1 text-sm border border-gray-300 rounded px-2 py-1"
-                          autofocus
-                        />
-                        <button type="submit" class="text-green-600 hover:text-green-700">
-                          <Lucideicons.check class="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          phx-click="cancel_edit_title"
-                          class="text-gray-400 hover:text-gray-600"
-                        >
-                          <Lucideicons.x class="h-4 w-4" />
-                        </button>
-                      </form>
-                    <% else %>
-                      <div
-                        phx-click="select_conversation"
-                        phx-value-id={conversation.id}
-                        class="flex-1"
-                      >
-                        <div class="flex items-start justify-between">
-                          <div class="flex-1 min-w-0">
-                            <p class="text-sm font-medium text-gray-900 truncate">
-                              {truncate_title(conversation.title)}
-                            </p>
-                            <p class="text-xs text-gray-500 mt-1">
-                              {format_timestamp(conversation.updated_at)}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <!-- Action buttons (shown on hover) -->
-                      <div class="absolute top-4 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                        <.button
-                          phx-click="start_edit_title"
-                          phx-value-id={conversation.id}
-                          title="Edit title"
-                        >
-                          <Lucideicons.pencil class="h-3 w-3" />
-                        </.button>
-                        <.button
-                          phx-click="delete_conversation"
-                          phx-value-id={conversation.id}
-                          data-confirm="Are you sure you want to delete this conversation?"
-                          title="Delete conversation"
-                        >
-                          <Lucideicons.trash_2 class="h-3 w-3" />
-                        </.button>
-                      </div>
-                    <% end %>
+              <div phx-click="select_conversation" phx-value-id={conversation.id} class="flex-1">
+                <div class="flex items-start justify-between">
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-gray-900 truncate">
+                      {truncate_title(conversation.title)}
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1">
+                      {format_timestamp(conversation.updated_at)}
+                    </p>
                   </div>
+                </div>
+              </div>
+
+              <!-- Action buttons (shown on hover) -->
+              <div class="absolute top-4 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                <.button
+                  phx-click="start_edit_title"
+                  phx-value-id={conversation.id}
+                  title="Edit title"
+                >
+                  <Lucideicons.pencil class="h-3 w-3" />
+                </.button>
+
+                <%= if @deleting_conversation == to_string(conversation.id) do %>
+                  <.button
+                    variant="destructive"
+                    phx-click="confirm_delete_conversation"
+                    phx-value-id={conversation.id}
+                    title="Confirm delete"
+                  >
+                    <Lucideicons.check class="h-3 w-3" />
+                  </.button>
+                <% else %>
+                  <.button
+                    phx-click="start_delete_conversation"
+                    phx-value-id={conversation.id}
+                    title="Delete conversation"
+                  >
+                    <Lucideicons.trash_2 class="h-3 w-3" />
+                  </.button>
                 <% end %>
               </div>
             <% end %>
           </div>
+        <% end %>
+      </div>
+    <% end %>
+    """
+  end
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <div class="flex h-[calc(100vh-90px)]">
+      <!-- Desktop Sidebar -->
+      <div class={[
+        "hidden md:flex bg-white transition-all duration-300 bg-blue-100 flex-shrink-0",
+        if(@sidebar_open, do: "w-80", else: "w-0 overflow-hidden")
+      ]}>
+        <div class="h-full flex flex-col w-full">
+          <!-- Conversations List -->
+          <div class="flex-1 overflow-y-auto">
+            <.conversation_list
+              conversations={@conversations}
+              current_conversation={@current_conversation}
+              editing_title={@editing_title}
+              new_title={@new_title}
+              deleting_conversation={@deleting_conversation}
+            />
+          </div>
         </div>
       </div>
+
+      <!-- Mobile History Drawer -->
+      <.drawer
+        show={@show_mobile_drawer}
+        on_cancel={JS.push("hide_mobile_history")}
+        direction="bottom"
+      >
+        <.drawer_header>
+          <.drawer_title>Chat History</.drawer_title>
+          <.drawer_description>Select a conversation to continue</.drawer_description>
+        </.drawer_header>
+        <.drawer_content>
+          <div class="mb-4">
+            <.button phx-click="new_conversation" class="w-full bg-black hover:bg-gray-800 text-white">
+              <Lucideicons.plus class="h-4 w-4 mr-2" /> New Conversation
+            </.button>
+          </div>
+          <.conversation_list
+            conversations={@conversations}
+            current_conversation={@current_conversation}
+            editing_title={@editing_title}
+            new_title={@new_title}
+            deleting_conversation={@deleting_conversation}
+          />
+        </.drawer_content>
+      </.drawer>
 
       <!-- Main Chat Area -->
       <div class="flex-1 flex flex-col min-w-0">
         <.header class="ml-2">
           <div class="flex items-center">
+            <!-- Desktop sidebar toggle -->
             <button
               phx-click="toggle_sidebar"
-              class="-ml-2 p-2 text-gray-400 hover:text-gray-600 rounded-lg"
+              class="hidden md:flex -ml-2 p-2 text-gray-400 hover:text-gray-600 rounded-lg"
             >
               <Lucideicons.panel_left class="h-5 w-5" />
             </button>
@@ -434,7 +500,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
               AI Chat
             </div>
           </div>
-          <:subtitle>
+                    <:subtitle>
             <%= if @current_conversation do %>
               {truncate_title(@current_conversation.title, 50)}
             <% end %>
@@ -533,9 +599,19 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
             <% end %>
           </div>
 
-    <!-- Input Area -->
-          <div class="border-t border-gray-200 p-4 flex-shrink-0">
-            <.form for={%{}} as={:chat_form} phx-submit="send_message" class="flex items-end gap-3">
+          <!-- Input Area -->
+          <div class="border-t border-gray-200 px-4 pb-2 flex-shrink-0">
+            <.form for={%{}} as={:chat_form} phx-submit="send_message" class="flex items-center gap-3">
+              <!-- Mobile History Button -->
+              <.button
+                type="button"
+                phx-click="show_mobile_history"
+                class="md:hidden mt-2"
+                title="Chat History"
+              >
+                <Lucideicons.history class="h-4 w-4" />
+              </.button>
+
               <div class="flex-1">
                 <.input
                   type="text"
@@ -544,14 +620,13 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                   placeholder="Type your message to Claude..."
                   phx-change="update_input"
                   disabled={@loading}
-                  class="w-full h-10"
                   autofocus
                 />
               </div>
               <.button
                 type="submit"
+                class="mt-2"
                 disabled={@loading || @input_message == ""}
-                class="h-10 px-4 flex items-center justify-center"
               >
                 <%= if @loading do %>
                   <Lucideicons.loader class="h-4 w-4 animate-spin" />
