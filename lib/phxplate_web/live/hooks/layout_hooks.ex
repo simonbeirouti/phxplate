@@ -130,9 +130,10 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
       bookmarked_companies
       |> Enum.map(format_company)
 
-    all_nav_items = [
+    # Define navigation items by access level
+    user_access_items = [
       %{
-        title: "Basic Access",
+        title: "Personal Dashboard",
         url: "#",
         icon: &Lucideicons.user/1,
         items: [
@@ -144,9 +145,11 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
             title: "Bookmarks",
             url: "/dashboard/basic/bookmarks"
           }
-        ],
-        required_role: :basic
-      },
+        ]
+      }
+    ]
+
+    company_access_items = [
       %{
         title: "Company Management",
         url: "#",
@@ -160,11 +163,13 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
             title: "Companies",
             url: "/dashboard/admin/companies"
           }
-        ],
-        required_role: :admin
-      },
+        ]
+      }
+    ]
+
+    super_admin_items = [
       %{
-        title: "Super Admin",
+        title: "Platform Management",
         url: "#",
         icon: &Lucideicons.crown/1,
         items: [
@@ -175,26 +180,17 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
           %{
             title: "Platform Blogs",
             url: "/dashboard/super_admin/blogs"
-          }
-        ],
-        required_role: :super_admin
-      },
-      %{
-        title: "Company Management",
-        url: "#",
-        icon: &Lucideicons.briefcase_business/1,
-        items: [
+          },
           %{
             title: "Platform Companies",
             url: "/dashboard/super_admin/companies"
-          },
-        ],
-        required_role: :super_admin
+          }
+        ]
       },
       %{
         title: "Customer Engagement",
         url: "#",
-        icon: &Lucideicons.user/1,
+        icon: &Lucideicons.users/1,
         items: [
           %{
             title: "Support Chat",
@@ -208,8 +204,7 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
             title: "Platform Users",
             url: "/dashboard/super_admin/users"
           }
-        ],
-        required_role: :super_admin
+        ]
       },
       %{
         title: "AI Management",
@@ -227,29 +222,42 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
           %{
             title: "AI Evaluations",
             url: "/dashboard/super_admin/ai-evals"
+          },
+          %{
+            title: "AI Results",
+            url: "/dashboard/super_admin/ai-results"
           }
-        ],
-        required_role: :super_admin
+        ]
       }
     ]
 
-    nav_main =
-      Enum.filter(all_nav_items, fn item ->
-        case item.required_role do
-          :basic ->
-            User.is_basic?(current_user) or User.is_admin?(current_user) or
-              User.is_super_admin?(current_user)
+    # Build navigation based on user role
+    nav_groups = []
 
-          :admin ->
-            User.is_admin?(current_user) or User.is_super_admin?(current_user)
+    # Add User Access for all users
+    nav_groups =
+      if User.is_basic?(current_user) or User.is_admin?(current_user) or
+           User.is_super_admin?(current_user) do
+        nav_groups ++ [%{label: "User Access", items: user_access_items}]
+      else
+        nav_groups
+      end
 
-          :super_admin ->
-            User.is_super_admin?(current_user)
+    # Add Company Access for admin and super admin
+    nav_groups =
+      if User.is_admin?(current_user) or User.is_super_admin?(current_user) do
+        nav_groups ++ [%{label: "Company Access", items: company_access_items}]
+      else
+        nav_groups
+      end
 
-          _ ->
-            false
-        end
-      end)
+    # Add Super Admin Access for super admin only
+    nav_groups =
+      if User.is_super_admin?(current_user) do
+        nav_groups ++ [%{label: "Super Admin Access", items: super_admin_items}]
+      else
+        nav_groups
+      end
 
     current_path =
       case socket.private.connect_params do
@@ -279,7 +287,7 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
     layout_data = %{
       current_path: current_path,
       user: user_data,
-      navMain: nav_main,
+      navGroups: nav_groups,
       companies: all_companies,
       bookmarked: bookmarked
     }
