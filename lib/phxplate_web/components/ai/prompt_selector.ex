@@ -6,7 +6,6 @@ defmodule PhxplateWeb.Components.AI.PromptSelector do
   across different AI-related pages in the application.
   """
   use Phoenix.Component
-  alias Phxplate.AI
   use SaladUI
 
   @doc """
@@ -27,6 +26,10 @@ defmodule PhxplateWeb.Components.AI.PromptSelector do
   attr :class, :string, default: "w-[200px]", doc: "CSS classes for the select trigger"
   attr :id, :string, default: "prompt-select", doc: "HTML ID for the select element"
   attr :label, :string, default: nil, doc: "Optional label for the select"
+  attr :show_default, :boolean, default: true, doc: "Whether to show 'Default System' option"
+  attr :show_all_option, :boolean, default: false, doc: "Whether to show 'All Prompts' option"
+  attr :all_option_text, :string, default: "All Prompts", doc: "Text for all prompts option"
+  attr :all_option_value, :string, default: "all", doc: "Value for all prompts option"
 
   def prompt_selector(assigns) do
     ~H"""
@@ -38,9 +41,16 @@ defmodule PhxplateWeb.Components.AI.PromptSelector do
         <.select :let={select} id={@id} name="prompt_name" value={@selected_prompt}>
           <.select_trigger builder={select} class={@class} />
           <.select_content class={@class} builder={select}>
-            <.select_item builder={select} value="Default System" label="Default system prompt">
-              Default system prompt
-            </.select_item>
+            <%= if @show_all_option do %>
+              <.select_item builder={select} value={@all_option_value} label={@all_option_text}>
+                {@all_option_text}
+              </.select_item>
+            <% end %>
+            <%= if @show_default do %>
+              <.select_item builder={select} value="Default System" label="Default system prompt">
+                Default system prompt
+              </.select_item>
+            <% end %>
             <%= for prompt <- @available_prompts do %>
               <.select_item builder={select} value={prompt.name} label={prompt.name}>
                 {String.slice(prompt.name, 0, 20)}{if String.length(prompt.name) > 20, do: "..."}

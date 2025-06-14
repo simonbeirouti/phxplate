@@ -14,6 +14,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
   import PhxplateWeb.Components.UI.DialogDrawerWrapper
   import PhxplateWeb.Components.AI.ModelSelector
   import PhxplateWeb.Components.AI.PromptSelector
+  import PhxplateWeb.Components.AI.EvalSelector
 
   @impl true
   def mount(_params, _session, socket) do
@@ -687,28 +688,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     """
   end
 
-  # Component for eval selector
-  defp eval_selector(assigns) do
-    ~H"""
-    <div class="flex items-center gap-2">
-      <form phx-change={@on_change}>
-        <.select :let={select} id="eval-select" name="eval" value={@selected_eval}>
-          <.select_trigger builder={select} class={@class} />
-          <.select_content class={@class} builder={select}>
-            <.select_item builder={select} value="No Eval Selected" label="No Eval Selected">
-              No Eval Selected
-            </.select_item>
-            <%= for eval <- @available_evals do %>
-              <.select_item builder={select} value={eval.name} label={eval.name}>
-                {String.slice(eval.name, 0, 20)}{if String.length(eval.name) > 20, do: "..."}
-              </.select_item>
-            <% end %>
-          </.select_content>
-        </.select>
-      </form>
-    </div>
-    """
-  end
+
 
   # Component for rendering conversation list (used in both sidebar and drawer)
   defp conversation_list(assigns) do
@@ -903,6 +883,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
               selected_eval={@selected_eval}
               on_change="select_eval"
               class="w-[200px]"
+              id="chat-eval-select"
+              show_default={true}
+              show_all_option={false}
             />
             <.button
               variant="outline"

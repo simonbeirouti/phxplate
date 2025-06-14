@@ -662,6 +662,55 @@ defmodule Phxplate.AI do
   end
 
   @doc """
+  List all evaluation runs with pagination and optional filtering.
+  """
+  def list_all_eval_runs(page, per_page, opts \\ []) do
+    status = Keyword.get(opts, :status, "all")
+    eval_id = Keyword.get(opts, :eval_id)
+    prompt_id = Keyword.get(opts, :prompt_id)
+
+    query = from er in EvalRun,
+      order_by: [desc: er.inserted_at],
+      preload: [:eval, :prompt, :run_by_user]
+
+    query = case status do
+      "completed" -> where(query, [er], er.status == "completed")
+      "failed" -> where(query, [er], er.status == "failed")
+      "running" -> where(query, [er], er.status == "running")
+      "pending" -> where(query, [er], er.status == "pending")
+      _ -> query  # "all" or any other value shows all
+    end
+
+    query = if eval_id do
+      where(query, [er], er.eval_id == ^eval_id)
+    else
+      query
+    end
+
+    query = if prompt_id do
+      where(query, [er], er.prompt_id == ^prompt_id)
+    else
+      query
+    end
+
+    total_count = Repo.aggregate(query, :count, :id)
+    total_pages = ceil(total_count / per_page)
+
+    eval_runs = query
+      |> limit(^per_page)
+      |> offset(^((page - 1) * per_page))
+      |> Repo.all()
+
+    %{
+      eval_runs: eval_runs,
+      page: page,
+      per_page: per_page,
+      total_count: total_count,
+      total_pages: total_pages
+    }
+  end
+
+  @doc """
   Run an evaluation against a specific model and optional prompt.
   """
   def run_evaluation(eval_id, model, user_id, prompt_id \\ nil) do
@@ -674,9 +723,9 @@ defmodule Phxplate.AI do
            status: "pending"
          }) do
 
-      # Start the evaluation run in a background task
+      # Start the evaluation run in a background task using the new evaluation system
       Task.start(fn ->
-        execute_evaluation(eval_run.id, eval, model, prompt_id)
+        Phxplate.Evaluations.run_model_based_eval(eval_run.id)
       end)
 
       {:ok, eval_run}
@@ -690,91 +739,5 @@ defmodule Phxplate.AI do
     end
   end
 
-  defp execute_evaluation(eval_run_id, eval, model, prompt_id) do
-    eval_run = Repo.get!(EvalRun, eval_run_id)
 
-    # Mark as running
-    {:ok, eval_run} = eval_run
-      |> EvalRun.start_changeset()
-      |> Repo.update()
-
-    try do
-      # Get the prompt if specified
-      system_prompt = if prompt_id do
-        case get_prompt(prompt_id) do
-          nil -> @default_system_prompt
-          prompt -> prompt.content
-        end
-      else
-        @default_system_prompt
-      end
-
-      # Run each test case
-      results = eval.test_cases
-        |> Enum.map(fn {test_name, test_input} ->
-          case chat(test_input, system_prompt, model) do
-            {:ok, response} ->
-              expected = Map.get(eval.expected_outputs, test_name, "")
-              score = calculate_similarity_score(response, expected)
-
-              {test_name, %{
-                input: test_input,
-                output: response,
-                expected: expected,
-                score: score,
-                passed: score >= 0.7  # Threshold for passing
-              }}
-
-            {:error, error} ->
-              {test_name, %{
-                input: test_input,
-                output: "",
-                expected: Map.get(eval.expected_outputs, test_name, ""),
-                score: 0.0,
-                passed: false,
-                error: inspect(error)
-              }}
-          end
-        end)
-        |> Enum.into(%{})
-
-      # Calculate overall score
-      scores = results
-        |> Enum.map(fn {_name, result} -> Map.get(result, :score, 0.0) end)
-
-      overall_score = if Enum.empty?(scores) do
-        0.0
-      else
-        Enum.sum(scores) / length(scores)
-      end
-
-      # Mark as completed
-      eval_run
-      |> EvalRun.complete_changeset(results, overall_score)
-      |> Repo.update()
-
-    rescue
-      error ->
-        # Mark as failed
-        eval_run
-        |> EvalRun.fail_changeset(inspect(error))
-        |> Repo.update()
-    end
-  end
-
-  # Simple similarity scoring - in a real implementation you might want
-  # to use more sophisticated methods like semantic similarity
-  defp calculate_similarity_score(actual, expected) when is_binary(actual) and is_binary(expected) do
-    actual_words = String.split(String.downcase(actual))
-    expected_words = String.split(String.downcase(expected))
-
-    if Enum.empty?(expected_words) do
-      1.0
-    else
-      common_words = MapSet.intersection(MapSet.new(actual_words), MapSet.new(expected_words))
-      MapSet.size(common_words) / length(expected_words)
-    end
-  end
-
-  defp calculate_similarity_score(_, _), do: 0.0
 end
