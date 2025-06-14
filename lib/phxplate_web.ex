@@ -120,6 +120,7 @@ defmodule PhxplateWeb do
         Tabs,
         Textarea,
         Toggle,
+        ToggleGroup,
         Tooltip
       }
 

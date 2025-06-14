@@ -39,6 +39,7 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
 
   def handle_info({:created, %{type: :employee, employee: employee}}, socket) do
     current_user = socket.assigns.current_user
+
     if employee.email == current_user.email do
       {:noreply, assign_layout_data(socket)}
     else
@@ -60,7 +61,7 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
     current_user = socket.assigns.current_user
 
     if company.owner_id == current_user.id ||
-       Enum.any?(company.employees, &(&1.email == current_user.email)) do
+         Enum.any?(company.employees, &(&1.email == current_user.email)) do
       {:noreply, assign_layout_data(socket)}
     else
       {:noreply, socket}
@@ -73,6 +74,7 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
 
   def handle_info({:created, %{type: :bookmark, bookmark: bookmark}}, socket) do
     current_user = socket.assigns.current_user
+
     if bookmark.user_id == current_user.id do
       {:noreply, assign_layout_data(socket)}
     else
@@ -101,8 +103,9 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
     employee_companies = Companies.list_companies_by_employee(current_user.email)
 
     # Get bookmarked companies
-    bookmarked_companies = Bookmarks.list_user_bookmarks(current_user.id)
-    |> Enum.map(& &1.company)
+    bookmarked_companies =
+      Bookmarks.list_user_bookmarks(current_user.id)
+      |> Enum.map(& &1.company)
 
     # Combine and format all companies
     owned_company_ids = MapSet.new(owned_companies, & &1.id)
@@ -118,12 +121,14 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
       }
     end
 
-    all_companies = (owned_companies ++ employee_companies)
-    |> Enum.uniq_by(&(&1.id))
-    |> Enum.map(format_company)
+    all_companies =
+      (owned_companies ++ employee_companies)
+      |> Enum.uniq_by(& &1.id)
+      |> Enum.map(format_company)
 
-    bookmarked = bookmarked_companies
-    |> Enum.map(format_company)
+    bookmarked =
+      bookmarked_companies
+      |> Enum.map(format_company)
 
     all_nav_items = [
       %{
@@ -168,6 +173,30 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
             url: "/dashboard/super_admin"
           },
           %{
+            title: "Platform Blogs",
+            url: "/dashboard/super_admin/blogs"
+          }
+        ],
+        required_role: :super_admin
+      },
+      %{
+        title: "Company Management",
+        url: "#",
+        icon: &Lucideicons.briefcase_business/1,
+        items: [
+          %{
+            title: "Platform Companies",
+            url: "/dashboard/super_admin/companies"
+          },
+        ],
+        required_role: :super_admin
+      },
+      %{
+        title: "Customer Engagement",
+        url: "#",
+        icon: &Lucideicons.user/1,
+        items: [
+          %{
             title: "Support Chat",
             url: "/dashboard/super_admin/chat"
           },
@@ -176,57 +205,76 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
             url: "/dashboard/super_admin/feature-feedbacks"
           },
           %{
-            title: "Platform Blogs",
-            url: "/dashboard/super_admin/blogs"
-          },
-          %{
             title: "Platform Users",
             url: "/dashboard/super_admin/users"
-          },
-          %{
-            title: "Platform Companies",
-            url: "/dashboard/super_admin/companies"
-          },
+          }
+        ],
+        required_role: :super_admin
+      },
+      %{
+        title: "AI Management",
+        url: "#",
+        icon: &Lucideicons.bot/1,
+        items: [
           %{
             title: "AI Chat",
             url: "/dashboard/super_admin/ai-chat"
+          },
+          %{
+            title: "AI Prompts",
+            url: "/dashboard/super_admin/ai-prompts"
+          },
+          %{
+            title: "AI Evaluations",
+            url: "/dashboard/super_admin/ai-evals"
           }
         ],
         required_role: :super_admin
       }
     ]
 
-    nav_main = Enum.filter(all_nav_items, fn item ->
-      case item.required_role do
-        :basic -> User.is_basic?(current_user) or User.is_admin?(current_user) or User.is_super_admin?(current_user)
-        :admin -> User.is_admin?(current_user) or User.is_super_admin?(current_user)
-        :super_admin -> User.is_super_admin?(current_user)
-        _ -> false
+    nav_main =
+      Enum.filter(all_nav_items, fn item ->
+        case item.required_role do
+          :basic ->
+            User.is_basic?(current_user) or User.is_admin?(current_user) or
+              User.is_super_admin?(current_user)
+
+          :admin ->
+            User.is_admin?(current_user) or User.is_super_admin?(current_user)
+
+          :super_admin ->
+            User.is_super_admin?(current_user)
+
+          _ ->
+            false
+        end
+      end)
+
+    current_path =
+      case socket.private.connect_params do
+        %{"request_path" => path} -> path
+        _ -> "/dashboard"
       end
-    end)
 
-    current_path = case socket.private.connect_params do
-      %{"request_path" => path} -> path
-      _ -> "/dashboard"
-    end
-
-    user_data = if current_user.profile do
-      %{
-        id: current_user.id,
-        name: current_user.profile.first_name,
-        email: current_user.email,
-        role: current_user.role,
-        avatar: current_user.profile.avatar_url || ""
-      }
-    else
-      %{
-        id: current_user.id,
-        name: current_user.email,
-        email: current_user.email,
-        role: current_user.role,
-        avatar: ""
-      }
-    end
+    user_data =
+      if current_user.profile do
+        %{
+          id: current_user.id,
+          name: current_user.profile.first_name,
+          email: current_user.email,
+          role: current_user.role,
+          avatar: current_user.profile.avatar_url || ""
+        }
+      else
+        %{
+          id: current_user.id,
+          name: current_user.email,
+          email: current_user.email,
+          role: current_user.role,
+          avatar: ""
+        }
+      end
 
     layout_data = %{
       current_path: current_path,

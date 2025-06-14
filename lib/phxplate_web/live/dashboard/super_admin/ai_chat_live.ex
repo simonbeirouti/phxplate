@@ -7,36 +7,21 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
   """
   use PhxplateWeb, :live_view
   alias Phxplate.AI
+  alias Phxplate.AI.Models
   alias PhxplateWeb.PageMeta
   alias PhxplateWeb.Components.Markdown
   import PhxplateWeb.Components.UI.Drawer
-
-  @system_prompt """
-  You are a helpful AI assistant integrated into a Phoenix application.
-  You provide clear, concise, and accurate responses while maintaining a professional tone.
-  When discussing code or technical topics, you provide practical examples and explanations.
-  You are knowledgeable about Elixir, Phoenix, LiveView, and web development in general.
-  Keep your responses focused and relevant to the user's questions.
-  """
-
-  # Available Claude models with simplified names
-  @available_models [
-    {"Haiku 3", "claude-3-haiku-20240307"},
-    {"Sonnet 3", "claude-3-sonnet-20240229"},
-    {"Opus 3", "claude-3-opus-20240229"},
-    {"Haiku 3.5", "claude-3-5-haiku-20241022"},
-    {"Sonnet 3.5", "claude-3-5-sonnet-20241022"},
-    {"Sonnet 3.7", "claude-3-7-sonnet-20250219"},
-    {"Sonnet 4", "claude-sonnet-4-20250514"},
-    {"Opus 4", "claude-opus-4-20250514"}
-  ]
-
-  @default_model "Haiku 3.5"
+  import PhxplateWeb.Components.UI.DialogDrawerWrapper
+  import PhxplateWeb.Components.AI.ModelSelector
+  import PhxplateWeb.Components.AI.PromptSelector
 
   @impl true
   def mount(_params, _session, socket) do
     user_id = socket.assigns.current_user.id
     conversations = AI.list_conversations(user_id)
+    all_prompts = AI.list_prompts_for_chat()
+    all_evals = AI.list_evals()
+    default_system_prompt = AI.get_default_system_prompt()
 
     {:ok,
      socket
@@ -52,8 +37,18 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
      |> assign(:editing_title, nil)
      |> assign(:new_title, "")
      |> assign(:deleting_conversation, nil)
-     |> assign(:selected_model, @default_model)
-     |> assign(:available_models, @available_models)
+     |> assign(:selected_model, Models.default_model_display_name())
+     |> assign(:available_models, Models.available_models())
+     |> assign(:available_prompts, all_prompts)
+     |> assign(:available_evals, all_evals)
+     |> assign(:selected_eval, get_default_eval_selection(all_evals))
+     |> assign(:selected_system_prompt, get_default_system_prompt_name(all_prompts))
+     |> assign(:current_system_prompt, default_system_prompt)
+     |> assign(:show_prompt_viewer, false)
+     |> assign(:viewing_prompt, nil)
+     |> assign(:show_eval_viewer, false)
+     |> assign(:viewing_eval, nil)
+     |> assign(:screen_mode, "drawer")
      |> assign(:page_title, "AI Chat")
      |> PageMeta.assign_metadata(
        title: "AI Chat",
@@ -93,7 +88,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     user_id = socket.assigns.current_user.id
     title = "New Conversation"
 
-    case AI.create_conversation(user_id, title, @system_prompt) do
+    case AI.create_conversation(user_id, title, socket.assigns.current_system_prompt) do
       {:ok, conversation} ->
         conversations = AI.list_conversations(user_id)
 
@@ -122,6 +117,107 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
   def handle_event("select_model", %{"model" => short_name}, socket) do
     # Just update the selected model for future messages
     {:noreply, assign(socket, :selected_model, short_name)}
+  end
+
+  @impl true
+  def handle_event("select_system_prompt", %{"prompt_name" => prompt_name}, socket) do
+    # Handle the new prompt_name parameter - convert to get the actual prompt content
+    {selected_prompt, current_system_prompt} =
+      case prompt_name do
+        "Default System" ->
+          {"Default System", AI.get_default_system_prompt()}
+
+        name ->
+          case Enum.find(socket.assigns.available_prompts, &(&1.name == name)) do
+            nil -> {"Default System", AI.get_default_system_prompt()}
+            prompt -> {prompt.name, prompt.content}
+          end
+      end
+
+    {:noreply,
+     socket
+     |> assign(:selected_system_prompt, selected_prompt)
+     |> assign(:current_system_prompt, current_system_prompt)}
+  end
+
+  @impl true
+  def handle_event("view_current_prompt", _params, socket) do
+    viewing_prompt =
+      case socket.assigns.selected_system_prompt do
+        "Default System" ->
+          %{
+            name: "Default System",
+            description: "Built-in default system prompt",
+            content: socket.assigns.current_system_prompt,
+            category: "system"
+          }
+
+        prompt_name ->
+          case Enum.find(socket.assigns.available_prompts, &(&1.name == prompt_name)) do
+            nil ->
+              %{
+                name: "Default System",
+                description: "Built-in default system prompt",
+                content: AI.get_default_system_prompt(),
+                category: "system"
+              }
+
+            prompt ->
+              prompt
+          end
+      end
+
+    {:noreply,
+     socket
+     |> assign(:show_prompt_viewer, true)
+     |> assign(:viewing_prompt, viewing_prompt)}
+  end
+
+  @impl true
+  def handle_event("close_prompt_viewer", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_prompt_viewer, false)
+     |> assign(:viewing_prompt, nil)}
+  end
+
+  @impl true
+  def handle_event("set_screen_mode", %{"mode" => mode}, socket) do
+    {:noreply, assign(socket, :screen_mode, mode)}
+  end
+
+  @impl true
+  def handle_event("select_eval", %{"eval" => eval_name}, socket) do
+    {:noreply, assign(socket, :selected_eval, eval_name)}
+  end
+
+  @impl true
+  def handle_event("view_current_eval", _params, socket) do
+    viewing_eval =
+      case socket.assigns.selected_eval do
+        "No Eval Selected" ->
+          nil
+
+        name ->
+          Enum.find(socket.assigns.available_evals, &(&1.name == name))
+      end
+
+    if viewing_eval do
+      {:noreply,
+       socket
+       |> assign(:show_eval_viewer, true)
+       |> assign(:viewing_eval, viewing_eval)}
+    else
+      {:noreply, put_flash(socket, :info, "No evaluation selected to view")}
+    end
+  end
+
+  @impl true
+  def handle_event("close_eval_viewer", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_eval_viewer, false)
+     |> assign(:viewing_eval, nil)}
   end
 
   @impl true
@@ -263,7 +359,13 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
 
         Task.start(fn ->
           selected_model_api_id = get_model_api_id(socket.assigns.selected_model)
-          case AI.stream_chat_in_conversation(conversation.id, user_id, String.trim(message), selected_model_api_id) do
+
+          case AI.stream_chat_in_conversation(
+                 conversation.id,
+                 user_id,
+                 String.trim(message),
+                 selected_model_api_id
+               ) do
             {:ok, stream, _conversation, model_api_id} ->
               accumulated_response =
                 stream
@@ -316,7 +418,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     end)
 
     # Check if this is the first AI response in the conversation (for auto-naming)
-    is_first_response = length(socket.assigns.messages) == 1  # Only user message exists
+    # Only user message exists
+    is_first_response = length(socket.assigns.messages) == 1
 
     # Add the complete streamed message to the chat display
     ai_message = %{
@@ -331,13 +434,16 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     # Auto-generate title if this is the first response
     if is_first_response and socket.assigns.current_conversation do
       user_message = List.first(socket.assigns.messages)
+
       if user_message && user_message.role == "user" do
         user_id = socket.assigns.current_user.id
         pid = self()
+
         Task.start(fn ->
           case AI.auto_generate_conversation_title(conversation_id, user_id, user_message.content) do
             {:ok, updated_conversation} ->
               send(pid, {:title_generated, updated_conversation})
+
             {:error, _reason} ->
               # Silently fail - the conversation will keep its default title
               :ok
@@ -385,12 +491,13 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     conversations = AI.list_conversations(user_id)
 
     # Update current conversation if it matches
-    current_conversation = if socket.assigns.current_conversation &&
-                             socket.assigns.current_conversation.id == updated_conversation.id do
-      updated_conversation
-    else
-      socket.assigns.current_conversation
-    end
+    current_conversation =
+      if socket.assigns.current_conversation &&
+           socket.assigns.current_conversation.id == updated_conversation.id do
+        updated_conversation
+      else
+        socket.assigns.current_conversation
+      end
 
     {:noreply,
      socket
@@ -398,36 +505,42 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
      |> assign(:current_conversation, current_conversation)}
   end
 
-  # Helper function to convert between short names and API model IDs
-  defp get_model_api_id(short_name) do
-    model_mapping = %{
-      "Haiku 3" => "claude-3-haiku-20240307",
-      "Sonnet 3" => "claude-3-sonnet-20240229",
-      "Opus 3" => "claude-3-opus-20240229",
-      "Haiku 3.5" => "claude-3-5-haiku-20241022",
-      "Sonnet 3.5" => "claude-3-5-sonnet-20241022",
-      "Sonnet 3.7" => "claude-3-7-sonnet-20250219",
-      "Sonnet 4" => "claude-sonnet-4-20250514",
-      "Opus 4" => "claude-opus-4-20250514"
-    }
+  # Helper function to get default system prompt name
+  defp get_default_system_prompt_name(prompts) do
+    system_prompts = Enum.filter(prompts, &(&1.category == "system"))
 
-    Map.get(model_mapping, short_name, short_name)
+    case system_prompts do
+      [] -> "Default System"
+      [first_prompt | _] -> first_prompt.name
+    end
+  end
+
+  # Helper function to get default system prompt ID (kept for backward compatibility)
+  defp get_default_system_prompt_id(prompts) do
+    system_prompts = Enum.filter(prompts, &(&1.category == "system"))
+
+    case system_prompts do
+      [] -> ""  # Empty string for "Default System"
+      [first_prompt | _] -> to_string(first_prompt.id)
+    end
+  end
+
+  # Helper function to get default eval selection
+  defp get_default_eval_selection(evals) do
+    case evals do
+      [] -> "No Eval Selected"
+      [first_eval | _] -> first_eval.name
+    end
+  end
+
+  # Helper function to convert between short names and API model IDs
+  defp get_model_api_id(display_name) do
+    Models.get_api_id(display_name)
   end
 
   # Helper function to convert from API model ID to short name
   defp get_model_short_name(api_id) do
-    model_mapping = %{
-      "claude-3-haiku-20240307" => "Haiku 3",
-      "claude-3-sonnet-20240229" => "Sonnet 3",
-      "claude-3-opus-20240229" => "Opus 3",
-      "claude-3-5-haiku-20241022" => "Haiku 3.5",
-      "claude-3-5-sonnet-20241022" => "Sonnet 3.5",
-      "claude-3-7-sonnet-20250219" => "Sonnet 3.7",
-      "claude-sonnet-4-20250514" => "Sonnet 4",
-      "claude-opus-4-20250514" => "Opus 4"
-    }
-
-    Map.get(model_mapping, api_id, api_id)
+    Models.get_display_name(api_id)
   end
 
   # Helper function to convert database messages to display format
@@ -455,6 +568,146 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     else
       title
     end
+  end
+
+  # Component for viewing prompt content
+  defp prompt_viewer_content(assigns) do
+    ~H"""
+    <div class="space-y-6">
+      <div class="flex items-start justify-between">
+        <div>
+          <h2 class="text-xl font-semibold text-gray-900">{@prompt.name}</h2>
+          <span class="inline-flex px-2 py-1 text-sm font-semibold rounded-full bg-gray-100 text-gray-800 mt-2">
+            {String.replace(@prompt.category, "_", " ")
+            |> String.split()
+            |> Enum.map(&String.capitalize/1)
+            |> Enum.join(" ")}
+          </span>
+        </div>
+      </div>
+
+      <%= if Map.get(@prompt, :description) do %>
+        <div>
+          <h3 class="text-sm font-medium text-gray-900 mb-2">Description</h3>
+          <p class="text-sm text-gray-600">{@prompt.description}</p>
+        </div>
+      <% end %>
+
+      <div>
+        <h3 class="text-sm font-medium text-gray-900 mb-2">Prompt Content</h3>
+        <div class="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+          <pre class="text-sm text-gray-800 whitespace-pre-wrap font-mono">{@prompt.content}</pre>
+        </div>
+      </div>
+
+      <div class="flex justify-end pt-4 border-t border-gray-200">
+        <.button variant="outline" phx-click="close_prompt_viewer" class="w-full">
+          Close
+        </.button>
+      </div>
+    </div>
+    """
+  end
+
+  # Component for viewing eval content
+  defp eval_viewer_content(assigns) do
+    ~H"""
+    <div class="space-y-6">
+      <div class="flex items-start justify-between">
+        <div>
+          <h2 class="text-xl font-semibold text-gray-900">{@eval.name}</h2>
+          <span class={[
+            "inline-flex px-3 py-1 text-sm font-semibold rounded-full mt-2",
+            if(@eval.is_active,
+              do: "bg-green-100 text-green-800",
+              else: "bg-red-100 text-red-800"
+            )
+          ]}>
+            {if @eval.is_active, do: "Active", else: "Inactive"}
+          </span>
+        </div>
+      </div>
+
+      <%= if @eval.description do %>
+        <div>
+          <h3 class="text-sm font-medium text-gray-900 mb-2">Description</h3>
+          <p class="text-sm text-gray-600">{@eval.description}</p>
+        </div>
+      <% end %>
+
+      <div>
+        <h3 class="text-sm font-medium text-gray-900 mb-2">Test Cases</h3>
+        <div class="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
+          <%= if map_size(@eval.test_cases) > 0 do %>
+            <%= for {test_name, test_input} <- @eval.test_cases do %>
+              <div class="mb-4 last:mb-0">
+                <h4 class="text-sm font-medium text-gray-800 mb-1">{test_name}</h4>
+                <p class="text-sm text-gray-600 bg-white p-2 rounded border">
+                  {test_input}
+                </p>
+              </div>
+            <% end %>
+          <% else %>
+            <p class="text-sm text-gray-500 italic">No test cases defined</p>
+          <% end %>
+        </div>
+      </div>
+
+      <%= if @eval.expected_outputs && map_size(@eval.expected_outputs) > 0 do %>
+        <div>
+          <h3 class="text-sm font-medium text-gray-900 mb-2">Expected Outputs</h3>
+          <div class="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
+            <%= for {test_name, expected_output} <- @eval.expected_outputs do %>
+              <div class="mb-4 last:mb-0">
+                <h4 class="text-sm font-medium text-gray-800 mb-1">{test_name}</h4>
+                <p class="text-sm text-gray-600 bg-white p-2 rounded border">
+                  {expected_output}
+                </p>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <%= if @eval.evaluation_criteria do %>
+        <div>
+          <h3 class="text-sm font-medium text-gray-900 mb-2">Evaluation Criteria</h3>
+          <div class="bg-gray-50 rounded-lg p-4">
+            <p class="text-sm text-gray-800 whitespace-pre-wrap">{@eval.evaluation_criteria}</p>
+          </div>
+        </div>
+      <% end %>
+
+      <div class="flex justify-end pt-4 border-t border-gray-200">
+        <.button variant="outline" phx-click="close_eval_viewer" class="w-full">
+          Close
+        </.button>
+      </div>
+    </div>
+    """
+  end
+
+  # Component for eval selector
+  defp eval_selector(assigns) do
+    ~H"""
+    <div class="flex items-center gap-2">
+      <form phx-change={@on_change}>
+        <.select :let={select} id="eval-select" name="eval" value={@selected_eval}>
+          <.select_trigger builder={select} class={@class} />
+          <.select_content class={@class} builder={select}>
+            <.select_item builder={select} value="No Eval Selected" label="No Eval Selected">
+              No Eval Selected
+            </.select_item>
+            <%= for eval <- @available_evals do %>
+              <.select_item builder={select} value={eval.name} label={eval.name}>
+                {String.slice(eval.name, 0, 20)}{if String.length(eval.name) > 20, do: "..."}
+              </.select_item>
+            <% end %>
+          </.select_content>
+        </.select>
+      </form>
+    </div>
+    """
   end
 
   # Component for rendering conversation list (used in both sidebar and drawer)
@@ -510,7 +763,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                 </div>
               </div>
 
-    <!-- Action buttons (shown on hover) -->
               <div class="absolute top-4 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                 <.button
                   phx-click="start_edit_title"
@@ -551,13 +803,11 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
   def render(assigns) do
     ~H"""
     <div class="flex h-[calc(100vh-90px)]">
-      <!-- Desktop Sidebar -->
       <div class={[
         "hidden md:flex bg-white transition-all duration-300 bg-blue-100 flex-shrink-0",
         if(@sidebar_open, do: "w-80", else: "w-0 overflow-hidden")
       ]}>
         <div class="h-full flex flex-col w-full">
-          <!-- Conversations List -->
           <div class="flex-1 overflow-y-auto">
             <.conversation_list
               conversations={@conversations}
@@ -570,7 +820,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
         </div>
       </div>
 
-    <!-- Mobile History Drawer -->
       <.drawer
         show={@show_mobile_drawer}
         on_cancel={JS.push("hide_mobile_history")}
@@ -596,11 +845,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
         </.drawer_content>
       </.drawer>
 
-    <!-- Main Chat Area -->
       <div class="flex-1 flex flex-col min-w-0">
         <.header class="ml-2">
           <div class="flex items-center">
-            <!-- Desktop sidebar toggle -->
             <button
               phx-click="toggle_sidebar"
               class="hidden md:flex -ml-2 p-2 text-gray-400 hover:text-gray-600 rounded-lg"
@@ -617,22 +864,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
             <% end %>
           </:subtitle>
           <:actions>
-            <!-- Model Selector -->
             <div class="flex items-center gap-3">
-              <div class="flex items-center gap-2">
-                <form phx-change="select_model">
-                  <.select :let={select} id="model-select" name="model" value={@selected_model}>
-                    <.select_trigger builder={select} class="w-[140px]" />
-                    <.select_content class="w-[140px]" builder={select}>
-                      <%= for {name, _api_id} <- @available_models do %>
-                        <.select_item builder={select} value={name} label={name}>
-                          {name}
-                        </.select_item>
-                      <% end %>
-                    </.select_content>
-                  </.select>
-                </form>
-              </div>
+              <.model_selector
+                selected_model={@selected_model}
+                on_change="select_model"
+                class="w-[140px]"
+              />
               <.button phx-click="new_conversation" class="bg-black hover:bg-gray-800">
                 <Lucideicons.plus class="h-4 w-4 mr-2" /> New Chat
               </.button>
@@ -640,8 +877,47 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
           </:actions>
         </.header>
 
-        <div class="flex-1 mt-4 bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col min-h-0">
-          <!-- Chat Messages Area -->
+        <div class="mt-4 mb-4 space-y-3">
+          <div class="flex items-center gap-2 h-10">
+            <.prompt_selector
+              available_prompts={@available_prompts}
+              selected_prompt={@selected_system_prompt}
+              on_change="select_system_prompt"
+              class="w-[200px]"
+              id="system-prompt-select"
+            />
+            <.button
+              variant="outline"
+              size="sm"
+              class="h-full"
+              phx-click="view_current_prompt"
+              title="View current system prompt"
+            >
+              <Lucideicons.eye class="h-4 w-4" />
+            </.button>
+          </div>
+
+          <div class="flex items-center gap-2 h-10">
+            <.eval_selector
+              available_evals={@available_evals}
+              selected_eval={@selected_eval}
+              on_change="select_eval"
+              class="w-[200px]"
+            />
+            <.button
+              variant="outline"
+              size="sm"
+              class="h-full"
+              phx-click="view_current_eval"
+              title="View current evaluation"
+              disabled={@selected_eval == "No Eval Selected"}
+            >
+              <Lucideicons.eye class="h-4 w-4" />
+            </.button>
+          </div>
+        </div>
+
+        <div class="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col min-h-0">
           <div class="flex-1 overflow-y-auto p-4 space-y-4" id="chat-messages">
             <%= if Enum.empty?(@messages) do %>
               <div class="text-center text-gray-500 mt-8">
@@ -655,6 +931,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                 </p>
                 <p class="text-sm mt-2">
                   Current model: <span class="font-medium">{@selected_model}</span>
+                </p>
+                <p class="text-xs text-gray-400 mt-1">
+                  System prompt: <span class="font-medium">{@selected_system_prompt}</span>
+                </p>
+                <p class="text-xs text-gray-400 mt-1">
+                  Evaluation: <span class="font-medium">{@selected_eval}</span>
                 </p>
               </div>
             <% else %>
@@ -700,7 +982,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                       <%= case message.role do %>
                         <% "assistant" -> %>
                           <div class="mt-1 prose prose-md max-w-none prose-gray prose-headings:text-gray-900 prose-code:text-gray-100 prose-code:bg-gray-800 prose-code:px-1.5 prose-code:py-1 prose-code:rounded prose-code:text-sm prose-code:font-medium prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-pre:text-sm prose-pre:p-4 prose-pre:rounded-lg prose-blockquote:border-l-gray-300">
-                            <%= Markdown.to_html(message.content) %>
+                            {Markdown.to_html(message.content)}
                           </div>
                         <% _ -> %>
                           <div class="whitespace-pre-line -mt-5">
@@ -726,7 +1008,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                   <%= if @current_stream != "" do %>
                     <div class="break-words">
                       <div class="mt-1 prose prose-md max-w-none prose-gray prose-headings:text-gray-900 prose-code:text-gray-100 prose-code:bg-gray-800 prose-code:px-1.5 prose-code:py-1 prose-code:rounded prose-code:text-sm prose-code:font-medium prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-pre:text-sm prose-pre:p-4 prose-pre:rounded-lg prose-blockquote:border-l-gray-300">
-                        <%= Markdown.to_html(@current_stream) %>
+                        {Markdown.to_html(@current_stream)}
                       </div>
                     </div>
                   <% end %>
@@ -749,10 +1031,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
             <% end %>
           </div>
 
-          <!-- Input Area -->
           <div class="border-t border-gray-200 px-4 pb-2 flex-shrink-0">
             <.form for={%{}} as={:chat_form} phx-submit="send_message" class="flex items-center gap-3">
-              <!-- Mobile History Button -->
               <.button
                 type="button"
                 phx-click="show_mobile_history"
@@ -786,8 +1066,33 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
       </div>
     </div>
 
+    <.dialog_drawer_wrapper
+      :if={@show_prompt_viewer && @viewing_prompt}
+      id="prompt-viewer-wrapper"
+      show={@show_prompt_viewer}
+      hook="DialogDrawerMode"
+      mode={@screen_mode}
+      on_cancel={JS.push("close_prompt_viewer")}
+      name="System Prompt Details"
+      description="View the current system prompt content"
+    >
+      <.prompt_viewer_content prompt={@viewing_prompt} />
+    </.dialog_drawer_wrapper>
+
+    <.dialog_drawer_wrapper
+      :if={@show_eval_viewer && @viewing_eval}
+      id="eval-viewer-wrapper"
+      show={@show_eval_viewer}
+      hook="DialogDrawerMode"
+      mode={@screen_mode}
+      on_cancel={JS.push("close_eval_viewer")}
+      name="Evaluation Details"
+      description="View the current evaluation test cases and criteria"
+    >
+      <.eval_viewer_content eval={@viewing_eval} />
+    </.dialog_drawer_wrapper>
+
     <script>
-      // Auto-scroll to bottom when new messages arrive
       window.addEventListener('phx:update', () => {
         const chatMessages = document.getElementById('chat-messages');
         if (chatMessages) {

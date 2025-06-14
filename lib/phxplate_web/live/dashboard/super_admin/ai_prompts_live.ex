@@ -1,0 +1,682 @@
+defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
+  @moduledoc """
+  LiveView for managing AI prompts.
+
+  This view provides functionality for super admins to create, edit, and manage
+  AI prompts with categorization, search, and pagination.
+  """
+  use PhxplateWeb, :live_view
+  alias Phxplate.AI
+  alias Phxplate.AI.{Prompt, Models}
+  alias PhxplateWeb.PageMeta
+  import PhxplateWeb.Components.UI.DialogDrawerWrapper
+  import PhxplateWeb.Components.AI.ModelSelector
+
+  @impl true
+  def mount(_params, _session, socket) do
+    {:ok,
+     socket
+     |> assign(:show_drawer, false)
+     |> assign(:drawer_mode, "create")
+     |> assign(:selected_item, nil)
+     |> assign(:selected_model, Models.default_model_display_name())
+     |> assign(:category_filter, "all")
+     |> assign(:page, 1)
+     |> assign(:per_page, 12)
+     |> assign(:prompts, [])
+     |> assign(:total_pages, 1)
+     |> assign(:total_count, 0)
+     |> assign(:screen_mode, "drawer")
+     |> assign(:delete_prompt_id, nil)
+     |> load_prompts()
+     |> PageMeta.assign_metadata(
+       title: "AI Prompts",
+       description: "Manage AI prompts",
+       url: "/dashboard/super_admin/ai-prompts"
+     )}
+  end
+
+  @impl true
+  def handle_params(params, url, socket) do
+    uri = URI.parse(url)
+    socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
+
+    page = String.to_integer(Map.get(params, "page", "1"))
+
+    {:noreply,
+     socket
+     |> assign(:page, page)
+     |> load_prompts()}
+  end
+
+  @impl true
+  def handle_event("select_model", %{"model" => model}, socket) do
+    {:noreply, assign(socket, :selected_model, model)}
+  end
+
+  @impl true
+  def handle_event("set_screen_mode", %{"mode" => mode}, socket) do
+    {:noreply, assign(socket, :screen_mode, mode)}
+  end
+
+  @impl true
+  def handle_event("form_change", %{"prompt" => prompt_params}, socket) do
+    changeset =
+      case socket.assigns.selected_item do
+        %Ecto.Changeset{data: data} -> Prompt.changeset(data, prompt_params)
+        item -> Prompt.changeset(item, prompt_params)
+      end
+
+    {:noreply, assign(socket, :selected_item, changeset)}
+  end
+
+  @impl true
+  def handle_event("category_changed", %{"value" => category}, socket) do
+    # Update the changeset with the selected category
+    current_data =
+      case socket.assigns.selected_item do
+        %Ecto.Changeset{data: data, changes: changes} ->
+          Map.merge(data, changes)
+
+        item ->
+          item
+      end
+
+    changeset = Prompt.changeset(current_data, %{"category" => category})
+
+    {:noreply, assign(socket, :selected_item, changeset)}
+  end
+
+  @impl true
+  def handle_event("status_changed", %{"value" => value}, socket) do
+    # Convert string to boolean
+    is_active =
+      case value do
+        "true" -> true
+        "false" -> false
+        _ -> true
+      end
+
+    # Update the changeset with the selected status
+    current_data =
+      case socket.assigns.selected_item do
+        %Ecto.Changeset{data: data, changes: changes} ->
+          Map.merge(data, changes)
+
+        item ->
+          item
+      end
+
+    changeset = Prompt.changeset(current_data, %{"is_active" => is_active})
+
+    {:noreply, assign(socket, :selected_item, changeset)}
+  end
+
+  @impl true
+  def handle_event("filter_category", %{"category" => category}, socket) do
+    {:noreply,
+     socket
+     |> assign(:category_filter, category)
+     |> assign(:page, 1)
+     |> load_prompts()}
+  end
+
+  @impl true
+  def handle_event("toggle_category", %{"category_toggle" => category}, socket) do
+    {:noreply,
+     socket
+     |> assign(:category_filter, category)
+     |> assign(:page, 1)
+     |> load_prompts()}
+  end
+
+  @impl true
+  def handle_event("create_prompt", _params, socket) do
+    # Pre-populate category based on current filter and set default active status
+    initial_attrs =
+      case socket.assigns.category_filter do
+        "all" -> %{"is_active" => true}
+        category -> %{"category" => category, "is_active" => true}
+      end
+
+    initial_prompt = %Prompt{}
+    changeset = Prompt.changeset(initial_prompt, initial_attrs)
+
+    {:noreply,
+     socket
+     |> assign(:show_drawer, true)
+     |> assign(:drawer_mode, "create_prompt")
+     |> assign(:selected_item, changeset)}
+  end
+
+  @impl true
+  def handle_event("view_prompt", %{"id" => id}, socket) do
+    prompt = AI.get_prompt_with_creator(id)
+
+    {:noreply,
+     socket
+     |> assign(:show_drawer, true)
+     |> assign(:drawer_mode, "view_prompt")
+     |> assign(:selected_item, prompt)}
+  end
+
+  @impl true
+  def handle_event("edit_prompt", %{"id" => id}, socket) do
+    prompt = AI.get_prompt_with_creator(id)
+
+    {:noreply,
+     socket
+     |> assign(:show_drawer, true)
+     |> assign(:drawer_mode, "edit_prompt")
+     |> assign(:selected_item, prompt)}
+  end
+
+  @impl true
+  def handle_event("close_drawer", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_drawer, false)
+     |> assign(:selected_item, nil)}
+  end
+
+  @impl true
+  def handle_event("save_prompt", %{"prompt" => prompt_params}, socket) do
+    current_user = socket.assigns.current_user
+    prompt_params = Map.put(prompt_params, "created_by", current_user.id)
+
+    case socket.assigns.drawer_mode do
+      "create_prompt" ->
+        case AI.create_prompt(prompt_params) do
+          {:ok, _prompt} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Prompt created successfully")
+             |> assign(:show_drawer, false)
+             |> load_prompts()}
+
+          {:error, changeset} ->
+            {:noreply,
+             socket
+             |> assign(:selected_item, %Prompt{} |> Prompt.changeset(prompt_params))
+             |> put_flash(:error, "Failed to create prompt")}
+        end
+
+      "edit_prompt" ->
+        case AI.update_prompt(socket.assigns.selected_item, prompt_params) do
+          {:ok, _prompt} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Prompt updated successfully")
+             |> assign(:show_drawer, false)
+             |> load_prompts()}
+
+          {:error, changeset} ->
+            {:noreply,
+             socket
+             |> assign(:selected_item, changeset)
+             |> put_flash(:error, "Failed to update prompt")}
+        end
+    end
+  end
+
+  @impl true
+  def handle_event("prepare_delete", %{"id" => id}, socket) do
+    {:noreply, assign(socket, :delete_prompt_id, String.to_integer(id))}
+  end
+
+  @impl true
+  def handle_event("cancel_delete", _params, socket) do
+    {:noreply, assign(socket, :delete_prompt_id, nil)}
+  end
+
+  @impl true
+  def handle_event("confirm_delete", %{"id" => id}, socket) do
+    prompt = AI.get_prompt(id)
+
+    case AI.delete_prompt(prompt) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign(:delete_prompt_id, nil)
+         |> put_flash(:info, "Prompt deleted successfully")
+         |> load_prompts()}
+
+      {:error, _} ->
+        {:noreply,
+         socket
+         |> assign(:delete_prompt_id, nil)
+         |> put_flash(:error, "Failed to delete prompt")}
+    end
+  end
+
+  @impl true
+  def handle_event("paginate", %{"page" => page}, socket) do
+    page = String.to_integer(page)
+
+    {:noreply,
+     socket
+     |> assign(:page, page)
+     |> load_prompts()
+     |> push_patch(to: ~p"/dashboard/super_admin/ai-prompts?page=#{page}")}
+  end
+
+  defp load_prompts(socket) do
+    opts = [
+      category: socket.assigns.category_filter
+    ]
+
+    result = AI.list_prompts(socket.assigns.page, socket.assigns.per_page, opts)
+
+    socket
+    |> assign(:prompts, result.prompts)
+    |> assign(:total_pages, result.total_pages)
+    |> assign(:total_count, result.total_count)
+  rescue
+    # Handle case where tables don't exist yet
+    _ ->
+      socket
+      |> assign(:prompts, [])
+      |> assign(:total_pages, 1)
+      |> assign(:total_count, 0)
+  end
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <div class="flex-1 h-[calc(100vh-100px)]">
+      <.header>
+        AI Prompts
+        <:subtitle>Manage AI prompts</:subtitle>
+        <:actions>
+          <div class="flex items-center gap-3">
+            <.model_selector
+              selected_model={@selected_model}
+              on_change="select_model"
+              class="w-[140px]"
+            />
+            <.button phx-click="create_prompt" class="bg-black hover:bg-gray-800">
+              <Lucideicons.plus class="h-4 w-4 mr-2 hidden sm:inline" />
+              <span class="hidden sm:inline">New Prompt</span>
+              <Lucideicons.plus class="h-4 w-4 sm:hidden" />
+            </.button>
+          </div>
+        </:actions>
+      </.header>
+
+    <!-- Filters -->
+      <div class="mt-4">
+        <div class="flex justify-start flex-wrap gap-2">
+          <.button
+            variant={if @category_filter == "all", do: "default", else: "outline"}
+            size="sm"
+            phx-click="toggle_category"
+            phx-value-category_toggle="all"
+            class="px-3 py-2"
+          >
+            All Categories
+          </.button>
+          <%= for category <- Prompt.categories() do %>
+            <.button
+              variant={if @category_filter == category, do: "default", else: "outline"}
+              size="sm"
+              phx-click="toggle_category"
+              phx-value-category_toggle={category}
+              class="px-3 py-2"
+            >
+              {Prompt.format_category(category)}
+            </.button>
+          <% end %>
+        </div>
+      </div>
+
+    <!-- Content -->
+      <div class="mt-6">
+        <%= if Enum.empty?(@prompts) do %>
+          <.empty_state
+            title="No prompts found"
+            description="Get started by creating your first AI prompt."
+            action_text="Create Prompt"
+            action_event="create_prompt"
+          />
+        <% else %>
+          <.prompts_grid prompts={@prompts} delete_prompt_id={@delete_prompt_id} />
+        <% end %>
+      </div>
+
+    <!-- Pagination -->
+      <%= if @total_pages > 1 do %>
+        <div class="mt-6">
+          <.pagination>
+            <.pagination_content class="w-full flex justify-center items-center">
+              <%= if @page > 1 do %>
+                <.pagination_item>
+                  <.pagination_link phx-click="paginate" phx-value-page={@page - 1}>
+                    <Lucideicons.arrow_left class="w-3.5 h-3.5" />
+                  </.pagination_link>
+                </.pagination_item>
+              <% end %>
+
+              <%= for page_num <- max(1, @page - 2)..min(@total_pages, @page + 2) do %>
+                <.pagination_item>
+                  <.pagination_link
+                    phx-click="paginate"
+                    phx-value-page={page_num}
+                    is-active={page_num == @page}
+                  >
+                    {page_num}
+                  </.pagination_link>
+                </.pagination_item>
+              <% end %>
+
+              <%= if @page < @total_pages do %>
+                <.pagination_item>
+                  <.pagination_link phx-click="paginate" phx-value-page={@page + 1}>
+                    <Lucideicons.arrow_right class="w-3.5 h-3.5" />
+                  </.pagination_link>
+                </.pagination_item>
+              <% end %>
+            </.pagination_content>
+          </.pagination>
+        </div>
+      <% end %>
+
+    <!-- Dialog/Drawer Wrapper -->
+      <.dialog_drawer_wrapper
+        :if={@show_drawer}
+        id="ai-prompts-wrapper"
+        show={@show_drawer}
+        hook="DialogDrawerMode"
+        mode={@screen_mode}
+        on_cancel={JS.push("close_drawer")}
+        name={get_drawer_title(@drawer_mode)}
+        description={get_drawer_description(@drawer_mode)}
+      >
+        <%= case @drawer_mode do %>
+          <% "view_prompt" -> %>
+            <.prompt_view item={@selected_item} />
+          <% mode when mode in ["create_prompt", "edit_prompt"] -> %>
+            <.prompt_form item={@selected_item} mode={@drawer_mode} />
+        <% end %>
+      </.dialog_drawer_wrapper>
+    </div>
+    """
+  end
+
+  defp get_drawer_title("create_prompt"), do: "Create New Prompt"
+  defp get_drawer_title("edit_prompt"), do: "Edit Prompt"
+  defp get_drawer_title("view_prompt"), do: "View Prompt"
+
+  defp get_drawer_description("create_prompt"), do: "Create a new AI prompt for your collection"
+  defp get_drawer_description("edit_prompt"), do: "Edit the selected AI prompt"
+  defp get_drawer_description("view_prompt"), do: "View prompt details and content"
+
+  defp empty_state(assigns) do
+    ~H"""
+    <div class="text-center py-12">
+      <div class="mx-auto h-12 w-12 text-gray-400">
+        <Lucideicons.message_square class="h-12 w-12" />
+      </div>
+      <h3 class="mt-2 text-sm font-medium text-gray-900">{@title}</h3>
+      <p class="mt-1 text-sm text-gray-500">{@description}</p>
+      <div class="mt-6">
+        <.button phx-click={@action_event} class="bg-black hover:bg-gray-800">
+          <Lucideicons.plus class="h-4 w-4 mr-2" />
+          {@action_text}
+        </.button>
+      </div>
+    </div>
+    """
+  end
+
+  defp prompts_grid(assigns) do
+    ~H"""
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <%= for prompt <- @prompts do %>
+        <div class="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
+          <div class="p-6">
+            <!-- Header with title and category -->
+            <div class="flex items-start justify-between mb-3">
+              <h3 class="text-lg font-semibold text-gray-900 truncate pr-2">
+                {prompt.name}
+              </h3>
+              <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800 whitespace-nowrap">
+                {Prompt.format_category(prompt.category)}
+              </span>
+            </div>
+
+    <!-- Description -->
+            <%= if prompt.description do %>
+              <p class="text-sm text-gray-600 mb-4 line-clamp-3">
+                {String.slice(prompt.description, 0, 250)}{if String.length(prompt.description) > 250,
+                  do: "..."}
+              </p>
+            <% else %>
+              <p class="text-sm text-gray-400 mb-4 italic">No description provided</p>
+            <% end %>
+
+    <!-- Metadata -->
+            <div class="flex items-center justify-between text-xs text-gray-500 mb-4">
+              <span>
+                By {if prompt.created_by_user, do: prompt.created_by_user.email, else: "System"}
+              </span>
+              <span>
+                {Calendar.strftime(prompt.inserted_at, "%b %d, %Y")}
+              </span>
+            </div>
+
+    <!-- Status -->
+            <div class="flex items-center justify-between">
+              <span class={[
+                "inline-flex px-2 py-1 text-xs font-semibold rounded-full",
+                if(prompt.is_active,
+                  do: "bg-green-100 text-green-800",
+                  else: "bg-red-100 text-red-800"
+                )
+              ]}>
+                {if prompt.is_active, do: "Active", else: "Inactive"}
+              </span>
+
+    <!-- Actions -->
+              <div class="flex items-center space-x-1">
+                <.button variant="outline" size="sm" phx-click="view_prompt" phx-value-id={prompt.id}>
+                  <Lucideicons.eye class="h-4 w-4" />
+                </.button>
+                <.button variant="outline" size="sm" phx-click="edit_prompt" phx-value-id={prompt.id}>
+                  <Lucideicons.pencil class="h-4 w-4" />
+                </.button>
+                <%= if @delete_prompt_id && @delete_prompt_id == prompt.id do %>
+                  <.button
+                    variant="destructive"
+                    size="sm"
+                    phx-click="confirm_delete"
+                    phx-value-id={prompt.id}
+                    title="Click to confirm deletion"
+                  >
+                    <Lucideicons.check class="h-4 w-4" />
+                  </.button>
+                  <.button
+                    variant="outline"
+                    size="sm"
+                    phx-click="cancel_delete"
+                    title="Cancel deletion"
+                  >
+                    <Lucideicons.x class="h-4 w-4" />
+                  </.button>
+                <% else %>
+                  <.button
+                    variant="outline"
+                    size="sm"
+                    phx-click="prepare_delete"
+                    phx-value-id={prompt.id}
+                    title="Delete prompt"
+                  >
+                    <Lucideicons.trash_2 class="h-4 w-4" />
+                  </.button>
+                <% end %>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+    """
+  end
+
+  defp prompt_view(assigns) do
+    ~H"""
+    <div class="space-y-6">
+
+      <div class="flex items-start justify-between">
+        <div>
+          <h2 class="text-xl font-semibold text-gray-900">{@item.name}</h2>
+          <span class="inline-flex px-2 py-1 text-sm font-semibold rounded-full bg-gray-100 text-gray-800 mt-2">
+            {Prompt.format_category(@item.category)}
+          </span>
+        </div>
+        <span class={[
+          "inline-flex px-3 py-1 text-sm font-semibold rounded-full",
+          if(@item.is_active,
+            do: "bg-green-100 text-green-800",
+            else: "bg-red-100 text-red-800"
+          )
+        ]}>
+          {if @item.is_active, do: "Active", else: "Inactive"}
+        </span>
+      </div>
+
+      <%= if @item.description do %>
+        <div>
+          <h3 class="text-sm font-medium text-gray-900 mb-2">Description</h3>
+          <p class="text-sm text-gray-600">{@item.description}</p>
+        </div>
+      <% end %>
+
+      <div>
+        <h3 class="text-sm font-medium text-gray-900 mb-2">Prompt Content</h3>
+        <div class="bg-gray-50 rounded-lg p-4">
+          <pre class="text-sm text-gray-800 whitespace-pre-wrap font-mono">{@item.content}</pre>
+        </div>
+      </div>
+
+      <div>
+        <h4 class="text-sm font-medium text-gray-900">Created</h4>
+        <p class="text-sm text-gray-600">
+          {Calendar.strftime(@item.inserted_at, "%B %d, %Y at %I:%M %p")}
+        </p>
+      </div>
+
+      <div class="flex flex-col space-y-3 pt-4 border-t border-gray-200">
+        <.button phx-click="edit_prompt" phx-value-id={@item.id} class="w-full">
+          <Lucideicons.pencil class="h-4 w-4 mr-2" /> Edit Prompt
+        </.button>
+        <.button variant="outline" phx-click="close_drawer" class="w-full">Close</.button>
+      </div>
+    </div>
+    """
+  end
+
+  defp prompt_form(assigns) do
+    changeset =
+      case assigns.item do
+        %Ecto.Changeset{} -> assigns.item
+        item -> Prompt.changeset(item, %{})
+      end
+
+    assigns = assign(assigns, :changeset, changeset)
+
+    ~H"""
+    <.form :let={f} for={@changeset} phx-submit="save_prompt" phx-change="form_change">
+      <div class="space-y-4">
+        <PhxplateWeb.CoreComponents.input field={f[:name]} label="Name" required />
+        <PhxplateWeb.CoreComponents.input
+          field={f[:description]}
+          type="textarea"
+          label="Description"
+          rows="3"
+        />
+
+        <div>
+          <PhxplateWeb.CoreComponents.label>Category</PhxplateWeb.CoreComponents.label>
+          <div class="mb-2 w-full">
+            <% current_category =
+              case @changeset do
+                %Ecto.Changeset{} ->
+                  Ecto.Changeset.get_field(@changeset, :category) || "general"
+
+                _ ->
+                  "general"
+              end %>
+            <.toggle_group
+              :let={builder}
+              name="prompt[category]"
+              size="sm"
+              variant="outline"
+              value={current_category}
+              phx-change="category_changed"
+              class="w-full flex justify-start flex-wrap gap-1"
+            >
+              <%= for category <- Prompt.categories() do %>
+                <.toggle_group_item
+                  value={category}
+                  builder={builder}
+                  aria-label={Prompt.format_category(category)}
+                  class="px-3 py-2"
+                >
+                  {Prompt.format_category(category)}
+                </.toggle_group_item>
+              <% end %>
+            </.toggle_group>
+          </div>
+        </div>
+
+        <PhxplateWeb.CoreComponents.input
+          field={f[:content]}
+          type="textarea"
+          label="Prompt Content"
+          rows="8"
+          required
+        />
+
+        <div>
+          <PhxplateWeb.CoreComponents.label>Status</PhxplateWeb.CoreComponents.label>
+          <div class="mb-2 w-full">
+            <% current_status =
+              case @changeset do
+                %Ecto.Changeset{} ->
+                  Ecto.Changeset.get_field(@changeset, :is_active)
+
+                _ ->
+                  true
+              end %>
+            <.toggle_group
+              :let={builder}
+              name="prompt[is_active]"
+              size="sm"
+              variant="outline"
+              value={if current_status, do: "true", else: "false"}
+              phx-change="status_changed"
+              class="w-full flex justify-between"
+            >
+              <.toggle_group_item value="true" builder={builder} aria-label="Active" class="flex-1">
+                Active
+              </.toggle_group_item>
+              <.toggle_group_item value="false" builder={builder} aria-label="Inactive" class="flex-1">
+                Inactive
+              </.toggle_group_item>
+            </.toggle_group>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 flex flex-col space-y-3">
+        <.button type="submit" class="w-full">
+          {if @mode == "create_prompt", do: "Create Prompt", else: "Update Prompt"}
+        </.button>
+        <.button type="button" variant="outline" phx-click="close_drawer" class="w-full">
+          Cancel
+        </.button>
+      </div>
+    </.form>
+    """
+  end
+end

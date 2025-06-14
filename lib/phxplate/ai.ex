@@ -5,7 +5,7 @@ defmodule Phxplate.AI do
 
   import Ecto.Query
   alias Phxplate.Repo
-  alias Phxplate.AI.{Conversation, Message}
+  alias Phxplate.AI.{Conversation, Message, Prompt, Eval, EvalRun, Models}
 
   @default_system_prompt """
   You are a helpful AI assistant integrated into a Phoenix application.
@@ -228,7 +228,7 @@ defmodule Phxplate.AI do
         anthropix_messages = messages_to_anthropix_format(messages)
 
         # Use the conversation's model
-        model = conversation.model || "claude-3-5-haiku-20241022"
+        model = conversation.model || Models.default_model_api_id()
 
                  # Get AI response using the conversation's model
          case Anthropix.chat(client(),
@@ -278,7 +278,8 @@ defmodule Phxplate.AI do
       iex> Phxplate.AI.chat("What is the capital of France?", "You are a geography expert.")
       {:ok, "The capital of France is Paris."}
   """
-  def chat(message, system_prompt \\ @default_system_prompt, model \\ "claude-3-5-haiku-20241022") when is_binary(message) do
+  def chat(message, system_prompt \\ @default_system_prompt, model \\ nil) when is_binary(message) do
+    model = model || Models.default_model_api_id()
     messages = [%{role: "user", content: message}]
 
     case Anthropix.chat(client(),
@@ -306,7 +307,8 @@ defmodule Phxplate.AI do
 
       Phxplate.AI.chat_conversation(messages, "You are a math tutor.")
   """
-  def chat_conversation(messages, system_prompt \\ @default_system_prompt, model \\ "claude-3-5-haiku-20241022") when is_list(messages) do
+  def chat_conversation(messages, system_prompt \\ @default_system_prompt, model \\ nil) when is_list(messages) do
+    model = model || Models.default_model_api_id()
     case Anthropix.chat(client(),
       model: model,
       messages: messages,
@@ -329,7 +331,8 @@ defmodule Phxplate.AI do
         "How do I create a Phoenix LiveView component?"
       )
   """
-  def chat_with_system(system_prompt, user_message, model \\ "claude-3-5-haiku-20241022") do
+  def chat_with_system(system_prompt, user_message, model \\ nil) do
+    model = model || Models.default_model_api_id()
     chat(user_message, system_prompt, model)
   end
 
@@ -348,7 +351,8 @@ defmodule Phxplate.AI do
       end)
       |> Stream.run()
   """
-  def stream_chat(message, system_prompt \\ @default_system_prompt, model \\ "claude-3-5-haiku-20241022") when is_binary(message) do
+  def stream_chat(message, system_prompt \\ @default_system_prompt, model \\ nil) when is_binary(message) do
+    model = model || Models.default_model_api_id()
     messages = [%{role: "user", content: message}]
 
     case Anthropix.chat(client(),
@@ -385,4 +389,385 @@ defmodule Phxplate.AI do
   defp extract_text_from_response(response) do
     inspect(response)
   end
+
+  # ============================================================================
+  # Prompt Management
+  # ============================================================================
+
+  @doc """
+  Create a new AI prompt.
+  """
+  def create_prompt(attrs) do
+    %Prompt{}
+    |> Prompt.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Get a prompt by ID.
+  """
+  def get_prompt(id) do
+    Repo.get(Prompt, id)
+  end
+
+  @doc """
+  Get a prompt by ID with preloaded associations.
+  """
+  def get_prompt_with_creator(id) do
+    Prompt
+    |> where([p], p.id == ^id)
+    |> preload(:created_by_user)
+    |> Repo.one()
+  end
+
+  @doc """
+  List all active prompts.
+  """
+  def list_prompts do
+    Prompt
+    |> where([p], p.is_active == true)
+    |> order_by([p], desc: p.inserted_at)
+    |> Repo.all()
+  end
+
+  @doc """
+  List prompts with pagination and optional filtering.
+  """
+  def list_prompts(page, per_page, opts \\ []) do
+    category = Keyword.get(opts, :category)
+    search = Keyword.get(opts, :search)
+
+    query = from p in Prompt,
+      order_by: [desc: p.inserted_at],
+      preload: [:created_by_user]
+
+    query = if category && category != "all" do
+      where(query, [p], p.category == ^category)
+    else
+      query
+    end
+
+    query = if search && String.trim(search) != "" do
+      search_term = "%#{String.trim(search)}%"
+      where(query, [p], ilike(p.name, ^search_term) or ilike(p.description, ^search_term))
+    else
+      query
+    end
+
+    total_count = Repo.aggregate(query, :count, :id)
+    total_pages = ceil(total_count / per_page)
+
+    prompts = query
+      |> limit(^per_page)
+      |> offset(^((page - 1) * per_page))
+      |> Repo.all()
+
+    %{
+      prompts: prompts,
+      page: page,
+      per_page: per_page,
+      total_count: total_count,
+      total_pages: total_pages
+    }
+  end
+
+  @doc """
+  Update a prompt.
+  """
+  def update_prompt(prompt, attrs) do
+    prompt
+    |> Prompt.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Delete a prompt.
+  """
+  def delete_prompt(prompt) do
+    Repo.delete(prompt)
+  end
+
+  @doc """
+  List prompts by category.
+  """
+  def list_prompts_by_category(category) do
+    Prompt
+    |> where([p], p.category == ^category and p.is_active == true)
+    |> order_by([p], asc: p.name)
+    |> Repo.all()
+  end
+
+  @doc """
+  Get the default system prompt from the database.
+  Falls back to the hardcoded default if no system prompts exist.
+  """
+  def get_default_system_prompt do
+    case list_prompts_by_category("system") do
+      [] -> @default_system_prompt
+      [first_prompt | _] -> first_prompt.content
+    end
+  end
+
+  @doc """
+  List all active system prompts.
+  """
+  def list_system_prompts do
+    list_prompts_by_category("system")
+  end
+
+  @doc """
+  List all active prompts for chat interface.
+  Includes error handling for when tables don't exist.
+  """
+  def list_prompts_for_chat do
+    try do
+      Prompt
+      |> where([p], p.is_active == true)
+      |> order_by([p], asc: p.name)
+      |> Repo.all()
+    rescue
+      _ -> []
+    end
+  end
+
+  # ============================================================================
+  # Evaluation Management
+  # ============================================================================
+
+  @doc """
+  Create a new AI evaluation.
+  """
+  def create_eval(attrs) do
+    %Eval{}
+    |> Eval.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Get an evaluation by ID.
+  """
+  def get_eval(id) do
+    Repo.get(Eval, id)
+  end
+
+  @doc """
+  Get an evaluation by ID with preloaded associations.
+  """
+  def get_eval_with_creator(id) do
+    Eval
+    |> where([e], e.id == ^id)
+    |> preload([:created_by_user, :eval_runs])
+    |> Repo.one()
+  end
+
+  @doc """
+  List all active evaluations.
+  """
+  def list_evals do
+    Eval
+    |> where([e], e.is_active == true)
+    |> order_by([e], desc: e.inserted_at)
+    |> Repo.all()
+  end
+
+  @doc """
+  List evaluations with pagination and optional filtering.
+  """
+  def list_evals(page, per_page, opts \\ []) do
+    search = Keyword.get(opts, :search)
+
+    query = from e in Eval,
+      order_by: [desc: e.inserted_at],
+      preload: [:created_by_user]
+
+    query = if search && String.trim(search) != "" do
+      search_term = "%#{String.trim(search)}%"
+      where(query, [e], ilike(e.name, ^search_term) or ilike(e.description, ^search_term))
+    else
+      query
+    end
+
+    total_count = Repo.aggregate(query, :count, :id)
+    total_pages = ceil(total_count / per_page)
+
+    evals = query
+      |> limit(^per_page)
+      |> offset(^((page - 1) * per_page))
+      |> Repo.all()
+
+    %{
+      evals: evals,
+      page: page,
+      per_page: per_page,
+      total_count: total_count,
+      total_pages: total_pages
+    }
+  end
+
+  @doc """
+  Update an evaluation.
+  """
+  def update_eval(eval, attrs) do
+    eval
+    |> Eval.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Delete an evaluation.
+  """
+  def delete_eval(eval) do
+    Repo.delete(eval)
+  end
+
+  # ============================================================================
+  # Evaluation Run Management
+  # ============================================================================
+
+  @doc """
+  Create a new evaluation run.
+  """
+  def create_eval_run(attrs) do
+    %EvalRun{}
+    |> EvalRun.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Get an evaluation run by ID.
+  """
+  def get_eval_run(id) do
+    EvalRun
+    |> where([er], er.id == ^id)
+    |> preload([:eval, :prompt, :run_by_user])
+    |> Repo.one()
+  end
+
+  @doc """
+  List evaluation runs for a specific evaluation.
+  """
+  def list_eval_runs(eval_id) do
+    EvalRun
+    |> where([er], er.eval_id == ^eval_id)
+    |> order_by([er], desc: er.inserted_at)
+    |> preload([:prompt, :run_by_user])
+    |> Repo.all()
+  end
+
+  @doc """
+  Run an evaluation against a specific model and optional prompt.
+  """
+  def run_evaluation(eval_id, model, user_id, prompt_id \\ nil) do
+    with {:ok, eval} <- get_eval_for_run(eval_id),
+         {:ok, eval_run} <- create_eval_run(%{
+           eval_id: eval_id,
+           prompt_id: prompt_id,
+           model: model,
+           run_by: user_id,
+           status: "pending"
+         }) do
+
+      # Start the evaluation run in a background task
+      Task.start(fn ->
+        execute_evaluation(eval_run.id, eval, model, prompt_id)
+      end)
+
+      {:ok, eval_run}
+    end
+  end
+
+  defp get_eval_for_run(eval_id) do
+    case get_eval(eval_id) do
+      nil -> {:error, :eval_not_found}
+      eval -> {:ok, eval}
+    end
+  end
+
+  defp execute_evaluation(eval_run_id, eval, model, prompt_id) do
+    eval_run = Repo.get!(EvalRun, eval_run_id)
+
+    # Mark as running
+    {:ok, eval_run} = eval_run
+      |> EvalRun.start_changeset()
+      |> Repo.update()
+
+    try do
+      # Get the prompt if specified
+      system_prompt = if prompt_id do
+        case get_prompt(prompt_id) do
+          nil -> @default_system_prompt
+          prompt -> prompt.content
+        end
+      else
+        @default_system_prompt
+      end
+
+      # Run each test case
+      results = eval.test_cases
+        |> Enum.map(fn {test_name, test_input} ->
+          case chat(test_input, system_prompt, model) do
+            {:ok, response} ->
+              expected = Map.get(eval.expected_outputs, test_name, "")
+              score = calculate_similarity_score(response, expected)
+
+              {test_name, %{
+                input: test_input,
+                output: response,
+                expected: expected,
+                score: score,
+                passed: score >= 0.7  # Threshold for passing
+              }}
+
+            {:error, error} ->
+              {test_name, %{
+                input: test_input,
+                output: "",
+                expected: Map.get(eval.expected_outputs, test_name, ""),
+                score: 0.0,
+                passed: false,
+                error: inspect(error)
+              }}
+          end
+        end)
+        |> Enum.into(%{})
+
+      # Calculate overall score
+      scores = results
+        |> Enum.map(fn {_name, result} -> Map.get(result, :score, 0.0) end)
+
+      overall_score = if Enum.empty?(scores) do
+        0.0
+      else
+        Enum.sum(scores) / length(scores)
+      end
+
+      # Mark as completed
+      eval_run
+      |> EvalRun.complete_changeset(results, overall_score)
+      |> Repo.update()
+
+    rescue
+      error ->
+        # Mark as failed
+        eval_run
+        |> EvalRun.fail_changeset(inspect(error))
+        |> Repo.update()
+    end
+  end
+
+  # Simple similarity scoring - in a real implementation you might want
+  # to use more sophisticated methods like semantic similarity
+  defp calculate_similarity_score(actual, expected) when is_binary(actual) and is_binary(expected) do
+    actual_words = String.split(String.downcase(actual))
+    expected_words = String.split(String.downcase(expected))
+
+    if Enum.empty?(expected_words) do
+      1.0
+    else
+      common_words = MapSet.intersection(MapSet.new(actual_words), MapSet.new(expected_words))
+      MapSet.size(common_words) / length(expected_words)
+    end
+  end
+
+  defp calculate_similarity_score(_, _), do: 0.0
 end
