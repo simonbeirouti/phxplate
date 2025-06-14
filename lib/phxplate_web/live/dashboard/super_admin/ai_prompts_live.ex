@@ -10,7 +10,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
   alias Phxplate.AI.{Prompt, Models}
   alias PhxplateWeb.PageMeta
   import PhxplateWeb.Components.UI.DialogDrawerWrapper
-  import PhxplateWeb.Components.AI.ModelSelector
 
   @impl true
   def mount(_params, _session, socket) do
@@ -26,7 +25,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
      |> assign(:prompts, [])
      |> assign(:total_pages, 1)
      |> assign(:total_count, 0)
-     |> assign(:screen_mode, "drawer")
+     |> assign(:screen_mode, "dialog")
      |> assign(:delete_prompt_id, nil)
      |> load_prompts()
      |> PageMeta.assign_metadata(
@@ -289,11 +288,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
         <:subtitle>Manage AI prompts</:subtitle>
         <:actions>
           <div class="flex items-center gap-3">
-            <.model_selector
-              selected_model={@selected_model}
-              on_change="select_model"
-              class="w-[140px]"
-            />
             <.button phx-click="create_prompt" class="bg-black hover:bg-gray-800">
               <Lucideicons.plus class="h-4 w-4 mr-2 hidden sm:inline" />
               <span class="hidden sm:inline">New Prompt</span>
@@ -303,7 +297,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
         </:actions>
       </.header>
 
-    <!-- Filters -->
+      <!-- Filters -->
       <div class="mt-4">
         <div class="flex justify-start flex-wrap gap-2">
           <.button
@@ -525,7 +519,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
   defp prompt_view(assigns) do
     ~H"""
     <div class="space-y-6">
-
       <div class="flex items-start justify-between">
         <div>
           <h2 class="text-xl font-semibold text-gray-900">{@item.name}</h2>
@@ -587,16 +580,11 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
     ~H"""
     <.form :let={f} for={@changeset} phx-submit="save_prompt" phx-change="form_change">
       <div class="space-y-4">
-        <PhxplateWeb.CoreComponents.input field={f[:name]} label="Name" required />
-        <PhxplateWeb.CoreComponents.input
-          field={f[:description]}
-          type="textarea"
-          label="Description"
-          rows="3"
-        />
+        <.input field={f[:name]} label="Name" required />
+        <.input field={f[:description]} type="textarea" label="Description" rows="3" />
 
         <div>
-          <PhxplateWeb.CoreComponents.label>Category</PhxplateWeb.CoreComponents.label>
+          <.label>Category</.label>
           <div class="mb-2 w-full">
             <% current_category =
               case @changeset do
@@ -629,16 +617,10 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
           </div>
         </div>
 
-        <PhxplateWeb.CoreComponents.input
-          field={f[:content]}
-          type="textarea"
-          label="Prompt Content"
-          rows="8"
-          required
-        />
+        <.input field={f[:content]} type="textarea" label="Prompt Content" rows="8" required />
 
         <div>
-          <PhxplateWeb.CoreComponents.label>Status</PhxplateWeb.CoreComponents.label>
+          <.label>Status</.label>
           <div class="mb-2 w-full">
             <% current_status =
               case @changeset do

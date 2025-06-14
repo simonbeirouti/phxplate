@@ -10,7 +10,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
   alias Phxplate.AI.{Eval, Models}
   alias PhxplateWeb.PageMeta
   import PhxplateWeb.Components.UI.DialogDrawerWrapper
-  import PhxplateWeb.Components.AI.ModelSelector
   import PhxplateWeb.Components.AI.PromptSelector
 
   @impl true
@@ -24,12 +23,15 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
      |> assign(:selected_model, Models.default_model_display_name())
      |> assign(:selected_prompt_name, "Default System")
      |> assign(:prompts, load_prompts())
+     |> assign(:test_cases, [])
+     |> assign(:status_filter, "all")
      |> assign(:page, 1)
      |> assign(:per_page, 10)
      |> assign(:evals, [])
      |> assign(:total_pages, 1)
      |> assign(:total_count, 0)
-     |> assign(:screen_mode, "drawer")
+     |> assign(:screen_mode, "dialog")
+     |> assign(:delete_eval_id, nil)
      |> load_evals()
      |> PageMeta.assign_metadata(
        title: "AI Evaluations",
@@ -65,18 +67,23 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
      socket
      |> assign(:show_drawer, true)
      |> assign(:drawer_mode, "create_eval")
-     |> assign(:selected_item, changeset)}
+     |> assign(:selected_item, changeset)
+     |> assign(:test_cases, [%{id: generate_temp_id(), test_case: "", expected_output: ""}])}
   end
 
   @impl true
   def handle_event("edit_eval", %{"id" => id}, socket) do
     eval = AI.get_eval_with_creator(id)
 
+    # Convert existing test cases and expected outputs to the new format
+    test_cases = convert_maps_to_test_cases(eval.test_cases, eval.expected_outputs)
+
     {:noreply,
      socket
      |> assign(:show_drawer, true)
      |> assign(:drawer_mode, "edit_eval")
-     |> assign(:selected_item, eval)}
+     |> assign(:selected_item, eval)
+     |> assign(:test_cases, test_cases)}
   end
 
   @impl true
@@ -95,7 +102,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
     {:noreply,
      socket
      |> assign(:show_drawer, false)
-     |> assign(:selected_item, nil)}
+     |> assign(:selected_item, nil)
+     |> assign(:test_cases, [])}
   end
 
   @impl true
@@ -103,8 +111,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
     current_user = socket.assigns.current_user
     eval_params = Map.put(eval_params, "created_by", current_user.id)
 
-    # Parse test cases and expected outputs from form
-    eval_params = parse_eval_form_data(eval_params)
+    # Convert test cases to the expected format
+    eval_params = convert_test_cases_to_maps(eval_params, socket.assigns.test_cases)
 
     case socket.assigns.drawer_mode do
       "create_eval" ->
@@ -147,26 +155,57 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
   end
 
   @impl true
+  def handle_event("status_changed", %{"value" => value}, socket) do
+    # Convert string to boolean
+    is_active =
+      case value do
+        "true" -> true
+        "false" -> false
+        _ -> true
+      end
+
+    # Update the changeset with the selected status
+    current_data =
+      case socket.assigns.selected_item do
+        %Ecto.Changeset{data: data, changes: changes} ->
+          Map.merge(data, changes)
+
+        item ->
+          item
+      end
+
+    changeset = Eval.changeset(current_data, %{"is_active" => is_active})
+
+    {:noreply, assign(socket, :selected_item, changeset)}
+  end
+
+  @impl true
   def handle_event("execute_eval", _params, socket) do
     eval = socket.assigns.selected_item
     current_user = socket.assigns.current_user
     model_api_id = Models.get_api_id(socket.assigns.selected_model)
 
     # Convert prompt name to ID for the AI.run_evaluation function
-    prompt_id = case socket.assigns.selected_prompt_name do
-      "Default System" -> nil
-      prompt_name ->
-        case Enum.find(socket.assigns.prompts, &(&1.name == prompt_name)) do
-          nil -> nil
-          prompt -> prompt.id
-        end
-    end
+    prompt_id =
+      case socket.assigns.selected_prompt_name do
+        "Default System" ->
+          nil
+
+        prompt_name ->
+          case Enum.find(socket.assigns.prompts, &(&1.name == prompt_name)) do
+            nil -> nil
+            prompt -> prompt.id
+          end
+      end
 
     case AI.run_evaluation(eval.id, model_api_id, current_user.id, prompt_id) do
       {:ok, _eval_run} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Evaluation started successfully with #{socket.assigns.selected_model}")
+         |> put_flash(
+           :info,
+           "Evaluation started successfully with #{socket.assigns.selected_model}"
+         )
          |> assign(:show_drawer, false)}
 
       {:error, _reason} ->
@@ -177,19 +216,31 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
   end
 
   @impl true
-  def handle_event("delete_eval", %{"id" => id}, socket) do
+  def handle_event("prepare_delete", %{"id" => id}, socket) do
+    {:noreply, assign(socket, :delete_eval_id, String.to_integer(id))}
+  end
+
+  @impl true
+  def handle_event("cancel_delete", _params, socket) do
+    {:noreply, assign(socket, :delete_eval_id, nil)}
+  end
+
+  @impl true
+  def handle_event("confirm_delete", %{"id" => id}, socket) do
     eval = AI.get_eval(id)
 
     case AI.delete_eval(eval) do
       {:ok, _} ->
         {:noreply,
          socket
+         |> assign(:delete_eval_id, nil)
          |> put_flash(:info, "Evaluation deleted successfully")
          |> load_evals()}
 
       {:error, _} ->
         {:noreply,
          socket
+         |> assign(:delete_eval_id, nil)
          |> put_flash(:error, "Failed to delete evaluation")}
     end
   end
@@ -210,8 +261,59 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
     {:noreply, assign(socket, :screen_mode, mode)}
   end
 
+  @impl true
+  def handle_event("filter_status", %{"status" => status}, socket) do
+    {:noreply,
+     socket
+     |> assign(:status_filter, status)
+     |> assign(:page, 1)
+     |> load_evals()}
+  end
+
+  @impl true
+  def handle_event("toggle_status", %{"status_toggle" => status}, socket) do
+    {:noreply,
+     socket
+     |> assign(:status_filter, status)
+     |> assign(:page, 1)
+     |> load_evals()}
+  end
+
+  @impl true
+  def handle_event("add_test_case", _params, socket) do
+    new_test_case = %{id: generate_temp_id(), test_case: "", expected_output: ""}
+    updated_test_cases = socket.assigns.test_cases ++ [new_test_case]
+
+    {:noreply, assign(socket, :test_cases, updated_test_cases)}
+  end
+
+  @impl true
+  def handle_event("remove_test_case", %{"id" => id}, socket) do
+    updated_test_cases = Enum.reject(socket.assigns.test_cases, &(&1.id == id))
+
+    {:noreply, assign(socket, :test_cases, updated_test_cases)}
+  end
+
+  @impl true
+  def handle_event("update_test_case", %{"id" => id, "field" => field, "value" => value}, socket) do
+    updated_test_cases =
+      Enum.map(socket.assigns.test_cases, fn test_case ->
+        if test_case.id == id do
+          Map.put(test_case, String.to_atom(field), value)
+        else
+          test_case
+        end
+      end)
+
+    {:noreply, assign(socket, :test_cases, updated_test_cases)}
+  end
+
   defp load_evals(socket) do
-    result = AI.list_evals(socket.assigns.page, socket.assigns.per_page, [])
+    opts = [
+      status: socket.assigns.status_filter
+    ]
+
+    result = AI.list_evals(socket.assigns.page, socket.assigns.per_page, opts)
 
     socket
     |> assign(:evals, result.evals)
@@ -226,38 +328,61 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
       |> assign(:total_count, 0)
   end
 
-  defp parse_eval_form_data(params) do
-    # Parse test cases from form format to map
-    test_cases = parse_key_value_pairs(params["test_cases"] || "")
-    expected_outputs = parse_key_value_pairs(params["expected_outputs"] || "")
+  defp generate_temp_id do
+    :crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)
+  end
+
+  defp convert_test_cases_to_maps(params, test_cases) do
+    # Filter out empty test cases
+    valid_test_cases =
+      Enum.reject(test_cases, fn tc ->
+        String.trim(tc.test_case) == "" || String.trim(tc.expected_output) == ""
+      end)
+
+    test_cases_map =
+      valid_test_cases
+      |> Enum.with_index(1)
+      |> Enum.map(fn {tc, index} -> {"test_#{index}", tc.test_case} end)
+      |> Enum.into(%{})
+
+    expected_outputs_map =
+      valid_test_cases
+      |> Enum.with_index(1)
+      |> Enum.map(fn {tc, index} -> {"test_#{index}", tc.expected_output} end)
+      |> Enum.into(%{})
 
     params
-    |> Map.put("test_cases", test_cases)
-    |> Map.put("expected_outputs", expected_outputs)
+    |> Map.put("test_cases", test_cases_map)
+    |> Map.put("expected_outputs", expected_outputs_map)
   end
 
-  defp parse_key_value_pairs(text) when is_binary(text) do
-    text
-    |> String.split("\n")
-    |> Enum.map(&String.trim/1)
-    |> Enum.reject(&(&1 == ""))
-    |> Enum.with_index(1)
-    |> Enum.map(fn {line, index} ->
-      case String.split(line, ":", parts: 2) do
-        [key, value] -> {String.trim(key), String.trim(value)}
-        [value] -> {"test_#{index}", String.trim(value)}
-      end
+  defp convert_maps_to_test_cases(test_cases_map, expected_outputs_map)
+       when is_map(test_cases_map) and is_map(expected_outputs_map) do
+    # Get all keys from both maps
+    all_keys =
+      MapSet.union(
+        MapSet.new(Map.keys(test_cases_map)),
+        MapSet.new(Map.keys(expected_outputs_map))
+      )
+
+    all_keys
+    |> Enum.sort()
+    |> Enum.map(fn key ->
+      %{
+        id: generate_temp_id(),
+        test_case: Map.get(test_cases_map, key, ""),
+        expected_output: Map.get(expected_outputs_map, key, "")
+      }
     end)
-    |> Enum.into(%{})
+    |> case do
+      [] -> [%{id: generate_temp_id(), test_case: "", expected_output: ""}]
+      test_cases -> test_cases
+    end
   end
 
-  defp format_key_value_pairs(map) when is_map(map) do
-    map
-    |> Enum.map(fn {key, value} -> "#{key}: #{value}" end)
-    |> Enum.join("\n")
+  defp convert_maps_to_test_cases(_, _) do
+    [%{id: generate_temp_id(), test_case: "", expected_output: ""}]
   end
-
-  defp format_key_value_pairs(_), do: ""
 
   defp load_prompts do
     try do
@@ -276,21 +401,49 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
         <:subtitle>Manage AI evaluations and test suites</:subtitle>
         <:actions>
           <div class="flex items-center gap-3">
-            <.model_selector
-              selected_model={@selected_model}
-              on_change="select_model"
-              class="w-[140px]"
-            />
             <.button phx-click="create_eval" class="bg-black hover:bg-gray-800">
-              <Lucideicons.plus class="h-4 w-4 mr-2" /> New Evaluation
+              <Lucideicons.plus class="h-4 w-4 mr-2 hidden sm:inline" />
+              <span class="hidden sm:inline">New Evaluation</span>
+              <Lucideicons.plus class="h-4 w-4 sm:hidden" />
             </.button>
           </div>
         </:actions>
       </.header>
 
+    <!-- Filters -->
+      <div class="mt-4">
+        <div class="flex justify-start flex-wrap gap-2">
+          <.button
+            variant={if @status_filter == "all", do: "default", else: "outline"}
+            size="sm"
+            phx-click="toggle_status"
+            phx-value-status_toggle="all"
+            class="px-3 py-2"
+          >
+            All Status
+          </.button>
+          <.button
+            variant={if @status_filter == "active", do: "default", else: "outline"}
+            size="sm"
+            phx-click="toggle_status"
+            phx-value-status_toggle="active"
+            class="px-3 py-2"
+          >
+            Active
+          </.button>
+          <.button
+            variant={if @status_filter == "inactive", do: "default", else: "outline"}
+            size="sm"
+            phx-click="toggle_status"
+            phx-value-status_toggle="inactive"
+            class="px-3 py-2"
+          >
+            Inactive
+          </.button>
+        </div>
+      </div>
 
-
-      <!-- Content -->
+    <!-- Content -->
       <div class="mt-6">
         <%= if Enum.empty?(@evals) do %>
           <.empty_state
@@ -300,11 +453,11 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
             action_event="create_eval"
           />
         <% else %>
-          <.evals_table evals={@evals} />
+          <.evals_grid evals={@evals} delete_eval_id={@delete_eval_id} />
         <% end %>
       </div>
 
-      <!-- Pagination -->
+    <!-- Pagination -->
       <%= if @total_pages > 1 do %>
         <div class="mt-6">
           <.pagination>
@@ -341,7 +494,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
         </div>
       <% end %>
 
-      <!-- Drawer -->
       <.dialog_drawer_wrapper
         :if={@show_drawer}
         id="ai-evals-wrapper"
@@ -351,10 +503,11 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
         on_cancel={JS.push("close_drawer")}
         name={get_drawer_title(@drawer_mode)}
         description={get_drawer_description(@drawer_mode)}
+        class="max-w-6xl max-h-[90vh] overflow-y-auto"
       >
         <%= case @drawer_mode do %>
           <% mode when mode in ["create_eval", "edit_eval"] -> %>
-            <.eval_form item={@selected_item} mode={@drawer_mode} />
+            <.eval_form item={@selected_item} mode={@drawer_mode} test_cases={@test_cases} />
           <% "run_eval" -> %>
             <.eval_run_form
               item={@selected_item}
@@ -386,117 +539,216 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
     """
   end
 
-  defp evals_table(assigns) do
+  defp evals_grid(assigns) do
     ~H"""
-    <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-      <table class="min-w-full divide-y divide-gray-300">
-        <thead class="bg-gray-50">
-          <tr>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Test Cases</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-            <th class="relative px-6 py-3"><span class="sr-only">Actions</span></th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
-          <%= for eval <- @evals do %>
-            <tr>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900">{eval.name}</div>
-                <%= if eval.description do %>
-                  <div class="text-sm text-gray-500">{String.slice(eval.description, 0, 60)}...</div>
-                <% end %>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {map_size(eval.test_cases)} test cases
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                {if eval.created_by_user, do: eval.created_by_user.email, else: "System"}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {Calendar.strftime(eval.inserted_at, "%b %d, %Y")}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span class={[
-                  "inline-flex px-2 py-1 text-xs font-semibold rounded-full",
-                  if(eval.is_active, do: "bg-green-100 text-green-800", else: "bg-red-100 text-red-800")
-                ]}>
-                  {if eval.is_active, do: "Active", else: "Inactive"}
-                </span>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                <.button variant="ghost" size="sm" phx-click="run_eval" phx-value-id={eval.id}>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <%= for eval <- @evals do %>
+        <div class="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
+          <div class="p-6">
+            <!-- Header with title and status -->
+            <div class="flex items-start justify-between mb-4">
+              <h3 class="text-lg font-semibold text-gray-900 truncate pr-2">
+                {eval.name}
+              </h3>
+              <span class={[
+                "inline-flex px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap",
+                if(eval.is_active,
+                  do: "bg-green-100 text-green-800",
+                  else: "bg-red-100 text-red-800"
+                )
+              ]}>
+                {if eval.is_active, do: "Active", else: "Inactive"}
+              </span>
+            </div>
+
+    <!-- Test cases info -->
+            <div class="mb-4">
+              <p class="text-sm text-gray-600">
+                <strong>Test Cases:</strong> {map_size(eval.test_cases)}
+              </p>
+            </div>
+
+    <!-- Actions -->
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <.button variant="outline" size="sm" phx-click="run_eval" phx-value-id={eval.id}>
                   <Lucideicons.play class="h-4 w-4" />
                 </.button>
-                <.button variant="ghost" size="sm" phx-click="edit_eval" phx-value-id={eval.id}>
+                <.button variant="outline" size="sm" phx-click="edit_eval" phx-value-id={eval.id}>
                   <Lucideicons.pencil class="h-4 w-4" />
                 </.button>
-                <.button variant="ghost" size="sm" phx-click="delete_eval" phx-value-id={eval.id} data-confirm="Are you sure?">
-                  <Lucideicons.trash_2 class="h-4 w-4" />
-                </.button>
-              </td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
+              </div>
+
+    <!-- Delete button with confirmation -->
+              <div class="flex items-center space-x-1">
+                <%= if @delete_eval_id && @delete_eval_id == eval.id do %>
+                  <.button
+                    variant="destructive"
+                    size="sm"
+                    phx-click="confirm_delete"
+                    phx-value-id={eval.id}
+                    title="Click to confirm deletion"
+                  >
+                    <Lucideicons.check class="h-4 w-4" />
+                  </.button>
+                  <.button
+                    variant="outline"
+                    size="sm"
+                    phx-click="cancel_delete"
+                    title="Cancel deletion"
+                  >
+                    <Lucideicons.x class="h-4 w-4" />
+                  </.button>
+                <% else %>
+                  <.button
+                    variant="outline"
+                    size="sm"
+                    phx-click="prepare_delete"
+                    phx-value-id={eval.id}
+                    title="Delete evaluation"
+                  >
+                    <Lucideicons.trash_2 class="h-4 w-4" />
+                  </.button>
+                <% end %>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% end %>
     </div>
     """
   end
 
   defp eval_form(assigns) do
-    changeset = case assigns.item do
-      %Ecto.Changeset{} -> assigns.item
-      item -> Eval.changeset(item, %{})
-    end
+    changeset =
+      case assigns.item do
+        %Ecto.Changeset{} -> assigns.item
+        item -> Eval.changeset(item, %{})
+      end
 
     assigns = assign(assigns, :changeset, changeset)
 
     ~H"""
     <.form :let={f} for={@changeset} phx-submit="save_eval">
       <div class="space-y-4">
-        <.input field={f[:name]} label="Name" required />
+        <!-- Top row: Name and Status -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <.input field={f[:name]} label="Name" required />
+          </div>
+          <div>
+            <.label>Status</.label>
+            <div class="mt-2 w-full">
+              <% current_status =
+                case @changeset do
+                  %Ecto.Changeset{} ->
+                    Ecto.Changeset.get_field(@changeset, :is_active)
 
+                  _ ->
+                    true
+                end %>
+              <.toggle_group
+                :let={builder}
+                name="eval[is_active]"
+                size="sm"
+                variant="outline"
+                value={if current_status, do: "true", else: "false"}
+                phx-change="status_changed"
+                class="w-full flex justify-between"
+              >
+                <.toggle_group_item value="true" builder={builder} aria-label="Active" class="flex-1">
+                  Active
+                </.toggle_group_item>
+                <.toggle_group_item
+                  value="false"
+                  builder={builder}
+                  aria-label="Inactive"
+                  class="flex-1"
+                >
+                  Inactive
+                </.toggle_group_item>
+              </.toggle_group>
+            </div>
+          </div>
+        </div>
+
+    <!-- Test Cases Section -->
         <div>
-          <.label>Test Cases</.label>
+          <div class="flex items-center justify-between mb-3">
+            <.label>Test Cases</.label>
+            <.button type="button" variant="outline" size="sm" phx-click="add_test_case">
+              <Lucideicons.plus class="h-4 w-4 mr-1" /> Add Test Case
+            </.button>
+          </div>
+
+          <div class="space-y-4">
+            <%= for {test_case, index} <- Enum.with_index(@test_cases) do %>
+              <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                <div class="flex items-center justify-between mb-3">
+                  <h4 class="text-sm font-medium text-gray-900">Test Case #{index + 1}</h4>
+                  <%= if length(@test_cases) > 1 do %>
+                    <.button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      phx-click="remove_test_case"
+                      phx-value-id={test_case.id}
+                    >
+                      <Lucideicons.trash_2 class="h-4 w-4" />
+                    </.button>
+                  <% end %>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <.label>Test Input</.label>
+                    <.input
+                      name={"test_case_#{test_case.id}"}
+                      value={test_case.test_case}
+                      phx-blur="update_test_case"
+                      phx-value-id={test_case.id}
+                      phx-value-field="test_case"
+                      rows="3"
+                      placeholder="Enter the test input/question..."
+                    />
+                  </div>
+                  <div>
+                    <.label>Expected Output</.label>
+                    <.input
+                      name={"expected_output_#{test_case.id}"}
+                      value={test_case.expected_output}
+                      phx-blur="update_test_case"
+                      phx-value-id={test_case.id}
+                      phx-value-field="expected_output"
+                      rows="3"
+                      placeholder="Enter the expected response..."
+                    />
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+
+    <!-- Full width: Evaluation Criteria -->
+        <div>
           <.input
+            field={f[:evaluation_criteria]}
             type="textarea"
-            name="eval[test_cases]"
-            value={format_key_value_pairs(Ecto.Changeset.get_field(@changeset, :test_cases, %{}))}
-            rows="6"
+            label="Evaluation Criteria"
+            rows="4"
             required
           />
-          <p class="mt-1 text-sm text-gray-500">
-            Enter test cases as "name: question" pairs, one per line
-          </p>
-        </div>
-
-        <div>
-          <.label>Expected Outputs</.label>
-          <.input
-            type="textarea"
-            name="eval[expected_outputs]"
-            value={format_key_value_pairs(Ecto.Changeset.get_field(@changeset, :expected_outputs, %{}))}
-            rows="6"
-          />
-          <p class="mt-1 text-sm text-gray-500">
-            Enter expected outputs as "name: expected_answer" pairs, one per line
-          </p>
-        </div>
-
-        <.input field={f[:evaluation_criteria]} type="textarea" label="Evaluation Criteria" rows="4" required />
-
-        <div class="flex items-center">
-          <.input field={f[:is_active]} type="checkbox" label="Active" />
         </div>
       </div>
 
       <div class="mt-6 flex flex-col space-y-3">
         <.button type="submit" class="w-full">
-          <%= if @mode == "create_eval", do: "Create Evaluation", else: "Update Evaluation" %>
+          {if @mode == "create_eval", do: "Create Evaluation", else: "Update Evaluation"}
         </.button>
-        <.button type="button" variant="outline" phx-click="close_drawer" class="w-full">Cancel</.button>
+        <.button type="button" variant="outline" phx-click="close_drawer" class="w-full">
+          Cancel
+        </.button>
       </div>
     </.form>
     """
@@ -508,21 +760,33 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
       <div class="space-y-4">
         <div>
           <h3 class="text-lg font-medium">{@item.name}</h3>
-          <%= if @item.description do %>
-            <p class="text-sm text-gray-500">{@item.description}</p>
-          <% end %>
-          <p class="text-sm text-gray-600 mt-2">
-            <strong>Test Cases:</strong> {map_size(@item.test_cases)}
-          </p>
+          <p class="text-sm text-gray-500">{@item.evaluation_criteria}</p>
         </div>
 
-        <div class="bg-gray-50 p-4 rounded-lg">
-          <p class="text-sm text-gray-700">
-            <strong>Selected Model:</strong> {@selected_model}
-          </p>
-          <p class="text-xs text-gray-500 mt-1">
-            Change the model using the selector in the header if needed.
-          </p>
+        <!-- Test Cases Display -->
+        <div>
+          <h4 class="text-sm font-medium text-gray-900 mb-3">Test Cases ({map_size(@item.test_cases)})</h4>
+          <div class="space-y-3">
+            <%= for {key, test_case} <- @item.test_cases do %>
+              <% expected_output = Map.get(@item.expected_outputs, key, "") %>
+              <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div>
+                    <.label class="text-xs font-medium text-gray-700">Test Input</.label>
+                    <div class="mt-1 p-2 bg-white border border-gray-200 rounded text-sm">
+                      {test_case}
+                    </div>
+                  </div>
+                  <div>
+                    <.label class="text-xs font-medium text-gray-700">Expected Output</.label>
+                    <div class="mt-1 p-2 bg-white border border-gray-200 rounded text-sm">
+                      {expected_output}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
         </div>
 
         <div>
@@ -537,14 +801,18 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
 
         <div class="mt-6 flex flex-col space-y-3">
           <.button phx-click="execute_eval" class="w-full">Run Evaluation</.button>
-          <.button type="button" variant="outline" phx-click="close_drawer" class="w-full">Cancel</.button>
+          <.button type="button" variant="outline" phx-click="close_drawer" class="w-full">
+            Cancel
+          </.button>
         </div>
       </div>
     <% else %>
       <div class="space-y-4">
         <p class="text-sm text-gray-500">Loading evaluation...</p>
         <div class="mt-6 flex flex-col space-y-3">
-          <.button type="button" variant="outline" phx-click="close_drawer" class="w-full">Cancel</.button>
+          <.button type="button" variant="outline" phx-click="close_drawer" class="w-full">
+            Cancel
+          </.button>
         </div>
       </div>
     <% end %>

@@ -575,6 +575,7 @@ defmodule Phxplate.AI do
   """
   def list_evals(page, per_page, opts \\ []) do
     search = Keyword.get(opts, :search)
+    status = Keyword.get(opts, :status, "all")
 
     query = from e in Eval,
       order_by: [desc: e.inserted_at],
@@ -585,6 +586,12 @@ defmodule Phxplate.AI do
       where(query, [e], ilike(e.name, ^search_term) or ilike(e.description, ^search_term))
     else
       query
+    end
+
+    query = case status do
+      "active" -> where(query, [e], e.is_active == true)
+      "inactive" -> where(query, [e], e.is_active == false)
+      _ -> query  # "all" or any other value shows all
     end
 
     total_count = Repo.aggregate(query, :count, :id)

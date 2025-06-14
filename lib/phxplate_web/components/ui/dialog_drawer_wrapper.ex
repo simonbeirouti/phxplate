@@ -11,6 +11,7 @@ defmodule PhxplateWeb.Components.UI.DialogDrawerWrapper do
     - myself: optional target for phx-target attribute
     - name: title string
     - description: description string
+    - class: optional CSS classes to apply to the dialog
     - inner_block: the content to render inside
   """
 
@@ -26,6 +27,7 @@ defmodule PhxplateWeb.Components.UI.DialogDrawerWrapper do
   attr :myself, :any, default: nil
   attr :name, :string, required: true
   attr :description, :string, required: true
+  attr :class, :string, default: nil
   slot :inner_block, required: true
 
   def dialog_drawer_wrapper(assigns) do
@@ -33,7 +35,7 @@ defmodule PhxplateWeb.Components.UI.DialogDrawerWrapper do
     <div id={@id} phx-hook={@hook} phx-target={@myself}>
       <%= if @show do %>
         <%= if @mode == "dialog" do %>
-          <.dialog id={"#{@id}-dialog"} show={@show} on_cancel={@on_cancel}>
+          <.dialog id={"#{@id}-dialog"} show={@show} on_cancel={@on_cancel} class={@class}>
             <.dialog_header>
               <.dialog_title>{@name}</.dialog_title>
               <.dialog_description>{@description}</.dialog_description>
