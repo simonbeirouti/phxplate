@@ -12,7 +12,6 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
   alias Phxplate.Accounts
   alias PhxplateWeb.PageMeta
   alias PhxplateWeb.Components.ActivityTimelineComponent
-  import PhxplateWeb.Components.UI.Drawer
   alias Phoenix.LiveView.JS
   import PhxplateWeb.CoreComponents
 
@@ -33,7 +32,7 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
        selected_session: nil,
        current_message: "",
        show_drawer: false,
-       filter: "active",
+       filter: "Active",
        support_status: current_status,
        session_activities: []
      )
@@ -49,8 +48,16 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
     per_page = 10
     filter = socket.assigns.filter
 
+    # Convert display text back to database values for filter
+    filter_value = case filter do
+      "All" -> "all"
+      "Active" -> "active"
+      "Closed" -> "closed"
+      other -> other
+    end
+
     # Apply filter if not "all"
-    filter_opts = if filter != "all", do: [status: filter], else: []
+    filter_opts = if filter_value != "all", do: [status: filter_value], else: []
 
     # Get total count for pagination with filter
     total_sessions = Chat.count_sessions(filter_opts)
@@ -291,35 +298,25 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
         id="chat-dashboard"
         phx-hook="ChatDashboard"
       >
-        <!-- Sessions List (Left Side) -->
         <div class="h-[calc(100vh-200px)] col-span-1">
-          <h2 class="text-xl font-semibold mb-4">Chat Sessions</h2>
-
-          <div class="flex space-x-2 mb-4">
-            <.button
-              phx-click="filter_sessions"
-              phx-value-filter="all"
-              variant={if @filter == "all", do: "default", else: "outline"}
-              size="sm"
-            >
-              All
-            </.button>
-            <.button
-              phx-click="filter_sessions"
-              phx-value-filter="active"
-              variant={if @filter == "active", do: "default", else: "outline"}
-              size="sm"
-            >
-              Active
-            </.button>
-            <.button
-              phx-click="filter_sessions"
-              phx-value-filter="closed"
-              variant={if @filter == "closed", do: "default", else: "outline"}
-              size="sm"
-            >
-              Closed
-            </.button>
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-semibold">Chat Sessions</h2>
+            <form phx-change="filter_sessions" class="w-auto">
+              <.select :let={select} id="session-filter" name="filter" value={@filter}>
+                <.select_trigger builder={select} class="w-32" />
+                <.select_content builder={select} class="w-32">
+                  <.select_item builder={select} value="All" label="All">
+                    All
+                  </.select_item>
+                  <.select_item builder={select} value="Active" label="Active">
+                    Active
+                  </.select_item>
+                  <.select_item builder={select} value="Closed" label="Closed">
+                    Closed
+                  </.select_item>
+                </.select_content>
+              </.select>
+            </form>
           </div>
 
           <%= if Enum.empty?(@active_sessions) do %>
@@ -329,14 +326,12 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
           <% else %>
             <%= for session <- @active_sessions do %>
               <div class={"cursor-pointer p-3 rounded-md hover:bg-gray-50 relative #{if @selected_session && @selected_session.id == session.id, do: "bg-gray-100 border-l-4 border-blue-500", else: ""}"}>
-                <!-- Desktop click handler (hidden on mobile) -->
                 <div
                   class="hidden lg:block h-full w-full absolute inset-0"
                   phx-click="select_session"
                   phx-value-id={session.id}
                 >
                 </div>
-                <!-- Mobile click handler (hidden on desktop) -->
                 <div
                   class="lg:hidden h-full w-full absolute inset-0"
                   phx-click="select_session"
@@ -344,7 +339,6 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
                   phx-value-is_mobile="true"
                 >
                 </div>
-                <!-- Session content -->
                 <div class="flex justify-between items-center">
                   <h4 class="text-sm font-medium text-gray-900">
                     <%= if session.user_id do %>
@@ -378,7 +372,7 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
                   <% end %>
 
                   <%= for page_num <- max(1, @page - 2)..min(@total_pages, @page + 2) do %>
-                    <.pagination_item active={page_num == @page}>
+                    <.pagination_item>
                       <.pagination_link phx-click="paginate" phx-value-page={page_num}>
                         {page_num}
                       </.pagination_link>
@@ -398,29 +392,14 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
           <% end %>
         </div>
 
-    <!-- Chat Content (Right Side) -->
         <div class="hidden lg:block col-span-2 h-[calc(100vh-200px)] overflow-hidden">
           <h2 class="text-xl font-semibold mb-4">Chat Details</h2>
           <%= if @selected_session do %>
             {render_chat_details(assign(assigns, :context, "desktop"))}
           <% else %>
             <div class="bg-white overflow-hidden shadow rounded-lg h-full flex flex-col justify-center items-center">
-              <div class="text-center p-8">
-                <svg
-                  class="mx-auto h-16 w-16 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-                  >
-                  </path>
-                </svg>
+              <div class="flex flex-col items-center justify-center text-center p-8">
+                <Lucideicons.message_circle class="h-16 w-16 text-gray-400" />
                 <h3 class="mt-4 text-lg font-medium text-gray-900">No chat session selected</h3>
                 <p class="mt-2 text-base text-gray-500 max-w-md">
                   Select a chat session from the list to view and respond to messages.
@@ -431,7 +410,6 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
         </div>
       </div>
 
-    <!-- Mobile Drawer -->
       <.drawer show={@show_drawer} on_cancel={JS.push("close_drawer")}>
         <.drawer_header>
           <.drawer_title>Chat Details</.drawer_title>
@@ -552,8 +530,7 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
       </.tabs_content>
 
       <.tabs_content value="info">
-        <div class="space-y-6">
-          <!-- Session Information Section -->
+        <div class="space-y-2 p-2">
           <div>
             <h3 class="text-lg font-medium text-gray-900 mb-3">Session Information</h3>
             <div class="grid grid-cols-2 gap-4">
@@ -611,7 +588,6 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
             </div>
           </div>
 
-    <!-- Device Information Section -->
           <div>
             <h3 class="text-lg font-medium text-gray-900 mb-3">Device Information</h3>
             <div class="grid grid-cols-2 gap-4">

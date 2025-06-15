@@ -8,7 +8,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
   use PhxplateWeb, :live_view
   alias Phxplate.AI
   alias PhxplateWeb.PageMeta
-  import PhxplateWeb.Components.UI.DialogDrawerWrapper
   import PhxplateWeb.Components.Markdown
   import PhxplateWeb.Components.AI.{PromptSelector, EvalSelector}
 
@@ -18,8 +17,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
      socket
      |> assign(:show_drawer, false)
      |> assign(:selected_eval_run, nil)
-     |> assign(:status_filter, "all")
-     |> assign(:success_filter, "all")
+     |> assign(:status_filter, "All Status")
+     |> assign(:success_filter, "All Results")
      |> assign(:eval_filter, "All Evaluations")
      |> assign(:prompt_filter, "All Prompts")
      |> assign(:page, 1)
@@ -30,6 +29,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
      |> assign(:screen_mode, "dialog")
      |> assign(:available_evals, load_available_evals())
      |> assign(:available_prompts, load_available_prompts())
+     |> assign(:filter_reset_key, 0)
      |> load_eval_runs()
      |> PageMeta.assign_metadata(
        title: "AI Results",
@@ -152,9 +152,28 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
     {:noreply, assign(socket, :screen_mode, mode)}
   end
 
+  @impl true
+  def handle_event("reset_filters", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:status_filter, "All Status")
+     |> assign(:success_filter, "All Results")
+     |> assign(:eval_filter, "All Evaluations")
+     |> assign(:prompt_filter, "All Prompts")
+     |> assign(:page, 1)
+     |> assign(:filter_reset_key, socket.assigns.filter_reset_key + 1)
+     |> load_eval_runs()}
+  end
+
   defp load_eval_runs(socket) do
+    # Convert display text back to database values for status filter
+    status_value = case socket.assigns.status_filter do
+      "All Status" -> "all"
+      other -> other
+    end
+
     opts = [
-      status: socket.assigns.status_filter
+      status: status_value
     ]
 
     # Filter by eval name
@@ -192,7 +211,13 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
     result = AI.list_all_eval_runs(socket.assigns.page, socket.assigns.per_page, opts)
 
     # Apply success filtering (client-side since it depends on results analysis)
-    filtered_eval_runs = case socket.assigns.success_filter do
+    # Convert display text back to database values for success filter
+    success_value = case socket.assigns.success_filter do
+      "All Results" -> "all"
+      other -> other
+    end
+
+    filtered_eval_runs = case success_value do
       "all" -> result.eval_runs
       success_filter ->
         Enum.filter(result.eval_runs, fn eval_run ->
@@ -341,108 +366,104 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
       </.header>
 
       <div class="mt-4">
-        <div class="flex flex-wrap gap-4 items-center">
-          <div class="flex gap-2">
+        <div class="mb-3 flex items-center justify-between md:justify-start">
+          <span class="text-sm font-medium text-gray-700">Filters</span>
+          <div class="md:hidden">
             <.button
-              variant={if @status_filter == "all", do: "default", else: "outline"}
-              size="sm"
-              phx-click="filter_status"
-              phx-value-status="all"
+              variant="outline"
+              size="lg"
+              phx-click="reset_filters"
+              class="w-auto"
             >
-              All Status
-            </.button>
-            <.button
-              variant={if @status_filter == "completed", do: "default", else: "outline"}
-              size="sm"
-              phx-click="filter_status"
-              phx-value-status="completed"
-            >
-              Completed
-            </.button>
-            <.button
-              variant={if @status_filter == "failed", do: "default", else: "outline"}
-              size="sm"
-              phx-click="filter_status"
-              phx-value-status="failed"
-            >
-              Failed
-            </.button>
-            <.button
-              variant={if @status_filter == "running", do: "default", else: "outline"}
-              size="sm"
-              phx-click="filter_status"
-              phx-value-status="running"
-            >
-              Running
+              <Lucideicons.refresh_ccw class="w-4 h-4 -mx-4" />
             </.button>
           </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3 md:flex md:flex-wrap md:gap-4 md:items-center" id={"filters-#{@filter_reset_key}"}>
+          <form phx-change="filter_status" class="w-full md:w-auto">
+            <.select :let={select} id="status-filter" name="status" value={@status_filter} key={"status-#{@filter_reset_key}"}>
+              <.select_trigger builder={select} class="w-full md:w-48" />
+              <.select_content builder={select} class="w-full md:w-48">
+                <.select_item builder={select} value="All Status" label="All Status">
+                  All Status
+                </.select_item>
+                <.select_item builder={select} value="completed" label="Completed">
+                  Completed
+                </.select_item>
+                <.select_item builder={select} value="failed" label="Failed">
+                  Failed
+                </.select_item>
+                <.select_item builder={select} value="running" label="Running">
+                  Running
+                </.select_item>
+              </.select_content>
+            </.select>
+          </form>
 
-          <div class="flex gap-2">
-            <.button
-              variant={if @success_filter == "all", do: "default", else: "outline"}
-              size="sm"
-              phx-click="filter_success"
-              phx-value-success="all"
-            >
-              All Results
-            </.button>
-            <.button
-              variant={if @success_filter == "success", do: "default", else: "outline"}
-              size="sm"
-              phx-click="filter_success"
-              phx-value-success="success"
-            >
-              All Passed
-            </.button>
-            <.button
-              variant={if @success_filter == "partial", do: "default", else: "outline"}
-              size="sm"
-              phx-click="filter_success"
-              phx-value-success="partial"
-            >
-              Some Failed
-            </.button>
-            <.button
-              variant={if @success_filter == "failed", do: "default", else: "outline"}
-              size="sm"
-              phx-click="filter_success"
-              phx-value-success="failed"
-            >
-              Failed
-            </.button>
-          </div>
+          <form phx-change="filter_success" class="w-full md:w-auto">
+            <.select :let={select} id="success-filter" name="success" value={@success_filter} key={"success-#{@filter_reset_key}"}>
+              <.select_trigger builder={select} class="w-full md:w-48" />
+              <.select_content builder={select} class="w-full md:w-48">
+                <.select_item builder={select} value="All Results" label="All Results">
+                  All Results
+                </.select_item>
+                <.select_item builder={select} value="success" label="All Passed">
+                  All Passed
+                </.select_item>
+                <.select_item builder={select} value="partial" label="Some Failed">
+                  Some Failed
+                </.select_item>
+                <.select_item builder={select} value="failed" label="Failed">
+                  Failed
+                </.select_item>
+              </.select_content>
+            </.select>
+          </form>
 
           <%= if not Enum.empty?(@available_evals) do %>
-            <div>
+            <div class="w-full md:w-auto">
               <.eval_selector
                 available_evals={@available_evals}
                 selected_eval={@eval_filter}
                 on_change="filter_eval"
-                class="w-48"
+                class="w-full md:w-48"
                 id="eval-filter"
                 show_default={false}
                 show_all_option={true}
                 all_option_text="All Evaluations"
                 all_option_value="All Evaluations"
+                key={"eval-#{@filter_reset_key}"}
               />
             </div>
           <% end %>
 
           <%= if not Enum.empty?(@available_prompts) do %>
-            <div>
+            <div class="w-full md:w-auto">
               <.prompt_selector
                 available_prompts={@available_prompts}
                 selected_prompt={@prompt_filter}
                 on_change="filter_prompt"
-                class="w-48"
+                class="w-full md:w-48"
                 id="prompt-filter"
                 show_default={false}
                 show_all_option={true}
                 all_option_text="All Prompts"
                 all_option_value="All Prompts"
+                key={"prompt-#{@filter_reset_key}"}
               />
             </div>
           <% end %>
+
+          <div class="hidden md:flex w-full md:w-auto justify-center md:justify-start">
+            <.button
+              variant="outline"
+              size="lg"
+              phx-click="reset_filters"
+              class="w-full md:w-auto"
+            >
+              <Lucideicons.refresh_ccw class="w-4 h-4 -mx-4" />
+            </.button>
+          </div>
         </div>
       </div>
 

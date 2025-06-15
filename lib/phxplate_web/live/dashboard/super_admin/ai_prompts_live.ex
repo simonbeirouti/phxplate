@@ -9,7 +9,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
   alias Phxplate.AI
   alias Phxplate.AI.{Prompt, Models}
   alias PhxplateWeb.PageMeta
-  import PhxplateWeb.Components.UI.DialogDrawerWrapper
 
   @impl true
   def mount(_params, _session, socket) do
@@ -121,15 +120,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
   end
 
   @impl true
-  def handle_event("toggle_category", %{"category_toggle" => category}, socket) do
-    {:noreply,
-     socket
-     |> assign(:category_filter, category)
-     |> assign(:page, 1)
-     |> load_prompts()}
-  end
-
-  @impl true
   def handle_event("create_prompt", _params, socket) do
     # Pre-populate category based on current filter and set default active status
     initial_attrs =
@@ -193,7 +183,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
              |> assign(:show_drawer, false)
              |> load_prompts()}
 
-          {:error, changeset} ->
+          {:error, _changeset} ->
             {:noreply,
              socket
              |> assign(:selected_item, %Prompt{} |> Prompt.changeset(prompt_params))
@@ -288,6 +278,21 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
         <:subtitle>Manage AI prompts</:subtitle>
         <:actions>
           <div class="flex items-center gap-3">
+            <form phx-change="filter_category" class="w-auto">
+              <.select :let={select} id="category-filter" name="category" value={if @category_filter == "all", do: "All Categories", else: Prompt.format_category(@category_filter)}>
+                <.select_trigger builder={select} class="w-48" />
+                <.select_content builder={select} class="w-48">
+                  <.select_item builder={select} value="all" label="All Categories">
+                    All Categories
+                  </.select_item>
+                  <%= for category <- Prompt.categories() do %>
+                    <.select_item builder={select} value={category} label={Prompt.format_category(category)}>
+                      {Prompt.format_category(category)}
+                    </.select_item>
+                  <% end %>
+                </.select_content>
+              </.select>
+            </form>
             <.button phx-click="create_prompt" class="bg-black hover:bg-gray-800">
               <Lucideicons.plus class="h-4 w-4 mr-2 hidden sm:inline" />
               <span class="hidden sm:inline">New Prompt</span>
@@ -297,33 +302,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
         </:actions>
       </.header>
 
-      <!-- Filters -->
-      <div class="mt-4">
-        <div class="flex justify-start flex-wrap gap-2">
-          <.button
-            variant={if @category_filter == "all", do: "default", else: "outline"}
-            size="sm"
-            phx-click="toggle_category"
-            phx-value-category_toggle="all"
-            class="px-3 py-2"
-          >
-            All Categories
-          </.button>
-          <%= for category <- Prompt.categories() do %>
-            <.button
-              variant={if @category_filter == category, do: "default", else: "outline"}
-              size="sm"
-              phx-click="toggle_category"
-              phx-value-category_toggle={category}
-              class="px-3 py-2"
-            >
-              {Prompt.format_category(category)}
-            </.button>
-          <% end %>
-        </div>
-      </div>
 
-    <!-- Content -->
+
       <div class="mt-6">
         <%= if Enum.empty?(@prompts) do %>
           <.empty_state
@@ -337,7 +317,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
         <% end %>
       </div>
 
-    <!-- Pagination -->
       <%= if @total_pages > 1 do %>
         <div class="mt-6">
           <.pagination>
@@ -374,7 +353,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
         </div>
       <% end %>
 
-    <!-- Dialog/Drawer Wrapper -->
       <.dialog_drawer_wrapper
         :if={@show_drawer}
         id="ai-prompts-wrapper"
@@ -428,7 +406,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
       <%= for prompt <- @prompts do %>
         <div class="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
           <div class="p-6">
-            <!-- Header with title and category -->
             <div class="flex items-start justify-between mb-3">
               <h3 class="text-lg font-semibold text-gray-900 truncate pr-2">
                 {prompt.name}
@@ -438,7 +415,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
               </span>
             </div>
 
-    <!-- Description -->
             <%= if prompt.description do %>
               <p class="text-sm text-gray-600 mb-4 line-clamp-3">
                 {String.slice(prompt.description, 0, 250)}{if String.length(prompt.description) > 250,
@@ -448,29 +424,22 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
               <p class="text-sm text-gray-400 mb-4 italic">No description provided</p>
             <% end %>
 
-    <!-- Metadata -->
-            <div class="flex items-center justify-between text-xs text-gray-500 mb-4">
-              <span>
-                By {if prompt.created_by_user, do: prompt.created_by_user.email, else: "System"}
-              </span>
-              <span>
-                {Calendar.strftime(prompt.inserted_at, "%b %d, %Y")}
-              </span>
-            </div>
-
-    <!-- Status -->
             <div class="flex items-center justify-between">
-              <span class={[
-                "inline-flex px-2 py-1 text-xs font-semibold rounded-full",
-                if(prompt.is_active,
-                  do: "bg-green-100 text-green-800",
-                  else: "bg-red-100 text-red-800"
-                )
-              ]}>
-                {if prompt.is_active, do: "Active", else: "Inactive"}
-              </span>
+              <div class="flex items-center space-x-3">
+                <span class={[
+                  "inline-flex px-2 py-1 text-xs font-semibold rounded-full",
+                  if(prompt.is_active,
+                    do: "bg-green-100 text-green-800",
+                    else: "bg-red-100 text-red-800"
+                  )
+                ]}>
+                  {if prompt.is_active, do: "Active", else: "Inactive"}
+                </span>
+                <span class="text-xs text-gray-500">
+                  {Calendar.strftime(prompt.inserted_at, "%b %d, %Y")}
+                </span>
+              </div>
 
-    <!-- Actions -->
               <div class="flex items-center space-x-1">
                 <.button variant="outline" size="sm" phx-click="view_prompt" phx-value-id={prompt.id}>
                   <Lucideicons.eye class="h-4 w-4" />

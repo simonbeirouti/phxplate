@@ -2,7 +2,6 @@ defmodule PhxplateWeb.Components.DashboardLayout do
   @moduledoc false
   use PhxplateWeb, :live_component
   use SaladUI
-  import PhxplateWeb.Components.UI.DialogDrawerWrapper
 
   import Lucideicons, except: [import: 1, quote: 1, menu: 1, link: 1]
 
@@ -90,10 +89,10 @@ defmodule PhxplateWeb.Components.DashboardLayout do
           </.breadcrumb>
 
           <div class="flex-grow" />
-          <.button variant="outline" class="mr-2" phx-click="toggle_support" phx-target={@myself}>
+          <button class="mr-2 p-3 border border-gray-50 shadow-sm rounded-md hover:bg-gray-100" phx-click="toggle_support" phx-target={@myself}>
             <Lucideicons.bell_plus class="w-4 h-4" />
             <span class="sr-only">Support & Feature Requests</span>
-          </.button>
+          </button>
         </header>
 
         <div

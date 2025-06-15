@@ -90,9 +90,14 @@ defmodule PhxplateWeb do
       # Core UI components
       import PhxplateWeb.CoreComponents
 
+      # Custom UI components
+      import PhxplateWeb.Components.UI.Select
+      import PhxplateWeb.Components.UI.Drawer
+      import PhxplateWeb.Components.UI.Dialog
+      import PhxplateWeb.Components.UI.DialogDrawerWrapper
+      import PhxplateWeb.Components.UI.Pagination
+
       # Salad UI components
-      alias SaladUI.Input, as: SInput
-      alias SaladUI.Label, as: SLabel
       import SaladUI.{
         Alert,
         Avatar,
@@ -100,17 +105,14 @@ defmodule PhxplateWeb do
         Button,
         Card,
         Checkbox,
-        Dialog,
         DropdownMenu,
         Form,
         HoverCard,
         Icon,
-        Pagination,
         Popover,
         Progress,
         RadioGroup,
         ScrollArea,
-        Select,
         Separator,
         Sheet,
         Skeleton,
@@ -118,7 +120,6 @@ defmodule PhxplateWeb do
         Switch,
         Table,
         Tabs,
-        Textarea,
         Toggle,
         ToggleGroup,
         Tooltip

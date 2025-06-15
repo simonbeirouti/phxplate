@@ -714,7 +714,7 @@ defmodule Phxplate.AI do
   Run an evaluation against a specific model and optional prompt.
   """
   def run_evaluation(eval_id, model, user_id, prompt_id \\ nil) do
-    with {:ok, eval} <- get_eval_for_run(eval_id),
+    with {:ok, _eval} <- get_eval_for_run(eval_id),
          {:ok, eval_run} <- create_eval_run(%{
            eval_id: eval_id,
            prompt_id: prompt_id,

@@ -12,7 +12,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.FeedbackRequestsLive do
   alias Phoenix.LiveView.JS
   import PhxplateWeb.CoreComponents
   alias Phxplate.PubSub.DataSync
-  import PhxplateWeb.Components.UI.Drawer
 
   @impl true
   def mount(_params, _session, socket) do
@@ -25,24 +24,32 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.FeedbackRequestsLive do
       |> assign(:selected_request, nil)
       |> assign(:delete_confirmation, false)
       |> assign(:show_drawer, false)
-      |> assign(:request_type, :all)
+      |> assign(:request_type, "All")
 
     {:ok, load_requests(socket, 1)}
   end
 
   defp load_requests(socket, page) do
     per_page = 10
-    request_type = socket.assigns[:request_type] || :all
+    request_type = socket.assigns[:request_type] || "All"
+
+    # Convert display text back to database values for request_type filter
+    request_type_value = case request_type do
+      "All" -> :all
+      "Features" -> :feature
+      "Feedback" -> :feedback
+      other -> other
+    end
 
     # Get requests with pagination and filtering
     requests =
       FeatureRequests.list_feature_requests(
         page: page,
         per_page: per_page,
-        request_type: request_type
+        request_type: request_type_value
       )
 
-    total_requests = FeatureRequests.count_feature_requests(request_type: request_type)
+    total_requests = FeatureRequests.count_feature_requests(request_type: request_type_value)
     total_pages = max(1, ceil(total_requests / per_page))
 
     socket
@@ -69,34 +76,24 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.FeedbackRequestsLive do
 
       <div class="grid grid-cols-1 lg:grid-cols-2 lg:gap-8 mt-4 h-[calc(100vh-200px)]">
         <div class="h-[calc(100vh-200px)] col-span-1">
-          <div class="flex flex-col justify-start">
-            <h2 class="text-xl font-semibold mb-4">Requests</h2>
-            <div class="flex space-x-2 mb-4">
-              <.button
-                phx-click="filter_requests"
-                phx-value-type="all"
-                variant={if @request_type == :all, do: "default", else: "outline"}
-                size="sm"
-              >
-                All
-              </.button>
-              <.button
-                phx-click="filter_requests"
-                phx-value-type="feature"
-                variant={if @request_type == :feature, do: "default", else: "outline"}
-                size="sm"
-              >
-                Features
-              </.button>
-              <.button
-                phx-click="filter_requests"
-                phx-value-type="feedback"
-                variant={if @request_type == :feedback, do: "default", else: "outline"}
-                size="sm"
-              >
-                Feedback
-              </.button>
-            </div>
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-semibold">Requests</h2>
+            <form phx-change="filter_requests" class="w-auto">
+              <.select :let={select} id="request-filter" name="type" value={@request_type}>
+                <.select_trigger builder={select} class="w-32" />
+                <.select_content builder={select} class="w-32">
+                  <.select_item builder={select} value="All" label="All">
+                    All
+                  </.select_item>
+                  <.select_item builder={select} value="Features" label="Features">
+                    Features
+                  </.select_item>
+                  <.select_item builder={select} value="Feedback" label="Feedback">
+                    Feedback
+                  </.select_item>
+                </.select_content>
+              </.select>
+            </form>
           </div>
 
           <%= if Enum.empty?(@requests) do %>
@@ -225,7 +222,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.FeedbackRequestsLive do
       </.tabs_list>
 
       <.tabs_content value="view">
-        <div class="space-y-6 bg-white rounded-md shadow-sm p-6">
+        <div class="space-y-2 p-2">
           <div>
             <div class="flex justify-between items-center mb-4">
               <h3 class="text-xl font-semibold">
@@ -259,7 +256,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.FeedbackRequestsLive do
 
             <div>
               <h4 class="text-sm font-medium text-gray-500 mb-2">Description</h4>
-              <div class="p-4 bg-gray-50 rounded-md whitespace-pre-wrap text-sm">
+              <div class="p-4 bg-gray-50 rounded-md text-sm">
                 <%= @selected_request.feature_description %>
               </div>
             </div>
@@ -268,7 +265,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.FeedbackRequestsLive do
       </.tabs_content>
 
       <.tabs_content value="delete">
-        <div class="p-6 bg-white rounded-md shadow-sm">
+        <div class="p-2">
           <%= if @delete_confirmation do %>
             <div class="space-y-4">
               <div class="bg-red-50 border border-red-200 rounded-md p-4">
@@ -319,8 +316,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.FeedbackRequestsLive do
 
   @impl true
   def handle_event("filter_requests", %{"type" => type}, socket) do
-    request_type = String.to_existing_atom(type)
-    socket = assign(socket, :request_type, request_type)
+    socket = assign(socket, :request_type, type)
     {:noreply, load_requests(socket, 1)}
   end
 

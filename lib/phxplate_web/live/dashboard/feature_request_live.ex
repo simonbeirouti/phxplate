@@ -10,12 +10,8 @@ defmodule PhxplateWeb.Dashboard.FeatureRequestLive do
   alias Phxplate.FeatureRequests.FeatureRequestController
 
   def update(assigns, socket) do
-    # Get the parent component ID from assigns
-    # This is the ID of the dashboard layout component
     parent_id = Map.get(assigns, :parent_id)
 
-    # Only initialize form state if it doesn't already exist
-    # This ensures we maintain state across dialog/drawer mode changes
     if socket.assigns[:changeset] do
       {:ok, assign(socket, assigns) |> assign(:parent_id, parent_id)}
     else
@@ -30,9 +26,7 @@ defmodule PhxplateWeb.Dashboard.FeatureRequestLive do
         |> assign(:priority_rating, nil)
         |> assign(:feasibility_rating, nil)
         |> assign(:request_type, nil)
-        # Only show errors after submission attempt
         |> assign(:show_errors, false)
-        # Track form validity for button state
         |> assign(:form_valid, false)
 
       {:ok, socket}
@@ -146,7 +140,6 @@ defmodule PhxplateWeb.Dashboard.FeatureRequestLive do
     """
   end
 
-  # Helper to safely extract integer params
   defp get_integer_param(params, key) do
     case params[key] do
       nil -> nil
@@ -157,21 +150,22 @@ defmodule PhxplateWeb.Dashboard.FeatureRequestLive do
   end
 
   def handle_event("validate", %{"feature_request" => params}, socket) do
-    # Extract values for validation
     priority = get_integer_param(params, "priority_rating")
     request_type = get_integer_param(params, "feasibility_rating")
     feature_description = params["feature_description"]
 
-    # Check if form is valid for button state using the controller
     form_valid = FeatureRequestController.form_valid?(priority, request_type, feature_description)
 
-    # Update socket assigns for UI state
+    changeset = FeatureRequestController.validate_feature_request(params)
+
     socket =
       socket
       |> assign(:priority_rating, priority)
       |> assign(:request_type, request_type)
       |> assign(:feasibility_rating, request_type)
       |> assign(:form_valid, form_valid)
+      |> assign(:changeset, changeset)
+      |> assign(:form, to_form(changeset))
 
     {:noreply, socket}
   end
@@ -179,31 +173,56 @@ defmodule PhxplateWeb.Dashboard.FeatureRequestLive do
   def handle_event("priority_changed", %{"value" => value}, socket) do
     priority_rating = if value == "", do: nil, else: String.to_integer(value)
 
-    # Update both the socket assign and the form changeset
     socket = assign(socket, :priority_rating, priority_rating)
 
-    # Use the controller to validate the changeset
-    changeset = FeatureRequestController.validate_feature_request(%{"priority_rating" => priority_rating})
+    changeset = socket.assigns.changeset
+    existing_changes = changeset.changes
+    existing_data = changeset.data
+
+    updated_params =
+      %{
+        "priority_rating" => priority_rating,
+        "feasibility_rating" =>
+          existing_changes[:feasibility_rating] || existing_data.feasibility_rating,
+        "feature_description" =>
+          existing_changes[:feature_description] || existing_data.feature_description
+      }
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    changeset = FeatureRequestController.validate_feature_request(updated_params)
 
     {:noreply, assign(socket, changeset: changeset, form: to_form(changeset))}
   end
 
   def handle_event("request_type_changed", %{"value" => value}, socket) do
     request_type = if value == "", do: nil, else: String.to_integer(value)
-    # Update both request_type and feasibility_rating (they're the same field)
+
     socket =
       socket
       |> assign(:request_type, request_type)
       |> assign(:feasibility_rating, request_type)
 
-    # Use the controller to validate the changeset
-    changeset = FeatureRequestController.validate_feature_request(%{"feasibility_rating" => request_type})
+    changeset = socket.assigns.changeset
+    existing_changes = changeset.changes
+    existing_data = changeset.data
+
+    updated_params =
+      %{
+        "priority_rating" => existing_changes[:priority_rating] || existing_data.priority_rating,
+        "feasibility_rating" => request_type,
+        "feature_description" =>
+          existing_changes[:feature_description] || existing_data.feature_description
+      }
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Enum.into(%{})
+
+    changeset = FeatureRequestController.validate_feature_request(updated_params)
 
     {:noreply, assign(socket, changeset: changeset, form: to_form(changeset))}
   end
 
   def handle_event("submit", %{"feature_request" => params}, socket) do
-    # Add the current user's ID to the params if available
     params =
       if socket.assigns.current_user do
         Map.put(params, "user_id", socket.assigns.current_user.id)
@@ -211,20 +230,17 @@ defmodule PhxplateWeb.Dashboard.FeatureRequestLive do
         params
       end
 
-    # Always show errors on submit attempt
     socket = assign(socket, :show_errors, true)
 
-    # Use the controller to create the feature request
     case FeatureRequestController.create_feature_request(params) do
       {:ok, _feature_request} ->
-        # Use push_event to send a message to the parent LiveView
         _parent_id = socket.assigns.parent_id
 
-        # Send message to the parent LiveView using push_event to a specific target
-        # This will trigger the handle_event in the dashboard layout component
-        socket = push_event(socket, "feature_request_success", %{message: "Feature request submitted successfully!"})
+        socket =
+          push_event(socket, "feature_request_success", %{
+            message: "Feature request submitted successfully!"
+          })
 
-        # Reset the form in the component using the controller
         changeset = FeatureRequestController.new_changeset()
 
         socket =
@@ -240,11 +256,12 @@ defmodule PhxplateWeb.Dashboard.FeatureRequestLive do
         {:noreply, socket}
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        # Keep dialog open and show validation errors
         _parent_id = socket.assigns.parent_id
 
-        # Send error message to the parent LiveView using push_event
-        socket = push_event(socket, "feature_request_error", %{message: "Please fix the errors in the form."})
+        socket =
+          push_event(socket, "feature_request_error", %{
+            message: "Please fix the errors in the form."
+          })
 
         socket = socket |> assign(changeset: changeset, form: to_form(changeset))
 
@@ -252,9 +269,6 @@ defmodule PhxplateWeb.Dashboard.FeatureRequestLive do
     end
   end
 
-  # Helper functions for priority labels
-
-  # Helper functions for rating labels
   defp priority_label(1), do: "Very Low"
   defp priority_label(2), do: "Low"
   defp priority_label(3), do: "Somewhat Low"

@@ -7,7 +7,8 @@ defmodule PhxplateWeb.Components.AI.ModelSelector do
   """
   use Phoenix.Component
   alias Phxplate.AI.Models
-  use SaladUI
+  import PhxplateWeb.Components.UI.Select
+
   @doc """
   Renders a model selector dropdown.
 

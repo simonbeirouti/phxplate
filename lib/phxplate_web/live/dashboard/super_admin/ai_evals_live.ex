@@ -9,8 +9,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
   alias Phxplate.AI
   alias Phxplate.AI.{Eval, Models}
   alias PhxplateWeb.PageMeta
-  import PhxplateWeb.Components.UI.DialogDrawerWrapper
   import PhxplateWeb.Components.AI.PromptSelector
+  import PhxplateWeb.Components.UI.Select
 
   @impl true
   def mount(_params, _session, socket) do
@@ -24,7 +24,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
      |> assign(:selected_prompt_name, "Default System")
      |> assign(:prompts, load_prompts())
      |> assign(:test_cases, [])
-     |> assign(:status_filter, "all")
+     |> assign(:status_filter, "All Status")
      |> assign(:page, 1)
      |> assign(:per_page, 10)
      |> assign(:evals, [])
@@ -124,7 +124,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
              |> assign(:show_drawer, false)
              |> load_evals()}
 
-          {:error, changeset} ->
+          {:error, _changeset} ->
             {:noreply,
              socket
              |> assign(:selected_item, %Eval{} |> Eval.changeset(eval_params))
@@ -309,8 +309,16 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
   end
 
   defp load_evals(socket) do
+    # Convert display text back to database values for status filter
+    status_value = case socket.assigns.status_filter do
+      "All Status" -> "all"
+      "Active" -> "active"
+      "Inactive" -> "inactive"
+      other -> other
+    end
+
     opts = [
-      status: socket.assigns.status_filter
+      status: status_value
     ]
 
     result = AI.list_evals(socket.assigns.page, socket.assigns.per_page, opts)
@@ -401,6 +409,22 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
         <:subtitle>Manage AI evaluations and test suites</:subtitle>
         <:actions>
           <div class="flex items-center gap-3">
+            <form phx-change="filter_status" class="w-auto">
+              <.select :let={select} id="status-filter" name="status" value={@status_filter}>
+                <.select_trigger builder={select} class="w-32" />
+                <.select_content builder={select} class="w-32">
+                  <.select_item builder={select} value="All Status" label="All Status">
+                    All Status
+                  </.select_item>
+                  <.select_item builder={select} value="Active" label="Active">
+                    Active
+                  </.select_item>
+                  <.select_item builder={select} value="Inactive" label="Inactive">
+                    Inactive
+                  </.select_item>
+                </.select_content>
+              </.select>
+            </form>
             <.button phx-click="create_eval" class="bg-black hover:bg-gray-800">
               <Lucideicons.plus class="h-4 w-4 mr-2 hidden sm:inline" />
               <span class="hidden sm:inline">New Evaluation</span>
@@ -410,40 +434,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
         </:actions>
       </.header>
 
-    <!-- Filters -->
-      <div class="mt-4">
-        <div class="flex justify-start flex-wrap gap-2">
-          <.button
-            variant={if @status_filter == "all", do: "default", else: "outline"}
-            size="sm"
-            phx-click="toggle_status"
-            phx-value-status_toggle="all"
-            class="px-3 py-2"
-          >
-            All Status
-          </.button>
-          <.button
-            variant={if @status_filter == "active", do: "default", else: "outline"}
-            size="sm"
-            phx-click="toggle_status"
-            phx-value-status_toggle="active"
-            class="px-3 py-2"
-          >
-            Active
-          </.button>
-          <.button
-            variant={if @status_filter == "inactive", do: "default", else: "outline"}
-            size="sm"
-            phx-click="toggle_status"
-            phx-value-status_toggle="inactive"
-            class="px-3 py-2"
-          >
-            Inactive
-          </.button>
-        </div>
-      </div>
-
-    <!-- Content -->
       <div class="mt-6">
         <%= if Enum.empty?(@evals) do %>
           <.empty_state
@@ -457,7 +447,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
         <% end %>
       </div>
 
-    <!-- Pagination -->
       <%= if @total_pages > 1 do %>
         <div class="mt-6">
           <.pagination>
@@ -545,7 +534,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
       <%= for eval <- @evals do %>
         <div class="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
           <div class="p-6">
-            <!-- Header with title and status -->
             <div class="flex items-start justify-between mb-4">
               <h3 class="text-lg font-semibold text-gray-900 truncate pr-2">
                 {eval.name}
@@ -561,14 +549,17 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
               </span>
             </div>
 
-    <!-- Test cases info -->
-            <div class="mb-4">
+            <div class="mb-4 space-y-2">
               <p class="text-sm text-gray-600">
                 <strong>Test Cases:</strong> {map_size(eval.test_cases)}
               </p>
+              <%= if eval.evaluation_criteria && String.trim(eval.evaluation_criteria) != "" do %>
+                <p class="text-xs text-gray-600 leading-relaxed">
+                  {String.slice(eval.evaluation_criteria, 0, 250)}{if String.length(eval.evaluation_criteria) > 250, do: "..."}
+                </p>
+              <% end %>
             </div>
 
-    <!-- Actions -->
             <div class="flex items-center justify-between">
               <div class="flex items-center space-x-2">
                 <.button variant="outline" size="sm" phx-click="run_eval" phx-value-id={eval.id}>
@@ -579,7 +570,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
                 </.button>
               </div>
 
-    <!-- Delete button with confirmation -->
               <div class="flex items-center space-x-1">
                 <%= if @delete_eval_id && @delete_eval_id == eval.id do %>
                   <.button
@@ -631,7 +621,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
     ~H"""
     <.form :let={f} for={@changeset} phx-submit="save_eval">
       <div class="space-y-4">
-        <!-- Top row: Name and Status -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <.input field={f[:name]} label="Name" required />
@@ -672,7 +661,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
           </div>
         </div>
 
-    <!-- Test Cases Section -->
         <div>
           <div class="flex items-center justify-between mb-3">
             <.label>Test Cases</.label>
@@ -730,7 +718,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
           </div>
         </div>
 
-    <!-- Full width: Evaluation Criteria -->
         <div>
           <.input
             field={f[:evaluation_criteria]}
@@ -763,7 +750,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
           <p class="text-sm text-gray-500">{@item.evaluation_criteria}</p>
         </div>
 
-        <!-- Test Cases Display -->
         <div>
           <h4 class="text-sm font-medium text-gray-900 mb-3">Test Cases ({map_size(@item.test_cases)})</h4>
           <div class="space-y-3">

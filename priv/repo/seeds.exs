@@ -309,7 +309,7 @@ created_data = Enum.reduce(1..3, created_data, fn index, acc ->
 end)
 
 # Create basic users (some with small subscriptions, some without)
-created_data = Enum.reduce(1..3, created_data, fn index, acc ->
+created_data = Enum.reduce(1..10, created_data, fn index, acc ->
   {:ok, user} = %User{}
   |> User.registration_changeset(%{
     email: Faker.Internet.email(),

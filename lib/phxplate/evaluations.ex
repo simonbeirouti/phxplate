@@ -9,7 +9,6 @@ defmodule Phxplate.Evaluations do
   alias Phxplate.AI
   alias Phxplate.Repo
   alias Phxplate.AI.{EvalRun, Models}
-  import Ecto.Query
 
   @doc """
   Run a model-based evaluation using a judge model to assess responses.

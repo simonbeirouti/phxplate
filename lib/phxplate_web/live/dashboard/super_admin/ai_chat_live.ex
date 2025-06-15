@@ -10,11 +10,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
   alias Phxplate.AI.Models
   alias PhxplateWeb.PageMeta
   alias PhxplateWeb.Components.Markdown
-  import PhxplateWeb.Components.UI.Drawer
-  import PhxplateWeb.Components.UI.DialogDrawerWrapper
-  import PhxplateWeb.Components.AI.ModelSelector
-  import PhxplateWeb.Components.AI.PromptSelector
-  import PhxplateWeb.Components.AI.EvalSelector
+  import PhxplateWeb.Components.AI.{ModelSelector, PromptSelector, EvalSelector}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -517,14 +513,14 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
   end
 
   # Helper function to get default system prompt ID (kept for backward compatibility)
-  defp get_default_system_prompt_id(prompts) do
-    system_prompts = Enum.filter(prompts, &(&1.category == "system"))
+  # defp get_default_system_prompt_id(prompts) do
+  #   system_prompts = Enum.filter(prompts, &(&1.category == "system"))
 
-    case system_prompts do
-      [] -> ""  # Empty string for "Default System"
-      [first_prompt | _] -> to_string(first_prompt.id)
-    end
-  end
+  #   case system_prompts do
+  #     [] -> ""  # Empty string for "Default System"
+  #     [first_prompt | _] -> to_string(first_prompt.id)
+  #   end
+  # end
 
   # Helper function to get default eval selection
   defp get_default_eval_selection(evals) do
@@ -784,7 +780,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     ~H"""
     <div class="flex h-[calc(100vh-90px)]">
       <div class={[
-        "hidden md:flex bg-white transition-all duration-300 bg-blue-100 flex-shrink-0",
+        "hidden lg:flex bg-white transition-all duration-300 bg-blue-100 flex-shrink-0",
         if(@sidebar_open, do: "w-80", else: "w-0 overflow-hidden")
       ]}>
         <div class="h-full flex flex-col w-full">
@@ -830,7 +826,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
           <div class="flex items-center">
             <button
               phx-click="toggle_sidebar"
-              class="hidden md:flex -ml-2 p-2 text-gray-400 hover:text-gray-600 rounded-lg"
+              class="hidden lg:flex -ml-2 p-2 text-gray-400 hover:text-gray-600 rounded-lg"
             >
               <Lucideicons.panel_left class="h-5 w-5" />
             </button>
@@ -1019,7 +1015,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
               <.button
                 type="button"
                 phx-click="show_mobile_history"
-                class="md:hidden mt-2"
+                class="lg:hidden mt-2"
                 title="Chat History"
               >
                 <Lucideicons.history class="h-4 w-4" />

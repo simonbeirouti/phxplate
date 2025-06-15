@@ -194,7 +194,7 @@ defmodule PhxplateWeb.Router do
       on_mount: [
         {PhxplateWeb.UserAuth, :ensure_authenticated},
         {PhxplateWeb.UserAuth, :ensure_proper_role},
-        {PhxplateWeb.Live.Hooks.LayoutHooks, :default},
+        {PhxplateWeb.Live.Hooks.LayoutHooks, :default}
       ] do
       live "/", DashboardLive, :index
       live "/account", Dashboard.User.UserAccountLive, :index
@@ -219,11 +219,11 @@ defmodule PhxplateWeb.Router do
       live "/super_admin/users", Dashboard.SuperAdmin.UsersLive, :index
       live "/super_admin/companies", Dashboard.SuperAdmin.CompaniesLive, :index
       live "/super_admin/chat", Admin.ChatDashboardLive, :index
-              live "/super_admin/ai-chat", Dashboard.SuperAdmin.AiChatLive, :index
-        live "/super_admin/ai-chat/:conversation_id", Dashboard.SuperAdmin.AiChatLive, :show
-        live "/super_admin/ai-prompts", Dashboard.SuperAdmin.AiPromptsLive, :index
-        live "/super_admin/ai-evals", Dashboard.SuperAdmin.AiEvalsLive, :index
-        live "/super_admin/ai-results", Dashboard.SuperAdmin.AiResultsLive, :index
+      live "/super_admin/ai-chat", Dashboard.SuperAdmin.AiChatLive, :index
+      live "/super_admin/ai-chat/:conversation_id", Dashboard.SuperAdmin.AiChatLive, :show
+      live "/super_admin/ai-prompts", Dashboard.SuperAdmin.AiPromptsLive, :index
+      live "/super_admin/ai-evals", Dashboard.SuperAdmin.AiEvalsLive, :index
+      live "/super_admin/ai-results", Dashboard.SuperAdmin.AiResultsLive, :index
     end
   end
 end

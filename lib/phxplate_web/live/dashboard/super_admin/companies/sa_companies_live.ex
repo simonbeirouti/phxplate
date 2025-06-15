@@ -11,7 +11,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.CompaniesLive do
   alias PhxplateWeb.{PageMeta, Components.ActivityTimelineComponent}
   alias Phxplate.PubSub.DataSync
   alias Phoenix.LiveView.JS
-  import PhxplateWeb.Components.UI.Drawer
 
   @doc """
   Initializes the LiveView with paginated companies list and PubSub subscriptions.

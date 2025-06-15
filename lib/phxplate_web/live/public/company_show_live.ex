@@ -8,7 +8,6 @@ defmodule PhxplateWeb.Public.CompanyShowLive do
   The view subscribes to real-time updates for the specific company being viewed.
   """
   use PhxplateWeb, :live_view
-  use SaladUI
 
   alias Phxplate.Companies
   alias Phxplate.Bookmarks
