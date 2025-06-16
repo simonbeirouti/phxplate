@@ -11,6 +11,20 @@ defmodule Phxplate.Repo.Migrations.CreateAiConversationsAndMessages do
       add :archived, :boolean, default: false, null: false
       add :user_id, references(:users, on_delete: :delete_all), null: false
 
+      # Selected prompt and eval for the conversation (will be added as foreign keys in later migration)
+      add :selected_prompt_id, :integer, null: true
+      add :selected_eval_id, :integer, null: true
+
+      # Advanced AI parameters for the conversation
+      add :max_tokens, :integer, null: true
+      add :max_tokens_active, :boolean, default: false, null: false
+      add :temperature, :float, null: true
+      add :temperature_active, :boolean, default: false, null: false
+      add :top_k, :integer, null: true
+      add :top_k_active, :boolean, default: false, null: false
+      add :top_p, :float, null: true
+      add :top_p_active, :boolean, default: false, null: false
+
       timestamps(type: :utc_datetime)
     end
 
@@ -20,6 +34,16 @@ defmodule Phxplate.Repo.Migrations.CreateAiConversationsAndMessages do
       add :model, :string, null: true
       add :metadata, :map, default: %{}
       add :conversation_id, references(:ai_conversations, on_delete: :delete_all), null: false
+
+      # Prompt and eval used for this specific message (will be added as foreign keys in later migration)
+      add :prompt_id, :integer, null: true
+      add :eval_id, :integer, null: true
+
+      # Advanced AI parameters used for this specific message (for performance tracking)
+      add :max_tokens, :integer, null: true
+      add :temperature, :float, null: true
+      add :top_k, :integer, null: true
+      add :top_p, :float, null: true
 
       timestamps(type: :utc_datetime)
     end

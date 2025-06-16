@@ -34,13 +34,16 @@ defmodule Phxplate.AI do
   @doc """
   Create a new conversation for a user.
   """
-  def create_conversation(user_id, title, system_prompt \\ @default_system_prompt) do
-    %Conversation{}
-    |> Conversation.changeset(%{
+  def create_conversation(user_id, title, system_prompt \\ @default_system_prompt, advanced_params \\ %{}) do
+    attrs = %{
       title: title,
       system_prompt: system_prompt,
       user_id: user_id
-    })
+    }
+    |> Map.merge(advanced_params)
+
+    %Conversation{}
+    |> Conversation.changeset(attrs)
     |> Repo.insert()
   end
 
@@ -50,7 +53,7 @@ defmodule Phxplate.AI do
   def get_conversation(conversation_id, user_id) do
     Conversation
     |> where([c], c.id == ^conversation_id and c.user_id == ^user_id)
-    |> preload(:messages)
+    |> preload([:messages, :selected_prompt, :selected_eval])
     |> Repo.one()
   end
 
@@ -139,6 +142,34 @@ defmodule Phxplate.AI do
     end
   end
 
+  @doc """
+  Update a conversation's advanced AI parameters.
+  """
+  def update_conversation_advanced_params(conversation_id, user_id, advanced_params) do
+    case get_conversation(conversation_id, user_id) do
+      nil ->
+        {:error, :conversation_not_found}
+      conversation ->
+        conversation
+        |> Conversation.advanced_params_changeset(advanced_params)
+        |> Repo.update()
+    end
+  end
+
+  @doc """
+  Update a conversation's prompt and eval settings.
+  """
+  def update_conversation_prompt_eval(conversation_id, user_id, prompt_eval_params) do
+    case get_conversation(conversation_id, user_id) do
+      nil ->
+        {:error, :conversation_not_found}
+      conversation ->
+        conversation
+        |> Conversation.prompt_eval_changeset(prompt_eval_params)
+        |> Repo.update()
+    end
+  end
+
   # ============================================================================
   # Message Management
   # ============================================================================
@@ -146,15 +177,18 @@ defmodule Phxplate.AI do
   @doc """
   Adds a message to a conversation.
   """
-  def add_message(conversation_id, role, content, model \\ nil, metadata \\ %{}) do
-    %Message{}
-    |> Message.changeset(%{
+  def add_message(conversation_id, role, content, model \\ nil, metadata \\ %{}, message_params \\ %{}) do
+    attrs = %{
       conversation_id: conversation_id,
       role: role,
       content: content,
       model: model,
       metadata: metadata
-    })
+    }
+    |> Map.merge(message_params)
+
+    %Message{}
+    |> Message.changeset(attrs)
     |> Repo.insert()
   end
 
@@ -166,6 +200,20 @@ defmodule Phxplate.AI do
     |> where([m], m.conversation_id == ^conversation_id)
     |> order_by([m], asc: m.inserted_at)
     |> Repo.all()
+  end
+
+  @doc """
+  Gets the latest prompt and eval settings from the last message in a conversation.
+  Returns a map with prompt_name and eval_name, or nil if no messages exist.
+  """
+  def get_latest_prompt_eval_from_messages(conversation_id) do
+    Message
+    |> where([m], m.conversation_id == ^conversation_id)
+    |> where([m], not is_nil(m.prompt_name) or not is_nil(m.eval_name))
+    |> order_by([m], desc: m.inserted_at)
+    |> limit(1)
+    |> select([m], %{prompt_name: m.prompt_name, eval_name: m.eval_name})
+    |> Repo.one()
   end
 
   @doc """
@@ -184,7 +232,7 @@ defmodule Phxplate.AI do
     @doc """
   Stream chat completion for a conversation using the specified model.
   """
-  def stream_chat_in_conversation(conversation_id, user_id, user_message, model_api_id) do
+  def stream_chat_in_conversation(conversation_id, user_id, user_message, model_api_id, opts \\ %{}) do
     case get_conversation(conversation_id, user_id) do
       nil ->
         {:error, :conversation_not_found}
@@ -196,16 +244,15 @@ defmodule Phxplate.AI do
         messages = get_conversation_messages(conversation_id)
         anthropix_messages = messages_to_anthropix_format(messages)
 
+        # Build chat parameters with defaults
+        chat_params = build_chat_params(model_api_id, conversation.system_prompt,
+                                       anthropix_messages ++ [%{role: "user", content: user_message}],
+                                       opts)
+
         # Stream AI response using the specified model
-        case Anthropix.chat(client(),
-               model: model_api_id,
-               max_tokens: 4000,
-               system: conversation.system_prompt,
-               messages: anthropix_messages ++ [%{role: "user", content: user_message}],
-               stream: true
-             ) do
+        case Anthropix.chat(client(), chat_params) do
           {:ok, stream} ->
-            {:ok, stream, conversation, model_api_id}
+            {:ok, stream, conversation, model_api_id, opts}
           {:error, reason} ->
             {:error, reason}
         end
@@ -249,11 +296,26 @@ defmodule Phxplate.AI do
     end
   end
 
-  @doc """
+    @doc """
   Completes a streaming conversation by saving the final AI response with the model used.
   """
-  def complete_streaming_conversation(conversation_id, ai_response, model_api_id) do
-    {:ok, ai_message} = add_message(conversation_id, :assistant, ai_response, model_api_id)
+  def complete_streaming_conversation(conversation_id, ai_response, model_api_id, opts \\ %{}) do
+    # Extract active advanced parameters for the message
+    active_params = extract_active_advanced_params(opts)
+
+    # Include prompt and eval information
+    prompt_eval_params = %{
+      prompt_id: opts[:prompt_id],
+      eval_id: opts[:eval_id]
+    }
+
+    # Merge all message parameters
+    message_params = Map.merge(active_params, prompt_eval_params)
+
+    # Include advanced parameters in metadata for backward compatibility
+    metadata = Map.take(opts, [:max_tokens, :temperature, :top_k, :top_p])
+
+    {:ok, ai_message} = add_message(conversation_id, :assistant, ai_response, model_api_id, metadata, message_params)
 
     # Update conversation timestamp (truncate to seconds for Ecto compatibility)
     conversation = Repo.get!(Conversation, conversation_id)
@@ -261,6 +323,39 @@ defmodule Phxplate.AI do
 
     {:ok, ai_message}
   end
+
+  defp build_chat_params(model_api_id, system_prompt, messages, opts) do
+    base_params = %{
+      model: model_api_id,
+      system: system_prompt,
+      messages: messages,
+      stream: true
+    }
+
+    # Add advanced parameters if they are provided and active
+    base_params
+    |> maybe_add_param(:max_tokens, opts[:max_tokens], opts[:max_tokens_active])
+    |> maybe_add_param(:temperature, opts[:temperature], opts[:temperature_active])
+    |> maybe_add_param(:top_k, opts[:top_k], opts[:top_k_active])
+    |> maybe_add_param(:top_p, opts[:top_p], opts[:top_p_active])
+  end
+
+  defp maybe_add_param(params, _key, _value, false), do: params
+  defp maybe_add_param(params, _key, nil, _active), do: params
+  defp maybe_add_param(params, key, value, true), do: Map.put(params, key, value)
+
+  # Helper function to extract only active advanced parameters
+  defp extract_active_advanced_params(opts) do
+    %{}
+    |> maybe_add_active_param(:max_tokens, opts[:max_tokens], opts[:max_tokens_active])
+    |> maybe_add_active_param(:temperature, opts[:temperature], opts[:temperature_active])
+    |> maybe_add_active_param(:top_k, opts[:top_k], opts[:top_k_active])
+    |> maybe_add_active_param(:top_p, opts[:top_p], opts[:top_p_active])
+  end
+
+  defp maybe_add_active_param(params, _key, _value, false), do: params
+  defp maybe_add_active_param(params, _key, nil, _active), do: params
+  defp maybe_add_active_param(params, key, value, true), do: Map.put(params, key, value)
 
   # ============================================================================
   # Legacy Functions (for backward compatibility)

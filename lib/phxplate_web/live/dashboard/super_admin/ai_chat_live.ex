@@ -11,6 +11,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
   alias PhxplateWeb.PageMeta
   alias PhxplateWeb.Components.Markdown
   import PhxplateWeb.Components.AI.{ModelSelector, PromptSelector, EvalSelector}
+  import PhxplateWeb.Components.UI.{Slider, Switch}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -41,12 +42,17 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
      |> assign(:selected_eval, get_default_eval_selection(all_evals))
      |> assign(:selected_system_prompt, get_default_system_prompt_name(all_prompts))
      |> assign(:current_system_prompt, default_system_prompt)
-     |> assign(:show_prompt_viewer, false)
-     |> assign(:viewing_prompt, nil)
-     |> assign(:show_eval_viewer, false)
-     |> assign(:viewing_eval, nil)
-     |> assign(:screen_mode, "drawer")
+     |> assign(:screen_mode, "dialog")
      |> assign(:page_title, "AI Chat")
+     |> assign(:show_advanced_settings, false)
+     |> assign(:max_tokens, 4000)
+     |> assign(:max_tokens_active, false)
+     |> assign(:temperature, 0.7)
+     |> assign(:temperature_active, false)
+     |> assign(:top_k, 5)
+     |> assign(:top_k_active, false)
+     |> assign(:top_p, 0.9)
+     |> assign(:top_p_active, false)
      |> PageMeta.assign_metadata(
        title: "AI Chat",
        description: "Chat with AI and manage conversations",
@@ -72,6 +78,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
           conversation ->
             messages = convert_db_messages_to_display(conversation.messages)
 
+            # Load advanced parameters from conversation
+            socket = load_advanced_params_from_conversation(socket, conversation)
+
             {:noreply,
              socket
              |> assign(:current_conversation, conversation)
@@ -85,7 +94,15 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     user_id = socket.assigns.current_user.id
     title = "New Conversation"
 
-    case AI.create_conversation(user_id, title, socket.assigns.current_system_prompt) do
+    # Include current advanced parameters if any are active
+    advanced_params = build_advanced_params_for_conversation(socket.assigns)
+
+    case AI.create_conversation(
+           user_id,
+           title,
+           socket.assigns.current_system_prompt,
+           advanced_params
+         ) do
       {:ok, conversation} ->
         conversations = AI.list_conversations(user_id)
 
@@ -131,51 +148,23 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
           end
       end
 
-    {:noreply,
-     socket
-     |> assign(:selected_system_prompt, selected_prompt)
-     |> assign(:current_system_prompt, current_system_prompt)}
-  end
+    socket =
+      socket
+      |> assign(:selected_system_prompt, selected_prompt)
+      |> assign(:current_system_prompt, current_system_prompt)
 
-  @impl true
-  def handle_event("view_current_prompt", _params, socket) do
-    viewing_prompt =
-      case socket.assigns.selected_system_prompt do
-        "Default System" ->
-          %{
-            name: "Default System",
-            description: "Built-in default system prompt",
-            content: socket.assigns.current_system_prompt,
-            category: "system"
-          }
+    # Save prompt selection to current conversation if one exists
+    if socket.assigns.current_conversation do
+      user_id = socket.assigns.current_user.id
+      conversation_id = socket.assigns.current_conversation.id
+      prompt_id = get_prompt_id_from_name(selected_prompt, socket.assigns.available_prompts)
 
-        prompt_name ->
-          case Enum.find(socket.assigns.available_prompts, &(&1.name == prompt_name)) do
-            nil ->
-              %{
-                name: "Default System",
-                description: "Built-in default system prompt",
-                content: AI.get_default_system_prompt(),
-                category: "system"
-              }
+      Task.start(fn ->
+        AI.update_conversation_prompt_eval(conversation_id, user_id, %{selected_prompt_id: prompt_id})
+      end)
+    end
 
-            prompt ->
-              prompt
-          end
-      end
-
-    {:noreply,
-     socket
-     |> assign(:show_prompt_viewer, true)
-     |> assign(:viewing_prompt, viewing_prompt)}
-  end
-
-  @impl true
-  def handle_event("close_prompt_viewer", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:show_prompt_viewer, false)
-     |> assign(:viewing_prompt, nil)}
+    {:noreply, socket}
   end
 
   @impl true
@@ -185,36 +174,111 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
 
   @impl true
   def handle_event("select_eval", %{"eval" => eval_name}, socket) do
-    {:noreply, assign(socket, :selected_eval, eval_name)}
+    socket = assign(socket, :selected_eval, eval_name)
+
+    # Save eval selection to current conversation if one exists
+    if socket.assigns.current_conversation do
+      user_id = socket.assigns.current_user.id
+      conversation_id = socket.assigns.current_conversation.id
+      eval_id = get_eval_id_from_name(eval_name, socket.assigns.available_evals)
+
+      Task.start(fn ->
+        AI.update_conversation_prompt_eval(conversation_id, user_id, %{selected_eval_id: eval_id})
+      end)
+    end
+
+    {:noreply, socket}
   end
 
   @impl true
-  def handle_event("view_current_eval", _params, socket) do
-    viewing_eval =
-      case socket.assigns.selected_eval do
-        "No Eval Selected" ->
-          nil
+  def handle_event("show_advanced_settings", _params, socket) do
+    {:noreply, assign(socket, :show_advanced_settings, true)}
+  end
 
-        name ->
-          Enum.find(socket.assigns.available_evals, &(&1.name == name))
+  @impl true
+  def handle_event("close_advanced_settings", _params, socket) do
+    {:noreply, assign(socket, :show_advanced_settings, false)}
+  end
+
+  @impl true
+  def handle_event("update_advanced_settings", params, socket) do
+    # Debug: Log the incoming parameters
+    IO.puts("🔧 Advanced settings update received:")
+    IO.inspect(params, label: "Params")
+
+    # Convert slider integer values back to appropriate ranges
+    temperature =
+      case params["temperature"] do
+        nil -> 0.7
+        temp_str -> String.to_integer(temp_str) / 100.0
       end
 
-    if viewing_eval do
-      {:noreply,
-       socket
-       |> assign(:show_eval_viewer, true)
-       |> assign(:viewing_eval, viewing_eval)}
-    else
-      {:noreply, put_flash(socket, :info, "No evaluation selected to view")}
-    end
-  end
+    top_p =
+      case params["top_p"] do
+        nil -> 0.9
+        top_p_str -> String.to_integer(top_p_str) / 100.0
+      end
 
-  @impl true
-  def handle_event("close_eval_viewer", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:show_eval_viewer, false)
-     |> assign(:viewing_eval, nil)}
+    # Parse the new values
+    max_tokens = String.to_integer(params["max_tokens"] || "4000")
+    max_tokens_active = params["max_tokens_active"] == "true"
+    temperature_active = params["temperature_active"] == "true"
+    top_k = String.to_integer(params["top_k"] || "5")
+    top_k_active = params["top_k_active"] == "true"
+    top_p_active = params["top_p_active"] == "true"
+
+    # Debug: Log the parsed values
+    IO.puts("📊 Parsed values:")
+    IO.puts("  Max Tokens: #{max_tokens} (Active: #{max_tokens_active})")
+    IO.puts("  Temperature: #{temperature} (Active: #{temperature_active})")
+    IO.puts("  Top K: #{top_k} (Active: #{top_k_active})")
+    IO.puts("  Top P: #{top_p} (Active: #{top_p_active})")
+
+    socket =
+      socket
+      |> assign(:max_tokens, max_tokens)
+      |> assign(:max_tokens_active, max_tokens_active)
+      |> assign(:temperature, temperature)
+      |> assign(:temperature_active, temperature_active)
+      |> assign(:top_k, top_k)
+      |> assign(:top_k_active, top_k_active)
+      |> assign(:top_p, top_p)
+      |> assign(:top_p_active, top_p_active)
+
+    # Save advanced parameters to current conversation if one exists
+    if socket.assigns.current_conversation do
+      user_id = socket.assigns.current_user.id
+      conversation_id = socket.assigns.current_conversation.id
+
+      # Build advanced params from the new values
+      advanced_params = %{
+        max_tokens: if(max_tokens_active, do: max_tokens, else: nil),
+        max_tokens_active: max_tokens_active,
+        temperature: if(temperature_active, do: temperature, else: nil),
+        temperature_active: temperature_active,
+        top_k: if(top_k_active, do: top_k, else: nil),
+        top_k_active: top_k_active,
+        top_p: if(top_p_active, do: top_p, else: nil),
+        top_p_active: top_p_active
+      }
+
+      IO.puts("💾 Saving to conversation #{conversation_id}:")
+      IO.inspect(advanced_params, label: "Advanced params")
+
+      Task.start(fn ->
+        case AI.update_conversation_advanced_params(conversation_id, user_id, advanced_params) do
+          {:ok, _conversation} ->
+            IO.puts("✅ Advanced parameters saved successfully!")
+          {:error, reason} ->
+            IO.puts("❌ Failed to save advanced parameters:")
+            IO.inspect(reason)
+        end
+      end)
+    else
+      IO.puts("⚠️  No current conversation to save advanced parameters to")
+    end
+
+    {:noreply, socket}
   end
 
   @impl true
@@ -357,13 +421,28 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
         Task.start(fn ->
           selected_model_api_id = get_model_api_id(socket.assigns.selected_model)
 
+          # Build advanced parameters
+          advanced_opts = %{
+            max_tokens: socket.assigns.max_tokens,
+            max_tokens_active: socket.assigns.max_tokens_active,
+            temperature: socket.assigns.temperature,
+            temperature_active: socket.assigns.temperature_active,
+            top_k: socket.assigns.top_k,
+            top_k_active: socket.assigns.top_k_active,
+            top_p: socket.assigns.top_p,
+            top_p_active: socket.assigns.top_p_active,
+            prompt_id: get_prompt_id_from_name(socket.assigns.selected_system_prompt, socket.assigns.available_prompts),
+            eval_id: get_eval_id_from_name(socket.assigns.selected_eval, socket.assigns.available_evals)
+          }
+
           case AI.stream_chat_in_conversation(
                  conversation.id,
                  user_id,
                  String.trim(message),
-                 selected_model_api_id
+                 selected_model_api_id,
+                 advanced_opts
                ) do
-            {:ok, stream, _conversation, model_api_id} ->
+            {:ok, stream, _conversation, model_api_id, opts} ->
               accumulated_response =
                 stream
                 |> Stream.map(&AI.extract_text_from_stream/1)
@@ -373,7 +452,10 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                   new_acc
                 end)
 
-              send(pid, {:stream_complete, accumulated_response, conversation.id, model_api_id})
+              send(
+                pid,
+                {:stream_complete, accumulated_response, conversation.id, model_api_id, opts}
+              )
 
             {:error, error} ->
               send(pid, {:ai_error, error})
@@ -408,10 +490,10 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
   end
 
   @impl true
-  def handle_info({:stream_complete, full_response, conversation_id, model_api_id}, socket) do
+  def handle_info({:stream_complete, full_response, conversation_id, model_api_id, opts}, socket) do
     # Save the complete AI response to the database
     Task.start(fn ->
-      AI.complete_streaming_conversation(conversation_id, full_response, model_api_id)
+      AI.complete_streaming_conversation(conversation_id, full_response, model_api_id, opts)
     end)
 
     # Check if this is the first AI response in the conversation (for auto-naming)
@@ -460,6 +542,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
      |> assign(:loading, false)
      |> assign(:streaming, false)
      |> assign(:current_stream, "")}
+  end
+
+  # Backward compatibility handler for old format without opts
+  @impl true
+  def handle_info({:stream_complete, full_response, conversation_id, model_api_id}, socket) do
+    handle_info({:stream_complete, full_response, conversation_id, model_api_id, %{}}, socket)
   end
 
   @impl true
@@ -512,21 +600,29 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     end
   end
 
-  # Helper function to get default system prompt ID (kept for backward compatibility)
-  # defp get_default_system_prompt_id(prompts) do
-  #   system_prompts = Enum.filter(prompts, &(&1.category == "system"))
-
-  #   case system_prompts do
-  #     [] -> ""  # Empty string for "Default System"
-  #     [first_prompt | _] -> to_string(first_prompt.id)
-  #   end
-  # end
-
   # Helper function to get default eval selection
   defp get_default_eval_selection(evals) do
     case evals do
       [] -> "No Eval Selected"
       [first_eval | _] -> first_eval.name
+    end
+  end
+
+  # Helper function to get prompt ID from name
+  defp get_prompt_id_from_name("Default System", _prompts), do: nil
+  defp get_prompt_id_from_name(prompt_name, prompts) do
+    case Enum.find(prompts, &(&1.name == prompt_name)) do
+      nil -> nil
+      prompt -> prompt.id
+    end
+  end
+
+  # Helper function to get eval ID from name
+  defp get_eval_id_from_name("No Eval Selected", _evals), do: nil
+  defp get_eval_id_from_name(eval_name, evals) do
+    case Enum.find(evals, &(&1.name == eval_name)) do
+      nil -> nil
+      eval -> eval.id
     end
   end
 
@@ -547,7 +643,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
         role: Atom.to_string(msg.role),
         content: msg.content,
         model: if(msg.model, do: get_model_short_name(msg.model), else: nil),
-        timestamp: msg.inserted_at
+        timestamp: msg.inserted_at,
+        metadata: msg.metadata || %{}
       }
     end)
   end
@@ -567,124 +664,255 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     end
   end
 
-  # Component for viewing prompt content
-  defp prompt_viewer_content(assigns) do
+  # Helper function to build advanced parameters for conversation storage
+  defp build_advanced_params_for_conversation(assigns) do
+    %{
+      max_tokens: if(assigns.max_tokens_active, do: assigns.max_tokens, else: nil),
+      max_tokens_active: assigns.max_tokens_active,
+      temperature: if(assigns.temperature_active, do: assigns.temperature, else: nil),
+      temperature_active: assigns.temperature_active,
+      top_k: if(assigns.top_k_active, do: assigns.top_k, else: nil),
+      top_k_active: assigns.top_k_active,
+      top_p: if(assigns.top_p_active, do: assigns.top_p, else: nil),
+      top_p_active: assigns.top_p_active,
+      selected_prompt_id: get_prompt_id_from_name(assigns.selected_system_prompt, assigns.available_prompts),
+      selected_eval_id: get_eval_id_from_name(assigns.selected_eval, assigns.available_evals)
+    }
+  end
+
+  # Helper function to load advanced parameters from conversation
+  defp load_advanced_params_from_conversation(socket, conversation) do
+    # Load prompt and eval selections from conversation or fallback to defaults
+    selected_system_prompt =
+      if conversation.selected_prompt_id do
+        case Enum.find(socket.assigns.available_prompts, &(&1.id == conversation.selected_prompt_id)) do
+          nil -> get_default_system_prompt_name(socket.assigns.available_prompts)
+          prompt -> prompt.name
+        end
+      else
+        get_default_system_prompt_name(socket.assigns.available_prompts)
+      end
+
+    selected_eval =
+      if conversation.selected_eval_id do
+        case Enum.find(socket.assigns.available_evals, &(&1.id == conversation.selected_eval_id)) do
+          nil -> get_default_eval_selection(socket.assigns.available_evals)
+          eval -> eval.name
+        end
+      else
+        get_default_eval_selection(socket.assigns.available_evals)
+      end
+
+    # Update current system prompt content
+    current_system_prompt =
+      case selected_system_prompt do
+        "Default System" -> AI.get_default_system_prompt()
+        name ->
+          case Enum.find(socket.assigns.available_prompts, &(&1.name == name)) do
+            nil -> AI.get_default_system_prompt()
+            prompt -> prompt.content
+          end
+      end
+
+    socket
+    |> assign(:max_tokens, conversation.max_tokens || 4000)
+    |> assign(:max_tokens_active, conversation.max_tokens_active || false)
+    |> assign(:temperature, conversation.temperature || 0.7)
+    |> assign(:temperature_active, conversation.temperature_active || false)
+    |> assign(:top_k, conversation.top_k || 5)
+    |> assign(:top_k_active, conversation.top_k_active || false)
+    |> assign(:top_p, conversation.top_p || 0.9)
+    |> assign(:top_p_active, conversation.top_p_active || false)
+    |> assign(:selected_system_prompt, selected_system_prompt)
+    |> assign(:selected_eval, selected_eval)
+    |> assign(:current_system_prompt, current_system_prompt)
+  end
+
+  # Component for advanced AI settings
+  defp advanced_settings_content(assigns) do
     ~H"""
     <div class="space-y-6">
-      <div class="flex items-start justify-between">
-        <div>
-          <h2 class="text-xl font-semibold text-gray-900">{@prompt.name}</h2>
-          <span class="inline-flex px-2 py-1 text-sm font-semibold rounded-full bg-gray-100 text-gray-800 mt-2">
-            {String.replace(@prompt.category, "_", " ")
-            |> String.split()
-            |> Enum.map(&String.capitalize/1)
-            |> Enum.join(" ")}
-          </span>
+      <.form
+        for={%{}}
+        as={:advanced_settings}
+        phx-change="update_advanced_settings"
+        class="grid grid-cols-2 gap-6"
+      >
+        <!-- Max Tokens -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="text-sm font-medium text-gray-900">Max Tokens</label>
+            <div class="flex items-center gap-2">
+              <span class={[
+                "text-xs px-2 py-1 rounded-full",
+                if(@max_tokens_active,
+                  do: "bg-green-100 text-green-800",
+                  else: "bg-gray-100 text-gray-600"
+                )
+              ]}>
+                {if @max_tokens_active, do: "Active", else: "Inactive"}
+              </span>
+              <.switch
+                id="max_tokens_active_switch"
+                name="max_tokens_active"
+                value={@max_tokens_active}
+              />
+            </div>
+          </div>
+          <div class="space-y-2">
+            <.slider
+              id="max_tokens_slider"
+              name="max_tokens"
+              value={@max_tokens}
+              min={1}
+              max={4096}
+              step={1}
+              class={[
+                "w-full",
+                if(!@max_tokens_active, do: "opacity-50 pointer-events-none", else: "")
+              ]}
+            />
+            <div class="flex justify-between text-xs text-gray-500">
+              <span>1</span>
+              <span class="font-medium">{@max_tokens}</span>
+              <span>4096</span>
+            </div>
+          </div>
+          <p class="text-xs text-gray-500">
+            Maximum number of tokens to generate in the response.
+          </p>
         </div>
-      </div>
 
-      <%= if Map.get(@prompt, :description) do %>
-        <div>
-          <h3 class="text-sm font-medium text-gray-900 mb-2">Description</h3>
-          <p class="text-sm text-gray-600">{@prompt.description}</p>
+    <!-- Temperature -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="text-sm font-medium text-gray-900">Temperature</label>
+            <div class="flex items-center gap-2">
+              <span class={[
+                "text-xs px-2 py-1 rounded-full",
+                if(@temperature_active,
+                  do: "bg-green-100 text-green-800",
+                  else: "bg-gray-100 text-gray-600"
+                )
+              ]}>
+                {if @temperature_active, do: "Active", else: "Inactive"}
+              </span>
+              <.switch
+                id="temperature_active_switch"
+                name="temperature_active"
+                value={@temperature_active}
+              />
+            </div>
+          </div>
+          <div class="space-y-2">
+            <.slider
+              id="temperature_slider"
+              name="temperature"
+              value={round(@temperature * 100)}
+              min={0}
+              max={100}
+              step={1}
+              class={[
+                "w-full",
+                if(!@temperature_active, do: "opacity-50 pointer-events-none", else: "")
+              ]}
+            />
+            <div class="flex justify-between text-xs text-gray-500">
+              <span>0.00</span>
+              <span class="font-medium">{Float.round(@temperature, 2)}</span>
+              <span>1.00</span>
+            </div>
+          </div>
+          <p class="text-xs text-gray-500">
+            Controls randomness. Lower values make responses more focused and deterministic.
+          </p>
         </div>
-      <% end %>
 
-      <div>
-        <h3 class="text-sm font-medium text-gray-900 mb-2">Prompt Content</h3>
-        <div class="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-          <pre class="text-sm text-gray-800 whitespace-pre-wrap font-mono">{@prompt.content}</pre>
+    <!-- Top K -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="text-sm font-medium text-gray-900">Top K</label>
+            <div class="flex items-center gap-2">
+              <span class={[
+                "text-xs px-2 py-1 rounded-full",
+                if(@top_k_active,
+                  do: "bg-green-100 text-green-800",
+                  else: "bg-gray-100 text-gray-600"
+                )
+              ]}>
+                {if @top_k_active, do: "Active", else: "Inactive"}
+              </span>
+              <.switch id="top_k_active_switch" name="top_k_active" value={@top_k_active} />
+            </div>
+          </div>
+          <div class="space-y-2">
+            <.slider
+              id="top_k_slider"
+              name="top_k"
+              value={@top_k}
+              min={1}
+              max={5}
+              step={1}
+              class={["w-full", if(!@top_k_active, do: "opacity-50 pointer-events-none", else: "")]}
+            />
+            <div class="flex justify-between text-xs text-gray-500">
+              <span>1</span>
+              <span class="font-medium">{@top_k}</span>
+              <span>5</span>
+            </div>
+          </div>
+          <p class="text-xs text-gray-500">
+            Limits the number of highest probability tokens to consider.
+          </p>
         </div>
-      </div>
 
-      <div class="flex justify-end pt-4 border-t border-gray-200">
-        <.button variant="outline" phx-click="close_prompt_viewer" class="w-full">
+    <!-- Top P -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="text-sm font-medium text-gray-900">Top P</label>
+            <div class="flex items-center gap-2">
+              <span class={[
+                "text-xs px-2 py-1 rounded-full",
+                if(@top_p_active,
+                  do: "bg-green-100 text-green-800",
+                  else: "bg-gray-100 text-gray-600"
+                )
+              ]}>
+                {if @top_p_active, do: "Active", else: "Inactive"}
+              </span>
+              <.switch id="top_p_active_switch" name="top_p_active" value={@top_p_active} />
+            </div>
+          </div>
+          <div class="space-y-2">
+            <.slider
+              id="top_p_slider"
+              name="top_p"
+              value={round(@top_p * 100)}
+              min={1}
+              max={100}
+              step={1}
+              class={["w-full", if(!@top_p_active, do: "opacity-50 pointer-events-none", else: "")]}
+            />
+            <div class="flex justify-between text-xs text-gray-500">
+              <span>0.01</span>
+              <span class="font-medium">{Float.round(@top_p, 2)}</span>
+              <span>1.00</span>
+            </div>
+          </div>
+          <p class="text-xs text-gray-500">
+            Cumulative probability cutoff for token selection.
+          </p>
+        </div>
+      </.form>
+
+      <div class="col-span-2 flex justify-end pt-4 border-t border-gray-200">
+        <.button variant="outline" phx-click="close_advanced_settings" class="w-full">
           Close
         </.button>
       </div>
     </div>
     """
   end
-
-  # Component for viewing eval content
-  defp eval_viewer_content(assigns) do
-    ~H"""
-    <div class="space-y-6">
-      <div class="flex items-start justify-between">
-        <div>
-          <h2 class="text-xl font-semibold text-gray-900">{@eval.name}</h2>
-          <span class={[
-            "inline-flex px-3 py-1 text-sm font-semibold rounded-full mt-2",
-            if(@eval.is_active,
-              do: "bg-green-100 text-green-800",
-              else: "bg-red-100 text-red-800"
-            )
-          ]}>
-            {if @eval.is_active, do: "Active", else: "Inactive"}
-          </span>
-        </div>
-      </div>
-
-      <%= if @eval.description do %>
-        <div>
-          <h3 class="text-sm font-medium text-gray-900 mb-2">Description</h3>
-          <p class="text-sm text-gray-600">{@eval.description}</p>
-        </div>
-      <% end %>
-
-      <div>
-        <h3 class="text-sm font-medium text-gray-900 mb-2">Test Cases</h3>
-        <div class="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
-          <%= if map_size(@eval.test_cases) > 0 do %>
-            <%= for {test_name, test_input} <- @eval.test_cases do %>
-              <div class="mb-4 last:mb-0">
-                <h4 class="text-sm font-medium text-gray-800 mb-1">{test_name}</h4>
-                <p class="text-sm text-gray-600 bg-white p-2 rounded border">
-                  {test_input}
-                </p>
-              </div>
-            <% end %>
-          <% else %>
-            <p class="text-sm text-gray-500 italic">No test cases defined</p>
-          <% end %>
-        </div>
-      </div>
-
-      <%= if @eval.expected_outputs && map_size(@eval.expected_outputs) > 0 do %>
-        <div>
-          <h3 class="text-sm font-medium text-gray-900 mb-2">Expected Outputs</h3>
-          <div class="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
-            <%= for {test_name, expected_output} <- @eval.expected_outputs do %>
-              <div class="mb-4 last:mb-0">
-                <h4 class="text-sm font-medium text-gray-800 mb-1">{test_name}</h4>
-                <p class="text-sm text-gray-600 bg-white p-2 rounded border">
-                  {expected_output}
-                </p>
-              </div>
-            <% end %>
-          </div>
-        </div>
-      <% end %>
-
-      <%= if @eval.evaluation_criteria do %>
-        <div>
-          <h3 class="text-sm font-medium text-gray-900 mb-2">Evaluation Criteria</h3>
-          <div class="bg-gray-50 rounded-lg p-4">
-            <p class="text-sm text-gray-800 whitespace-pre-wrap">{@eval.evaluation_criteria}</p>
-          </div>
-        </div>
-      <% end %>
-
-      <div class="flex justify-end pt-4 border-t border-gray-200">
-        <.button variant="outline" phx-click="close_eval_viewer" class="w-full">
-          Close
-        </.button>
-      </div>
-    </div>
-    """
-  end
-
-
 
   # Component for rendering conversation list (used in both sidebar and drawer)
   defp conversation_list(assigns) do
@@ -853,45 +1081,29 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
           </:actions>
         </.header>
 
-        <div class="mt-4 mb-4 space-y-3">
+        <div class="mt-4 mb-4 w-full">
           <div class="flex items-center gap-2 h-10">
             <.prompt_selector
               available_prompts={@available_prompts}
               selected_prompt={@selected_system_prompt}
               on_change="select_system_prompt"
-              class="w-[200px]"
+              class="w-48"
               id="system-prompt-select"
             />
-            <.button
-              variant="outline"
-              size="sm"
-              class="h-full"
-              phx-click="view_current_prompt"
-              title="View current system prompt"
-            >
-              <Lucideicons.eye class="h-4 w-4" />
-            </.button>
-          </div>
-
-          <div class="flex items-center gap-2 h-10">
             <.eval_selector
               available_evals={@available_evals}
               selected_eval={@selected_eval}
               on_change="select_eval"
-              class="w-[200px]"
+              class="w-48"
               id="chat-eval-select"
-              show_default={true}
-              show_all_option={false}
+
             />
             <.button
               variant="outline"
-              size="sm"
-              class="h-full"
-              phx-click="view_current_eval"
-              title="View current evaluation"
-              disabled={@selected_eval == "No Eval Selected"}
+              phx-click="show_advanced_settings"
+              title="Advanced AI Parameters"
             >
-              <Lucideicons.eye class="h-4 w-4" />
+              <Lucideicons.settings class="h-4 w-4" />
             </.button>
           </div>
         </div>
@@ -917,6 +1129,11 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                 <p class="text-xs text-gray-400 mt-1">
                   Evaluation: <span class="font-medium">{@selected_eval}</span>
                 </p>
+                <%= if @max_tokens_active || @temperature_active || @top_k_active || @top_p_active do %>
+                  <p class="text-xs text-blue-600 mt-1">
+                    <Lucideicons.settings class="h-3 w-3 inline mr-1" /> Advanced parameters: Active
+                  </p>
+                <% end %>
               </div>
             <% else %>
               <%= for message <- @messages do %>
@@ -947,6 +1164,14 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                           <%= if message.model do %>
                             <span class="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">
                               {message.model}
+                            </span>
+                          <% end %>
+                          <%= if Map.get(message, :metadata, %{}) != %{} do %>
+                            <span
+                              class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full"
+                              title="Advanced parameters used"
+                            >
+                              <Lucideicons.settings class="h-3 w-3 inline mr-1" /> Advanced
                             </span>
                           <% end %>
                         <% "system" -> %>
@@ -983,6 +1208,14 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                     <span class="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">
                       {@selected_model}
                     </span>
+                    <%= if @max_tokens_active || @temperature_active || @top_k_active || @top_p_active do %>
+                      <span
+                        class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full"
+                        title="Advanced parameters active"
+                      >
+                        <Lucideicons.settings class="h-3 w-3 inline mr-1" /> Advanced
+                      </span>
+                    <% end %>
                   </div>
                   <%= if @current_stream != "" do %>
                     <div class="break-words">
@@ -1046,29 +1279,25 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     </div>
 
     <.dialog_drawer_wrapper
-      :if={@show_prompt_viewer && @viewing_prompt}
-      id="prompt-viewer-wrapper"
-      show={@show_prompt_viewer}
+      id="advanced-settings-wrapper"
+      show={@show_advanced_settings}
       hook="DialogDrawerMode"
       mode={@screen_mode}
-      on_cancel={JS.push("close_prompt_viewer")}
-      name="System Prompt Details"
-      description="View the current system prompt content"
+      on_cancel={JS.push("close_advanced_settings")}
+      name="Advanced AI Parameters"
+      description="Configure advanced parameters for AI responses"
+      class="sm:max-w-6xl"
     >
-      <.prompt_viewer_content prompt={@viewing_prompt} />
-    </.dialog_drawer_wrapper>
-
-    <.dialog_drawer_wrapper
-      :if={@show_eval_viewer && @viewing_eval}
-      id="eval-viewer-wrapper"
-      show={@show_eval_viewer}
-      hook="DialogDrawerMode"
-      mode={@screen_mode}
-      on_cancel={JS.push("close_eval_viewer")}
-      name="Evaluation Details"
-      description="View the current evaluation test cases and criteria"
-    >
-      <.eval_viewer_content eval={@viewing_eval} />
+      <.advanced_settings_content
+        max_tokens={@max_tokens}
+        max_tokens_active={@max_tokens_active}
+        temperature={@temperature}
+        temperature_active={@temperature_active}
+        top_k={@top_k}
+        top_k_active={@top_k_active}
+        top_p={@top_p}
+        top_p_active={@top_p_active}
+      />
     </.dialog_drawer_wrapper>
 
     <script>

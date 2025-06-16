@@ -8,6 +8,8 @@ defmodule Phxplate.AI.Message do
   use Ecto.Schema
   import Ecto.Changeset
   alias Phxplate.AI.Conversation
+  alias Phxplate.AI.Prompt
+  alias Phxplate.AI.Eval
 
   @roles [:user, :assistant, :system]
 
@@ -16,6 +18,16 @@ defmodule Phxplate.AI.Message do
     field :content, :string
     field :model, :string
     field :metadata, :map, default: %{}
+
+    # Prompt and eval used for this specific message
+    belongs_to :prompt, Prompt
+    belongs_to :eval, Eval
+
+    # Advanced AI parameters used for this specific message (for performance tracking)
+    field :max_tokens, :integer
+    field :temperature, :float
+    field :top_k, :integer
+    field :top_p, :float
 
     belongs_to :conversation, Conversation
 
@@ -27,10 +39,20 @@ defmodule Phxplate.AI.Message do
   """
   def changeset(message, attrs) do
     message
-    |> cast(attrs, [:role, :content, :model, :metadata, :conversation_id])
+    |> cast(attrs, [
+      :role, :content, :model, :metadata, :conversation_id,
+      :prompt_id, :eval_id,
+      :max_tokens, :temperature, :top_k, :top_p
+    ])
     |> validate_required([:role, :content, :conversation_id])
     |> validate_inclusion(:role, @roles)
     |> validate_length(:content, min: 1)
+    |> validate_number(:max_tokens, greater_than: 0, less_than_or_equal_to: 4096)
+    |> validate_number(:temperature, greater_than_or_equal_to: 0.0, less_than_or_equal_to: 1.0)
+    |> validate_number(:top_k, greater_than: 0, less_than_or_equal_to: 5)
+    |> validate_number(:top_p, greater_than: 0.0, less_than_or_equal_to: 1.0)
     |> foreign_key_constraint(:conversation_id)
+    |> foreign_key_constraint(:prompt_id)
+    |> foreign_key_constraint(:eval_id)
   end
 end
