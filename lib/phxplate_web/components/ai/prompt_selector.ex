@@ -30,11 +30,12 @@ defmodule PhxplateWeb.Components.AI.PromptSelector do
   attr :all_option_text, :string, default: "All Prompts", doc: "Text for all prompts option"
   attr :all_option_value, :string, default: "all", doc: "Value for all prompts option"
   attr :key, :string, default: nil, doc: "Optional key for forcing re-render"
+  attr :side, :string, values: ~w(top bottom), default: "bottom", doc: "The side where the select content opens"
 
   def prompt_selector(assigns) do
     ~H"""
     <form phx-change={@on_change}>
-      <.select :let={select} id={@id} name="prompt_name" value={@selected_prompt} key={@key}>
+      <.select :let={select} id={@id} name="prompt_name" value={@selected_prompt} key={@key} side={@side}>
         <.select_trigger builder={select} class={@class} />
         <.select_content builder={select} class={@class}>
           <%= if @show_all_option do %>

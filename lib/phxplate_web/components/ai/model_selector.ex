@@ -22,27 +22,30 @@ defmodule PhxplateWeb.Components.AI.ModelSelector do
   """
   attr :selected_model, :string, required: true, doc: "Currently selected model display name"
   attr :on_change, :string, required: true, doc: "Phoenix event to trigger on model change"
-  attr :class, :string, default: "w-[140px]", doc: "CSS classes for the select trigger"
+  attr :class, :string, default: "w-[200px]", doc: "CSS classes for the select trigger"
   attr :id, :string, default: "model-select", doc: "HTML ID for the select element"
+
+  attr :side, :string,
+    values: ~w(top bottom),
+    default: "bottom",
+    doc: "The side where the select content opens"
 
   def model_selector(assigns) do
     assigns = assign(assigns, :available_models, Models.available_models())
 
     ~H"""
-    <div class="flex items-center gap-2">
-      <form phx-change={@on_change}>
-        <.select :let={select} id={@id} name="model" value={@selected_model}>
-          <.select_trigger builder={select} class={@class} />
-          <.select_content class={@class} builder={select}>
-            <%= for {name, _api_id} <- @available_models do %>
-              <.select_item builder={select} value={name} label={name}>
-                {name}
-              </.select_item>
-            <% end %>
-          </.select_content>
-        </.select>
-      </form>
-    </div>
+    <form phx-change={@on_change}>
+      <.select :let={select} id={@id} name="model" value={@selected_model} side={@side}>
+        <.select_trigger builder={select} class={@class} />
+        <.select_content class={@class} builder={select}>
+          <%= for {name, _api_id} <- @available_models do %>
+            <.select_item builder={select} value={name} label={name}>
+              {name}
+            </.select_item>
+          <% end %>
+        </.select_content>
+      </.select>
+    </form>
     """
   end
 end

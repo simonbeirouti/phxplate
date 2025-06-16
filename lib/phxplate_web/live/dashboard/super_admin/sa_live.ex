@@ -26,7 +26,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
     if connected?(socket) do
       # Subscribe to all relevant topics for real-time updates
       DataSync.subscribe("companies", "all")
-      DataSync.subscribe("employees", "all")
       DataSync.subscribe("users", "all")
       DataSync.subscribe("subscriptions", "all")
       DataSync.subscribe("profiles", "all")
@@ -36,7 +35,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
     stats = %{
       total_users: Accounts.count_users(),
       total_companies: Companies.count_companies(),
-      total_employees: Companies.count_employees(),
       total_subscriptions: Subscriptions.count_active_subscriptions(),
       total_revenue: Subscriptions.calculate_total_revenue(),
 
@@ -78,23 +76,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
     uri = URI.parse(url)
     socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
     {:noreply, socket}
-  end
-
-  # Handle employee creation - only global scope
-  @impl true
-  def handle_info({:created, %{type: :employee, employee: _employee, global_scope: true}}, socket) do
-    {:noreply,
-     update(socket, :stats, fn stats ->
-       %{stats | total_employees: Companies.count_employees()}
-     end)}
-  end
-
-  # Handle employee deletion with full employee data - only global scope
-  def handle_info({:deleted, %{type: :employee, employee: _employee, global_scope: true}}, socket) do
-    {:noreply,
-     update(socket, :stats, fn stats ->
-       %{stats | total_employees: Companies.count_employees()}
-     end)}
   end
 
   # Handle company creation
@@ -274,11 +255,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
             value: stats.total_companies,
             icon: "building",
             link: ~p"/dashboard/super_admin/companies"
-          },
-          %{
-            title: "Total Employees",
-            value: stats.total_employees,
-            icon: "users",
           },
           %{
             title: "Active Subscriptions",

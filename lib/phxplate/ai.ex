@@ -1027,6 +1027,7 @@ defmodule Phxplate.AI do
 
   @doc """
   Run an evaluation against a specific model and optional prompt.
+  Now uses the evaluation queue for rate limiting.
   """
   def run_evaluation(eval_id, model, user_id, prompt_id \\ nil) do
     with {:ok, _eval} <- get_eval_for_run(eval_id),
@@ -1038,12 +1039,17 @@ defmodule Phxplate.AI do
            status: "pending"
          }) do
 
-      # Start the evaluation run in a background task using the new evaluation system
-      Task.start(fn ->
-        Phxplate.Evaluations.run_model_based_eval(eval_run.id)
-      end)
-
-      {:ok, eval_run}
+      # Add to the evaluation queue instead of starting directly
+      case Phxplate.AI.EvaluationQueue.enqueue(eval_run.id) do
+        {:ok, queue_position} ->
+          require Logger
+          Logger.info("📥 Evaluation #{eval_run.id} added to queue at position #{queue_position}")
+          {:ok, eval_run}
+        {:error, reason} ->
+          require Logger
+          Logger.error("❌ Failed to enqueue evaluation #{eval_run.id}: #{inspect(reason)}")
+          {:error, reason}
+      end
     end
   end
 

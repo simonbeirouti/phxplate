@@ -17,6 +17,8 @@ defmodule Phxplate.Application do
       {Finch, name: Phxplate.Finch},
       # Start a worker by calling: Phxplate.Worker.start_link(arg)
       # {Phxplate.Worker, arg},
+      # AI Evaluation Queue - add before the endpoint
+      {Phxplate.AI.EvaluationQueue, []},
       # Start to serve requests, typically the last entry
       PhxplateWeb.Endpoint,
       # For SaladUI

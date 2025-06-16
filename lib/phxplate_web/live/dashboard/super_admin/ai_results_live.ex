@@ -7,15 +7,20 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
   """
   use PhxplateWeb, :live_view
   alias Phxplate.AI
+  alias Phxplate.AI.EvaluationQueue
   alias PhxplateWeb.PageMeta
   import PhxplateWeb.Components.Markdown
-  import PhxplateWeb.Components.AI.{PromptSelector, EvalSelector}
+  import PhxplateWeb.Components.AI.{PromptSelector, EvalSelector, EvaluationQueue}
 
   @impl true
   def mount(_params, _session, socket) do
-    # Subscribe to eval run updates for real-time status changes
+    # Subscribe to eval run updates and queue updates for real-time status changes
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Phxplate.PubSub, "eval_runs")
+      Phoenix.PubSub.subscribe(Phxplate.PubSub, "evaluation_queue")
+
+      # Schedule periodic queue status updates
+      :timer.send_interval(2000, self(), :update_queue_status)
     end
 
     {:ok,
@@ -36,6 +41,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
      |> assign(:available_evals, load_available_evals())
      |> assign(:available_prompts, load_available_prompts())
      |> assign(:filter_reset_key, 0)
+     |> assign(:queue_status, get_queue_status())
      |> load_eval_runs()
      |> PageMeta.assign_metadata(
        title: "AI Results",
@@ -217,6 +223,16 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
      socket
      |> assign(:eval_runs, updated_eval_runs)
      |> assign(:selected_eval_run, updated_selected_eval_run)}
+  end
+
+  @impl true
+  def handle_info(:update_queue_status, socket) do
+    {:noreply, assign(socket, :queue_status, get_queue_status())}
+  end
+
+  @impl true
+  def handle_info({:queue_updated, _queue_data}, socket) do
+    {:noreply, assign(socket, :queue_status, get_queue_status())}
   end
 
   defp load_eval_runs(socket) do
@@ -492,11 +508,13 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex-1 h-[calc(100vh-100px)]">
+    <div class="flex-1 h-[calc(100vh-100px)]" phx-hook="TimezoneDetector" id="timezone-detector">
       <.header>
         AI Results
         <:subtitle>View and analyze AI evaluation results</:subtitle>
       </.header>
+
+      <.evaluation_queue_accordion queue_status={@queue_status} />
 
       <div class="mt-4">
         <div class="mb-3 flex items-center justify-between md:justify-start">
@@ -693,10 +711,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
                 </h3>
                 <%= if eval_run.prompt do %>
                   <p class="text-sm text-gray-500 mt-1">
-                    Prompt: {String.slice(eval_run.prompt.name, 0, 25)}{if String.length(
-                                                                             eval_run.prompt.name
-                                                                           ) > 25,
-                                                                           do: "..."}
+                    Prompt: {String.slice(eval_run.prompt.name, 0, 25)}{if String.length(eval_run.prompt.name) > 25, do: "..."}
                   </p>
                 <% end %>
               </div>
@@ -731,25 +746,27 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
                   <% end %>
                   {String.capitalize(eval_run.status)}
                 </span>
-                <% success_status = get_eval_run_success_status(eval_run) %>
-                <%= if success_status != "unknown" do %>
-                  <span class={[
-                    "inline-flex px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap",
-                    success_status_badge_class(success_status)
-                  ]}>
-                    {success_status_text(success_status)}
-                  </span>
-                <% end %>
               </div>
             </div>
 
             <div class="grid grid-cols-2 gap-4 mb-4">
               <div>
                 <p class="text-sm font-medium text-gray-500">Model</p>
-                <p class="text-sm text-gray-900 mt-1">{eval_run.model}</p>
+                <p class="text-sm text-gray-900 mt-1">{get_display_model_name(eval_run.model)}</p>
               </div>
               <div>
-                <p class="text-sm font-medium text-gray-500">Score</p>
+                <div class="flex items-center gap-2">
+                  <p class="text-sm font-medium text-gray-500">Score</p>
+                  <% success_status = get_eval_run_success_status(eval_run) %>
+                    <%= if success_status != "unknown" do %>
+                      <span class={[
+                        "inline-flex px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap",
+                        success_status_badge_class(success_status)
+                      ]}>
+                        {success_status_text(success_status)}
+                      </span>
+                    <% end %>
+                </div>
                 <p class="text-sm text-gray-900 mt-1">
                   <%= if eval_run.score do %>
                     <span class="font-semibold">{format_score(eval_run.score)}</span>
@@ -769,8 +786,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
               </div>
               <div>
                 <p class="text-sm font-medium text-gray-500">Run Date</p>
-                <p class="text-sm text-gray-600 mt-1">
-                  {Calendar.strftime(eval_run.inserted_at, "%m/%d %H:%M")}
+                <p class="text-sm text-gray-600 mt-1" data-utc-time={DateTime.to_iso8601(eval_run.inserted_at)}>
+                  {Calendar.strftime(eval_run.inserted_at, "%d/%m, %H:%M")}
                 </p>
               </div>
             </div>
@@ -836,7 +853,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div>
               <h3 class="text-lg font-medium text-gray-900">{@eval_run.eval.name}</h3>
-              <p class="text-sm text-gray-600 mt-1">Model: {@eval_run.model}</p>
+              <p class="text-sm text-gray-600 mt-1">Model: {get_display_model_name(@eval_run.model)}</p>
               <%= if @eval_run.prompt do %>
                 <p class="text-sm text-gray-600">Prompt: {@eval_run.prompt.name}</p>
               <% end %>
@@ -858,7 +875,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
           </div>
 
           <%= if @eval_run.status == "completed" and @eval_run.results do %>
-            <!-- Summary Statistics -->
             <% test_results = get_test_case_results(@eval_run.results) %>
             <% {passed_count, total_count, avg_score, length_analysis} =
               calculate_summary_stats(test_results) %>
@@ -1052,5 +1068,42 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
       avg_ratio: Float.round(avg_ratio, 1),
       ratios: ratios
     }
+  end
+
+  defp get_queue_status do
+    try do
+      EvaluationQueue.status()
+    rescue
+      _ ->
+        # Fallback if queue is not available
+        %{
+          queue_size: 0,
+          current_evaluation: nil,
+          configuration: %{
+            cooldown_ms: 5000,
+            max_retries: 3,
+            retry_delay_ms: 10000
+          },
+          statistics: %{
+            total_processed: 0,
+            successful: 0,
+            failed: 0,
+            retries: 0,
+            started_at: DateTime.utc_now()
+          }
+        }
+    end
+  end
+
+
+
+  defp get_display_model_name(model) do
+    # Convert API ID back to display name, or return as-is if it's already a display name
+    case model do
+      # If it starts with "claude-", it's an API ID, convert to display name
+      "claude-" <> _ -> Phxplate.AI.Models.get_display_name(model)
+      # Otherwise, it's already a display name
+      display_name -> display_name
+    end
   end
 end

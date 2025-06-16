@@ -10,6 +10,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
   alias Phxplate.AI.{Eval, Models}
   alias PhxplateWeb.PageMeta
   import PhxplateWeb.Components.AI.PromptSelector
+  import PhxplateWeb.Components.AI.ModelSelector
   import PhxplateWeb.Components.UI.Select
 
   @impl true
@@ -183,7 +184,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
   def handle_event("execute_eval", _params, socket) do
     eval = socket.assigns.selected_item
     current_user = socket.assigns.current_user
-    model_api_id = Models.get_api_id(socket.assigns.selected_model)
+    model_display_name = socket.assigns.selected_model
 
     # Convert prompt name to ID for the AI.run_evaluation function
     prompt_id =
@@ -198,13 +199,14 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
           end
       end
 
-    case AI.run_evaluation(eval.id, model_api_id, current_user.id, prompt_id) do
+    # Store the display name in the database, evaluation logic will convert to API ID
+    case AI.run_evaluation(eval.id, model_display_name, current_user.id, prompt_id) do
       {:ok, _eval_run} ->
         {:noreply,
          socket
          |> put_flash(
            :info,
-           "Evaluation started successfully with #{socket.assigns.selected_model}"
+           "Evaluation started successfully with #{model_display_name}"
          )
          |> assign(:show_drawer, false)}
 
@@ -778,14 +780,28 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
           </div>
         </div>
 
-        <div>
-          <.label>Prompt</.label>
-          <.prompt_selector
-            available_prompts={@prompts}
-            selected_prompt={@selected_prompt_name}
-            on_change="prompt_changed"
-            id="eval-prompt-selector"
-          />
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <.label>Model</.label>
+            <.model_selector
+              selected_model={@selected_model}
+              on_change="select_model"
+              class="w-full"
+              side="top"
+              id="eval-model-selector"
+            />
+          </div>
+          <div>
+            <.label>Prompt</.label>
+            <.prompt_selector
+              available_prompts={@prompts}
+              selected_prompt={@selected_prompt_name}
+              on_change="prompt_changed"
+              class="w-full"
+              side="top"
+              id="eval-prompt-selector"
+            />
+          </div>
         </div>
 
         <div class="mt-6 flex flex-col space-y-3">

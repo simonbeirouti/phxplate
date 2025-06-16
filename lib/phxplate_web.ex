@@ -91,11 +91,12 @@ defmodule PhxplateWeb do
       import PhxplateWeb.CoreComponents
 
       # Custom UI components
-      import PhxplateWeb.Components.UI.Select
+      import PhxplateWeb.Components.UI.Accordion
       import PhxplateWeb.Components.UI.Drawer
       import PhxplateWeb.Components.UI.Dialog
       import PhxplateWeb.Components.UI.DialogDrawerWrapper
       import PhxplateWeb.Components.UI.Pagination
+      import PhxplateWeb.Components.UI.Select
       import PhxplateWeb.Components.UI.Slider
       import PhxplateWeb.Components.UI.Switch
 

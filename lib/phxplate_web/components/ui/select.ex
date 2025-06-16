@@ -5,7 +5,7 @@ defmodule PhxplateWeb.Components.UI.Select do
   ## Examples:
 
       <form>
-         <.select default="banana" id="fruit-select">
+         <.select default="banana" id="fruit-select" side="top">
             <.select_trigger class="w-[180px]">
               <.select_value placeholder=".select a fruit"/>
             </.select_trigger>
@@ -45,6 +45,7 @@ defmodule PhxplateWeb.Components.UI.Select do
     doc: "The display label of the select value. If not provided, the value will be used."
 
   attr :placeholder, :string, default: nil, doc: "The placeholder text when no value is selected."
+  attr :side, :string, values: ~w(top bottom), default: "bottom", doc: "The side where the select content opens"
 
   attr :class, :string, default: nil
   slot :inner_block, required: true
@@ -63,7 +64,8 @@ defmodule PhxplateWeb.Components.UI.Select do
         value: assigns.value,
         label: assigns.label,
         display_text: display_text,
-        placeholder: assigns.placeholder
+        placeholder: assigns.placeholder,
+        side: assigns.side
       })
 
     ~H"""
@@ -121,7 +123,7 @@ defmodule PhxplateWeb.Components.UI.Select do
 
   def select_content(assigns) do
     position_class =
-      case assigns.side do
+      case assigns.builder.side do
         "top" -> "bottom-full mb-1"
         "bottom" -> "top-full mt-1"
       end
@@ -134,7 +136,7 @@ defmodule PhxplateWeb.Components.UI.Select do
     ~H"""
     <.focus_wrap
       id={@id}
-      data-side={@side}
+      data-side={@builder.side}
       class={
         classes([
           "select-content absolute hidden",

@@ -5,6 +5,7 @@ import ForceLogout from "./force_logout"
 import ChatHooks from "./chat"
 import DialogDrawerMode from "./dialog_drawer_mode"
 import FeatureRequestEvents from "./feature_request_events"
+import TimezoneDetector from "./timezone_detector"
 
 export default {
   NavMenu,
@@ -13,5 +14,6 @@ export default {
   ForceLogout,
   DialogDrawerMode,
   FeatureRequestEvents,
+  TimezoneDetector,
   ...ChatHooks
 }

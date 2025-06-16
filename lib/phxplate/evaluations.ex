@@ -119,7 +119,13 @@ defmodule Phxplate.Evaluations do
 
   defp execute_evaluation_with_judge(eval_run) do
     eval = eval_run.eval
-    model_api_id = eval_run.model
+    # Convert display name to API ID if needed
+    model_api_id = case eval_run.model do
+      # If it's already an API ID (starts with "claude-"), use it as-is
+      "claude-" <> _ -> eval_run.model
+      # Otherwise, it's a display name, convert it to API ID
+      display_name -> Phxplate.AI.Models.get_api_id(display_name)
+    end
 
     IO.puts("🚀 Starting evaluation run #{eval_run.id} for eval '#{eval.name}'")
     IO.puts("🤖 Using model: #{model_api_id}")
