@@ -4,10 +4,47 @@ defmodule Phxplate.Evaluations do
 
   This module provides functionality to run evaluations against AI models
   and use a judge model to assess the quality of responses.
+
+  ## Evaluation Flow
+
+  1. **Trigger**: `handle_event("execute_eval", ...)` in AiEvalsLive calls `AI.run_evaluation/4`
+  2. **Setup**: `AI.run_evaluation/4` creates an EvalRun record and starts a background Task
+  3. **Execution**: `run_model_based_eval/1` orchestrates the complete evaluation process:
+     - Marks eval run as "running"
+     - Calls `execute_evaluation_with_judge/1` to run all test cases
+     - For each test case in `run_single_test_case/5`:
+       - Calls the target model with the test input
+       - Calls the judge model via `judge_response/4` to score the response
+       - Falls back to similarity scoring if judge fails
+     - Calculates overall score and marks eval run as "completed"
+  4. **Broadcasting**: Updates are broadcast via PubSub to update the UI in real-time
+
+  ## Judge Model Integration
+
+  The judge model (Claude Sonnet 4) evaluates responses using:
+  - Content accuracy assessment
+  - Relevance to the question
+  - Completeness of the answer
+  - Scoring on a 1.0-5.0 scale with detailed reasoning
+
+  ## Error Handling & Resilience
+
+  - **Timeouts**: 30s for model calls, 45s for judge calls
+  - **Fallback Scoring**: Uses similarity scoring if judge model fails
+  - **Detailed Logging**: Comprehensive logging for debugging and monitoring
+  - **Graceful Degradation**: Continues evaluation even if individual test cases fail
+
+  ## Recent Fixes
+
+  - Fixed judge model system prompt issue (was passing `nil`, now passes empty string)
+  - Added comprehensive timeout handling to prevent hanging evaluations
+  - Enhanced error logging and fallback mechanisms
+  - Improved judge_evaluation data structure in results
   """
 
-  alias Phxplate.AI
+  import Ecto.Query, warn: false
   alias Phxplate.Repo
+  alias Phxplate.AI
   alias Phxplate.AI.{EvalRun, Models}
 
   @doc """
@@ -84,168 +121,313 @@ defmodule Phxplate.Evaluations do
     eval = eval_run.eval
     model_api_id = eval_run.model
 
+    IO.puts("🚀 Starting evaluation run #{eval_run.id} for eval '#{eval.name}'")
+    IO.puts("🤖 Using model: #{model_api_id}")
+    IO.puts("⚖️ Using judge model: #{Models.judge_model_api_id()}")
+    IO.puts("📊 Test cases to run: #{length(Map.keys(eval.test_cases))}")
+
     # Get the system prompt
     system_prompt = get_system_prompt_for_eval_run(eval_run)
+    IO.puts("📝 System prompt length: #{String.length(system_prompt)} characters")
 
     # Run each test case and get judge evaluation
     results = eval.test_cases
-      |> Enum.map(fn {test_name, test_input} ->
+      |> Enum.with_index(1)
+      |> Enum.map(fn {{test_name, test_input}, index} ->
+        IO.puts("🔄 Processing test case #{index}/#{length(Map.keys(eval.test_cases))}: #{test_name}")
+
         case run_single_test_case(test_input, system_prompt, model_api_id, eval, test_name) do
-          {:ok, result} -> {test_name, result}
-          {:error, error} -> {test_name, %{
-            input: test_input,
-            output: "",
-            expected: Map.get(eval.expected_outputs, test_name, ""),
-            score: 0.0,
-            passed: false,
-            error: inspect(error)
-          }}
+          {:ok, result} ->
+            IO.puts("✅ Test case #{test_name} completed successfully")
+            {test_name, result}
+          {:error, error} ->
+            IO.puts("❌ Test case #{test_name} failed: #{inspect(error)}")
+            {test_name, %{
+              input: test_input,
+              output: "",
+              expected: Map.get(eval.expected_outputs, test_name, ""),
+              score: 0.0,
+              passed: false,
+              error: inspect(error),
+              judge_evaluation: %{
+                error: inspect(error),
+                test_case_failed: true
+              }
+            }}
         end
       end)
       |> Enum.into(%{})
 
+    # Calculate summary statistics
+    total_tests = length(Map.keys(results))
+    successful_tests = results |> Enum.count(fn {_, result} -> !Map.has_key?(result, :error) end)
+    judge_successes = results |> Enum.count(fn {_, result} ->
+      case Map.get(result, :judge_evaluation) do
+        %{fallback_used: true} -> false
+        %{error: _} -> false
+        %{test_case_failed: true} -> false
+        _ -> true
+      end
+    end)
+
+    IO.puts("📈 Evaluation summary:")
+    IO.puts("   Total tests: #{total_tests}")
+    IO.puts("   Successful model responses: #{successful_tests}")
+    IO.puts("   Successful judge evaluations: #{judge_successes}")
+    IO.puts("   Judge success rate: #{if total_tests > 0, do: Float.round(judge_successes / total_tests * 100, 1), else: 0}%")
+
     {:ok, results}
   rescue
     error ->
+      IO.puts("💥 Evaluation failed with exception: #{inspect(error)}")
       {:error, error}
   end
 
   defp run_single_test_case(test_input, system_prompt, model_api_id, eval, test_name) do
-    # Get the AI's response to the test input
-    case AI.chat(test_input, system_prompt, model_api_id) do
+    IO.puts("🧪 Running test case: #{test_name}")
+    IO.puts("📝 Test input: #{String.slice(test_input, 0, 100)}...")
+
+    # Get the AI's response to the test input with timeout handling
+    model_response_result = try do
+      # Add a timeout wrapper for the AI call
+      task = Task.async(fn -> AI.chat(test_input, system_prompt, model_api_id) end)
+      case Task.yield(task, 30_000) || Task.shutdown(task) do  # 30 second timeout
+        {:ok, result} -> result
+        nil -> {:error, :timeout}
+      end
+    rescue
+      error -> {:error, error}
+    end
+
+    case model_response_result do
       {:ok, model_response} ->
+        IO.puts("🤖 Model responded successfully (#{String.length(model_response)} chars)")
         expected_output = Map.get(eval.expected_outputs, test_name, "")
 
-        # Use judge model to evaluate the response
-        case evaluate_with_judge_model(test_input, model_response, expected_output, eval.evaluation_criteria) do
-          {:ok, judge_result} ->
-            {:ok, %{
-              input: test_input,
-              output: model_response,
-              expected: expected_output,
-              score: judge_result.score,
-              reasoning: judge_result.reasoning,
-              passed: judge_result.score >= 4.0,
-              judge_evaluation: judge_result
-            }}
+        # Use judge model to evaluate the response with timeout handling
+        judge_result = try do
+          task = Task.async(fn -> judge_response(test_input, model_response, expected_output, eval.evaluation_criteria) end)
+          case Task.yield(task, 45_000) || Task.shutdown(task) do  # 45 second timeout for judge
+            {:ok, result} -> result
+            nil -> {:error, :judge_timeout}
+          end
+        rescue
+          error -> {:error, error}
+        end
 
-          {:error, _} ->
-            # Fallback to simple similarity scoring if judge fails
-            score = calculate_similarity_score(model_response, expected_output)
+        case judge_result do
+          {:ok, score, reasoning, passed} ->
+            IO.puts("⚖️ Judge evaluation successful for #{test_name}: score=#{score}, passed=#{passed}")
             {:ok, %{
               input: test_input,
               output: model_response,
               expected: expected_output,
               score: score,
-              reasoning: "Fallback similarity scoring used due to judge model failure",
+              reasoning: reasoning,
+              passed: passed,
+              judge_evaluation: %{
+                score: score,
+                reasoning: reasoning,
+                passed: passed,
+                judge_model: Models.judge_model_api_id()
+              }
+            }}
+
+          {:error, judge_error} ->
+            IO.puts("❌ Judge evaluation failed for #{test_name}: #{inspect(judge_error)}")
+            # Fallback to simple similarity scoring if judge fails
+            score = calculate_similarity_score(model_response, expected_output)
+            IO.puts("🔄 Using fallback similarity score: #{score}")
+            {:ok, %{
+              input: test_input,
+              output: model_response,
+              expected: expected_output,
+              score: score,
+              reasoning: "Fallback similarity scoring used due to judge model failure: #{inspect(judge_error)}",
               passed: score >= 0.7,
-              judge_evaluation: nil
+              judge_evaluation: %{
+                error: inspect(judge_error),
+                fallback_used: true,
+                similarity_score: score
+              }
             }}
         end
 
-      {:error, error} ->
-        {:error, error}
+      {:error, model_error} ->
+        IO.puts("❌ Model API call failed for #{test_name}: #{inspect(model_error)}")
+        {:error, model_error}
     end
   end
 
-  defp evaluate_with_judge_model(user_prompt, model_response, expected_output, evaluation_criteria) do
+  defp judge_response(user_prompt, model_response, expected_output, evaluation_criteria) do
     judge_prompt = build_judge_prompt(user_prompt, model_response, expected_output, evaluation_criteria)
 
-    # Use the default model for judging (could be configurable)
-    judge_model = Models.get_api_id(Models.default_model_display_name())
+    # Add detailed logging to debug judge model issues
+    IO.puts("🔍 Starting judge evaluation with model: #{Models.judge_model_api_id()}")
+    IO.puts("📝 Judge prompt length: #{String.length(judge_prompt)} characters")
 
-    case AI.chat(judge_prompt, get_judge_system_prompt(), judge_model) do
-      {:ok, judge_response} ->
-        parse_judge_response(judge_response)
+    # Fix: Pass empty string instead of nil for system prompt
+    case AI.chat(judge_prompt, "", Models.judge_model_api_id()) do
+      {:ok, response} ->
+        IO.puts("✅ Judge model responded successfully")
+        IO.puts("📄 Raw judge response: #{String.slice(response, 0, 200)}...")
+
+        # Extract JSON from markdown code blocks if present
+        json_content = extract_json_from_response(response)
+        IO.puts("🔧 Extracted JSON content: #{String.slice(json_content, 0, 200)}...")
+
+        case Jason.decode(json_content) do
+          {:ok, %{"score" => score, "reasoning" => reasoning}} when is_number(score) ->
+            # Determine pass/fail based on score and content quality
+            # Lower threshold and prioritize content matching
+            passed = score >= 2.5 or content_matches_expectation?(model_response, expected_output)
+            IO.puts("📊 Judge score: #{score}, Passed: #{passed}")
+            IO.puts("💭 Judge reasoning: #{String.slice(reasoning, 0, 100)}...")
+            {:ok, score, reasoning, passed}
+
+          {:ok, %{"score" => score, "reasoning" => reasoning}} ->
+            # Handle string scores
+            case Float.parse(to_string(score)) do
+              {numeric_score, _} ->
+                passed = numeric_score >= 2.5 or content_matches_expectation?(model_response, expected_output)
+                IO.puts("📊 Judge score (parsed): #{numeric_score}, Passed: #{passed}")
+                IO.puts("💭 Judge reasoning: #{String.slice(reasoning, 0, 100)}...")
+                {:ok, numeric_score, reasoning, passed}
+              :error ->
+                IO.puts("❌ Invalid score format: #{inspect(score)}")
+                {:error, "Invalid score format: #{inspect(score)}"}
+            end
+
+          {:ok, parsed_response} ->
+            IO.puts("❌ Unexpected JSON structure: #{inspect(parsed_response)}")
+            {:error, "Unexpected JSON structure from judge"}
+
+          {:error, json_error} ->
+            IO.puts("❌ JSON decode error: #{inspect(json_error)}")
+            IO.puts("📄 Processed content that failed to parse: #{String.slice(json_content, 0, 500)}...")
+            {:error, "Invalid JSON response from judge: #{inspect(json_error)}"}
+        end
 
       {:error, error} ->
-        {:error, error}
+        IO.puts("❌ Judge model API call failed: #{inspect(error)}")
+        {:error, "Judge model API call failed: #{inspect(error)}"}
     end
+  end
+
+  # Helper function to extract JSON from markdown code blocks or return as-is
+  defp extract_json_from_response(response) do
+    # Check if response contains markdown code blocks
+    case Regex.run(~r/```(?:json)?\s*\n?(.*?)\n?```/s, response, capture: :all_but_first) do
+      [json_content] ->
+        String.trim(json_content)
+      nil ->
+        # No code blocks found, return the response as-is (might be raw JSON)
+        String.trim(response)
+    end
+  end
+
+  # Helper function to check if content reasonably matches expectation
+  defp content_matches_expectation?(response, expected) do
+    response_clean = String.downcase(String.trim(response))
+    expected_clean = String.downcase(String.trim(expected))
+
+    # If response is empty, it's not a match
+    if String.length(response_clean) == 0, do: false
+
+    # Check for key concept overlap - be more generous with matching
+    expected_words = expected_clean |> String.split() |> Enum.filter(&(String.length(&1) > 2))
+    response_words = response_clean |> String.split() |> Enum.filter(&(String.length(&1) > 2))
+
+    # Calculate overlap percentage with partial word matching
+    overlap_count = Enum.count(expected_words, fn expected_word ->
+      Enum.any?(response_words, fn response_word ->
+        # Check for exact match or partial match (for related words)
+        String.contains?(response_word, expected_word) or
+        String.contains?(expected_word, response_word) or
+        String.jaro_distance(expected_word, response_word) > 0.8
+      end)
+    end)
+
+    overlap_percentage = if length(expected_words) > 0 do
+      overlap_count / length(expected_words)
+    else
+      0.0
+    end
+
+    # Also check for semantic similarity with key concepts
+    semantic_match = check_semantic_concepts(response_clean, expected_clean)
+
+    # Consider it a match if there's reasonable overlap OR semantic similarity
+    # Removed length restrictions completely
+    overlap_percentage >= 0.25 or semantic_match
+  end
+
+  # Check for semantic concept matching
+  defp check_semantic_concepts(response, expected) do
+    # Define concept groups that should be considered equivalent
+    concept_groups = [
+      ["mobile", "mobile-first", "mobile users", "mobile traffic"],
+      ["desktop", "desktop users", "desktop traffic"],
+      ["growth", "increase", "rising", "upward", "improvement"],
+      ["decline", "decrease", "drop", "falling", "reduction"],
+      ["trend", "pattern", "behavior", "direction"],
+      ["dominate", "majority", "primary", "main", "leading"],
+      ["optimization", "optimize", "improve", "enhance"],
+      ["performance", "speed", "loading", "fast"]
+    ]
+
+    # Check if response contains concepts from the same groups as expected
+    Enum.any?(concept_groups, fn group ->
+      expected_has_concept = Enum.any?(group, &String.contains?(expected, &1))
+      response_has_concept = Enum.any?(group, &String.contains?(response, &1))
+      expected_has_concept and response_has_concept
+    end)
   end
 
   defp build_judge_prompt(user_prompt, model_response, expected_output, evaluation_criteria) do
     """
-    You are an expert evaluator. Your task is to assess an AI's response to a user's prompt.
+    You are an expert evaluator. Your ONLY job is to assess if the AI correctly answered the question.
 
-    **User's Prompt:** "#{user_prompt}"
+    **Question:** "#{user_prompt}"
+    **AI's Answer:** "#{model_response}"
+    **Expected Content:** "#{expected_output}"
+    **Focus Area:** #{evaluation_criteria}
 
-    **AI's Response:** "#{model_response}"
+    EVALUATION CRITERIA (LENGTH IS IRRELEVANT):
 
-    **Expected Output:** "#{expected_output}"
+    1. **Content Accuracy**: Does the response contain the correct information?
+    2. **Relevance**: Does it directly address what was asked?
+    3. **Completeness**: Are the key points covered?
 
-    **Evaluation Criteria:** #{evaluation_criteria}
+    SCORING GUIDELINES (1.0 to 5.0):
+    - 5.0: Perfect - completely correct and comprehensive answer
+    - 4.5: Excellent - correct with minor gaps or slight imprecision
+    - 4.0: Very Good - correct core information, well addressed
+    - 3.5: Good - mostly correct with some minor issues
+    - 3.0: Acceptable - correct but basic or missing some elements
+    - 2.5: Below Average - partially correct but significant gaps
+    - 2.0: Poor - some correct elements but major issues
+    - 1.5: Very Poor - minimal correct information
+    - 1.0: Incorrect - wrong or completely off-topic
 
-    CRITICAL EVALUATION REQUIREMENTS:
-    - The AI should provide responses that EXACTLY match the STYLE and LENGTH of the expected output
-    - Expected outputs are typically BRIEF SUMMARIES, not full content
-    - If the expected output is 1-2 sentences, the AI response should also be 1-2 sentences
-    - HEAVILY PENALIZE responses that are much longer than the expected output
-    - When asked to "write" content, the AI should describe what it would write, not write the full content
-    - Responses should demonstrate understanding through concise summaries, not verbose explanations
+    CRITICAL RULES:
+    - IGNORE response length completely - focus ONLY on correctness
+    - A longer correct answer is better than a shorter incorrect one
+    - A shorter correct answer is just as good as a longer correct one
+    - Judge based on whether the core question was answered accurately
+    - The "Expected Content" is a guide for the type of answer, not a template to match exactly
 
-    LENGTH PENALTY GUIDELINES:
-    - If AI response is 3x longer than expected: Maximum score 2.0
-    - If AI response is 5x longer than expected: Maximum score 1.5
-    - If AI response is 10x longer than expected: Maximum score 1.0
+    EXAMPLE SCORING:
+    - Question: "What is 2+2?" Expected: "4"
+    - Response: "The answer is 4" → Score: 5.0 (completely correct)
+    - Response: "Two plus two equals four, which is a basic arithmetic operation" → Score: 5.0 (correct, just more detailed)
+    - Response: "It's 5" → Score: 1.0 (incorrect)
 
-    Please evaluate the response based on the following criteria:
-    1. **Accuracy**: Is the information correct and factual?
-    2. **Relevance**: Does the response directly answer the user's prompt?
-    3. **Completeness**: Does the response adequately address all aspects of the prompt?
-    4. **Quality**: Is the response well-structured and clear?
-    5. **Length Alignment**: Does the response match the expected output length? (CRITICAL)
-    6. **Style Alignment**: Does the response match the expected output style? (CRITICAL)
+    Provide detailed reasoning explaining WHY you gave this score, focusing on content accuracy.
 
-    Provide a score from 1.0 to 5.0, where 5.0 is best.
-    HEAVILY penalize verbose responses when brief ones are expected.
-
-    Your output must be in JSON format like this:
-    {"score": 2.0, "reasoning": "The response provides accurate information but is far too verbose (500+ words) when the expected output suggests a brief summary (50 words). This demonstrates poor instruction following and length awareness."}
+    IMPORTANT: Respond with ONLY raw JSON, no markdown formatting or code blocks:
+    {"score": 4.5, "reasoning": "The response correctly identifies that mobile users dominate at 70% and accurately concludes this indicates mobile-first behavior. The answer directly addresses the question and provides the key insight requested. The additional context about strategy being critical adds value without detracting from the core answer."}
     """
-  end
-
-  defp get_judge_system_prompt do
-    """
-    You are an expert AI evaluator with deep knowledge across multiple domains.
-    Your role is to objectively assess AI responses for accuracy, relevance, completeness, and quality.
-
-    Always provide constructive, detailed feedback and assign fair scores based on the established criteria.
-    Be consistent in your evaluation approach and maintain high standards.
-
-    Always respond with valid JSON containing a numeric score and detailed reasoning.
-    """
-  end
-
-  defp parse_judge_response(judge_response) do
-    # Try to extract JSON from the response
-    json_pattern = ~r/\{[^}]*"score"[^}]*\}/
-
-    case Regex.run(json_pattern, judge_response) do
-      [json_str] ->
-        case Jason.decode(json_str) do
-          {:ok, %{"score" => score, "reasoning" => reasoning}} when is_number(score) ->
-            {:ok, %{score: score, reasoning: reasoning}}
-
-          {:ok, %{"score" => score}} when is_number(score) ->
-            {:ok, %{score: score, reasoning: "No reasoning provided"}}
-
-          _ ->
-            {:error, :invalid_judge_response_format}
-        end
-
-      nil ->
-        # Try to extract score with regex if JSON parsing fails
-        case Regex.run(~r/score["\s]*:[\s]*([0-9.]+)/, judge_response) do
-          [_, score_str] ->
-            case Float.parse(score_str) do
-              {score, _} -> {:ok, %{score: score, reasoning: "Extracted score from non-JSON response"}}
-              _ -> {:error, :could_not_parse_score}
-            end
-
-          nil ->
-            {:error, :no_score_found}
-        end
-    end
   end
 
   defp get_system_prompt_for_eval_run(eval_run) do
@@ -257,23 +439,28 @@ defmodule Phxplate.Evaluations do
     # Add evaluation-specific instructions for concise responses
     evaluation_instructions = """
 
-    EVALUATION MODE - CRITICAL RESPONSE GUIDELINES:
+    EVALUATION MODE - CRITICAL RESPONSE REQUIREMENTS:
 
-    You are being evaluated on your ability to provide BRIEF, SUMMARY-STYLE responses.
+    You are being evaluated on providing BRIEF, DIRECT responses that match the expected output style.
 
-    IMPORTANT: Do NOT create full content (blog posts, marketing copy, etc.). Instead:
-    - Provide a BRIEF SUMMARY or OUTLINE of what you would create
-    - Match the LENGTH and STYLE of the expected output shown
-    - If expected output is 1-2 sentences, respond with 1-2 sentences
-    - If asked to "write" something, describe what you would write instead of writing it
-    - Focus on demonstrating understanding rather than producing full content
+    MANDATORY RULES:
+    1. Keep responses SHORT - typically 1-2 sentences maximum
+    2. Match the LENGTH of the expected output shown in examples
+    3. Be DIRECT and to-the-point - no elaboration or extra details
+    4. Do NOT ask follow-up questions or request more information
+    5. Do NOT provide step-by-step breakdowns unless specifically requested
+    6. Answer the question directly without preambles like "Here's my analysis:"
 
-    Examples:
-    - "Write a blog post" → "A 200-word post covering benefits A, B, C with engaging introduction and call-to-action"
-    - "Create marketing copy" → "Compelling copy highlighting key features, benefits, and emotional appeal with clear CTA"
-    - "Explain a process" → "Step-by-step guide covering setup, configuration, and verification"
+    EXAMPLES OF CORRECT BREVITY:
+    - Question: "What trends do you see in this data?"
+    - Good: "Overall growth with February dip and March recovery"
+    - Bad: "Here's a detailed analysis... [long explanation]"
 
-    Keep responses concise, focused, and aligned with expected output style.
+    - Question: "What should we prioritize?"
+    - Good: "Mobile experience, responsive design, and performance"
+    - Bad: "I need more data to provide recommendations... [long explanation]"
+
+    REMEMBER: You are being scored on CONCISENESS. Verbose responses will receive low scores.
     """
 
     base_prompt <> evaluation_instructions

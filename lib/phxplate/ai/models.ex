@@ -68,6 +68,17 @@ defmodule Phxplate.AI.Models do
   def default_model_display_name, do: "Haiku 3.5"
 
   @doc """
+  Returns the judge model API ID for evaluation scoring.
+  Uses the most capable model for accurate judgment.
+  """
+  def judge_model_api_id, do: "claude-sonnet-4-20250514"
+
+  @doc """
+  Returns the judge model display name.
+  """
+  def judge_model_display_name, do: "Sonnet 4"
+
+  @doc """
   Validates if a given API ID is supported.
   """
   def valid_api_id?(api_id) do

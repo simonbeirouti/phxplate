@@ -310,12 +310,13 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
 
   defp load_evals(socket) do
     # Convert display text back to database values for status filter
-    status_value = case socket.assigns.status_filter do
-      "All Status" -> "all"
-      "Active" -> "active"
-      "Inactive" -> "inactive"
-      other -> other
-    end
+    status_value =
+      case socket.assigns.status_filter do
+        "All Status" -> "all"
+        "Active" -> "active"
+        "Inactive" -> "inactive"
+        other -> other
+      end
 
     opts = [
       status: status_value
@@ -751,7 +752,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
         </div>
 
         <div>
-          <h4 class="text-sm font-medium text-gray-900 mb-3">Test Cases ({map_size(@item.test_cases)})</h4>
+          <h4 class="text-sm font-medium text-gray-900 mb-3">
+            Test Cases ({map_size(@item.test_cases)})
+          </h4>
           <div class="space-y-3">
             <%= for {key, test_case} <- @item.test_cases do %>
               <% expected_output = Map.get(@item.expected_outputs, key, "") %>
@@ -776,7 +779,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
         </div>
 
         <div>
-          <.label>Prompt (Optional)</.label>
+          <.label>Prompt</.label>
           <.prompt_selector
             available_prompts={@prompts}
             selected_prompt={@selected_prompt_name}

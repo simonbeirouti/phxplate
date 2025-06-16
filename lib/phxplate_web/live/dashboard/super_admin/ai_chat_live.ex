@@ -227,13 +227,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     top_k_active = params["top_k_active"] == "true"
     top_p_active = params["top_p_active"] == "true"
 
-    # Debug: Log the parsed values
-    IO.puts("📊 Parsed values:")
-    IO.puts("  Max Tokens: #{max_tokens} (Active: #{max_tokens_active})")
-    IO.puts("  Temperature: #{temperature} (Active: #{temperature_active})")
-    IO.puts("  Top K: #{top_k} (Active: #{top_k_active})")
-    IO.puts("  Top P: #{top_p} (Active: #{top_p_active})")
-
     socket =
       socket
       |> assign(:max_tokens, max_tokens)
@@ -262,20 +255,16 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
         top_p_active: top_p_active
       }
 
-      IO.puts("💾 Saving to conversation #{conversation_id}:")
-      IO.inspect(advanced_params, label: "Advanced params")
-
       Task.start(fn ->
         case AI.update_conversation_advanced_params(conversation_id, user_id, advanced_params) do
           {:ok, _conversation} ->
-            IO.puts("✅ Advanced parameters saved successfully!")
+            :ok
           {:error, reason} ->
-            IO.puts("❌ Failed to save advanced parameters:")
-            IO.inspect(reason)
+            {:error, reason}
         end
       end)
     else
-      IO.puts("⚠️  No current conversation to save advanced parameters to")
+      :ok
     end
 
     {:noreply, socket}
