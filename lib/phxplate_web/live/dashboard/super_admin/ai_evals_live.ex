@@ -758,13 +758,13 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
               <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div>
-                    <.label class="text-xs font-medium text-gray-700">Test Input</.label>
+                    <.label>Test Input</.label>
                     <div class="mt-1 p-2 bg-white border border-gray-200 rounded text-sm">
                       {test_case}
                     </div>
                   </div>
                   <div>
-                    <.label class="text-xs font-medium text-gray-700">Expected Output</.label>
+                    <.label>Expected Output</.label>
                     <div class="mt-1 p-2 bg-white border border-gray-200 rounded text-sm">
                       {expected_output}
                     </div>

@@ -13,10 +13,16 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
 
   @impl true
   def mount(_params, _session, socket) do
+    # Subscribe to eval run updates for real-time status changes
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(Phxplate.PubSub, "eval_runs")
+    end
+
     {:ok,
      socket
      |> assign(:show_drawer, false)
      |> assign(:selected_eval_run, nil)
+     |> assign(:delete_confirmation_id, nil)
      |> assign(:status_filter, "All Status")
      |> assign(:success_filter, "All Results")
      |> assign(:eval_filter, "All Evaluations")
@@ -54,37 +60,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
   @impl true
   def handle_event("view_results", %{"id" => id}, socket) do
     eval_run = AI.get_eval_run(id)
-
-    # Debug logging for eval run query information
-    IO.puts("=== DEBUG: View Results Clicked ===")
-    IO.puts("Eval Run ID: #{id}")
-
-    if eval_run do
-      IO.puts("Eval Run Details:")
-      IO.puts("  - Evaluation: #{eval_run.eval.name}")
-      IO.puts("  - Model: #{eval_run.model}")
-      IO.puts("  - Status: #{eval_run.status}")
-      IO.puts("  - Score: #{inspect(eval_run.score)}")
-      IO.puts("  - Prompt: #{if eval_run.prompt, do: eval_run.prompt.name, else: "Default System"}")
-      IO.puts("  - Started At: #{inspect(eval_run.started_at)}")
-      IO.puts("  - Completed At: #{inspect(eval_run.completed_at)}")
-      IO.puts("  - Success Status: #{get_eval_run_success_status(eval_run)}")
-
-      if eval_run.results && is_map(eval_run.results) do
-        test_results = get_test_case_results(eval_run.results)
-        IO.puts("  - Test Cases: #{length(test_results)}")
-
-        for {test_name, result} <- test_results do
-          IO.puts("    * #{test_name}: #{if Map.get(result, :passed), do: "PASSED", else: "FAILED"} (Score: #{format_score(Map.get(result, :score, "N/A"))})")
-        end
-      else
-        IO.puts("  - No test results available")
-      end
-    else
-      IO.puts("ERROR: Eval run not found!")
-    end
-
-    IO.puts("=== END DEBUG ===")
 
     {:noreply,
      socket
@@ -165,12 +140,92 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
      |> load_eval_runs()}
   end
 
+  @impl true
+  def handle_event("delete_eval_run", %{"id" => id}, socket) do
+    socket =
+      if Map.has_key?(socket.assigns, :delete_confirmation_id) do
+        socket
+      else
+        assign(socket, :delete_confirmation_id, nil)
+      end
+
+    {:noreply, assign(socket, :delete_confirmation_id, String.to_integer(id))}
+  end
+
+  @impl true
+  def handle_event("confirm_delete", %{"id" => id}, socket) do
+    socket =
+      if Map.has_key?(socket.assigns, :delete_confirmation_id) do
+        socket
+      else
+        assign(socket, :delete_confirmation_id, nil)
+      end
+
+    eval_run_id = String.to_integer(id)
+
+    case AI.delete_eval_run(eval_run_id) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign(:delete_confirmation_id, nil)
+         |> load_eval_runs()
+         |> put_flash(:info, "Evaluation run deleted successfully")}
+
+      {:error, _reason} ->
+        {:noreply,
+         socket
+         |> assign(:delete_confirmation_id, nil)
+         |> put_flash(:error, "Failed to delete evaluation run")}
+    end
+  end
+
+  @impl true
+  def handle_event("cancel_delete", _params, socket) do
+    socket =
+      if Map.has_key?(socket.assigns, :delete_confirmation_id) do
+        socket
+      else
+        assign(socket, :delete_confirmation_id, nil)
+      end
+
+    {:noreply, assign(socket, :delete_confirmation_id, nil)}
+  end
+
+  @impl true
+  def handle_info({:eval_run_updated, updated_eval_run}, socket) do
+    # Update the eval run in the current list if it exists
+    updated_eval_runs =
+      Enum.map(socket.assigns.eval_runs, fn eval_run ->
+        if eval_run.id == updated_eval_run.id do
+          # Preload associations to match the expected structure
+          AI.get_eval_run(updated_eval_run.id) || updated_eval_run
+        else
+          eval_run
+        end
+      end)
+
+    # Also update the selected eval run if it's the one being viewed
+    updated_selected_eval_run =
+      if socket.assigns.selected_eval_run &&
+           socket.assigns.selected_eval_run.id == updated_eval_run.id do
+        AI.get_eval_run(updated_eval_run.id) || updated_eval_run
+      else
+        socket.assigns.selected_eval_run
+      end
+
+    {:noreply,
+     socket
+     |> assign(:eval_runs, updated_eval_runs)
+     |> assign(:selected_eval_run, updated_selected_eval_run)}
+  end
+
   defp load_eval_runs(socket) do
     # Convert display text back to database values for status filter
-    status_value = case socket.assigns.status_filter do
-      "All Status" -> "all"
-      other -> other
-    end
+    status_value =
+      case socket.assigns.status_filter do
+        "All Status" -> "all"
+        other -> other
+      end
 
     opts = [
       status: status_value
@@ -212,18 +267,22 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
 
     # Apply success filtering (client-side since it depends on results analysis)
     # Convert display text back to database values for success filter
-    success_value = case socket.assigns.success_filter do
-      "All Results" -> "all"
-      other -> other
-    end
+    success_value =
+      case socket.assigns.success_filter do
+        "All Results" -> "all"
+        other -> other
+      end
 
-    filtered_eval_runs = case success_value do
-      "all" -> result.eval_runs
-      success_filter ->
-        Enum.filter(result.eval_runs, fn eval_run ->
-          get_eval_run_success_status(eval_run) == success_filter
-        end)
-    end
+    filtered_eval_runs =
+      case success_value do
+        "all" ->
+          result.eval_runs
+
+        success_filter ->
+          Enum.filter(result.eval_runs, fn eval_run ->
+            get_eval_run_success_status(eval_run) == success_filter
+          end)
+      end
 
     socket
     |> assign(:eval_runs, filtered_eval_runs)
@@ -260,23 +319,35 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
 
       [default_system_prompt | database_prompts]
     rescue
-      _ -> [
-        %{
-          id: nil,
-          name: "Default System",
-          description: "Built-in default system prompt",
-          category: "system"
-        }
-      ]
+      _ ->
+        [
+          %{
+            id: nil,
+            name: "Default System",
+            description: "Built-in default system prompt",
+            category: "system"
+          }
+        ]
     end
   end
 
   defp format_score(score) when is_float(score) do
-    :erlang.float_to_binary(score, decimals: 2)
+    # Handle both old format (0.0-1.0) and new format (1.0-5.0)
+    if score <= 1.0 do
+      # Old format: show as percentage
+      "#{:erlang.float_to_binary(score * 100, decimals: 1)}%"
+    else
+      # New format: show as score out of 5
+      "#{:erlang.float_to_binary(score, decimals: 1)}/5.0"
+    end
   end
 
   defp format_score(score) when is_integer(score) do
-    Integer.to_string(score)
+    if score <= 1 do
+      "#{score * 100}%"
+    else
+      "#{score}/5"
+    end
   end
 
   defp format_score(_), do: "N/A"
@@ -305,10 +376,68 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
   end
 
   defp get_test_case_results(results) when is_map(results) do
-    results
-    # Filter out error strings
-    |> Enum.reject(fn {_key, value} -> is_binary(value) end)
-    |> Enum.sort_by(fn {key, _value} -> key end)
+    # Handle new format: results with test case details (input, output, expected, etc.)
+    new_format_results =
+      results
+      |> Enum.filter(fn {_key, value} ->
+        is_map(value) and
+          ((Map.has_key?(value, :input) and Map.has_key?(value, :output)) or
+             (Map.has_key?(value, "input") and Map.has_key?(value, "output")))
+      end)
+      |> Enum.sort_by(fn {key, _value} -> key end)
+
+    # If we have new format results, use them
+    if not Enum.empty?(new_format_results) do
+      # Normalize the results to use atom keys for consistency
+      new_format_results
+      |> Enum.map(fn {test_name, result} ->
+        normalized_result = %{
+          input: Map.get(result, :input) || Map.get(result, "input"),
+          output: Map.get(result, :output) || Map.get(result, "output"),
+          expected: Map.get(result, :expected) || Map.get(result, "expected"),
+          score: Map.get(result, :score) || Map.get(result, "score"),
+          passed: Map.get(result, :passed) || Map.get(result, "passed"),
+          reasoning: Map.get(result, :reasoning) || Map.get(result, "reasoning"),
+          error: Map.get(result, :error) || Map.get(result, "error")
+        }
+
+        {test_name, normalized_result}
+      end)
+    else
+      # Handle old format: convert detailed_scores to displayable format
+      case Map.get(results, "detailed_scores") do
+        detailed_scores when is_map(detailed_scores) ->
+          detailed_scores
+          |> Enum.map(fn {test_name, score} ->
+            {test_name,
+             %{
+               input: "Test case: #{test_name}",
+               output: "Score: #{score}",
+               expected: "Performance evaluation",
+               score: score,
+               passed: score >= 0.8,
+               reasoning: "Legacy format - detailed evaluation not available"
+             }}
+          end)
+          |> Enum.sort_by(fn {key, _value} -> key end)
+
+        _ ->
+          # If no recognizable format, create a generic entry
+          [
+            {
+              "evaluation_summary",
+              %{
+                input: "Evaluation completed",
+                output: inspect(results),
+                expected: "Evaluation results",
+                score: nil,
+                passed: false,
+                reasoning: "Legacy format - unable to parse detailed results"
+              }
+            }
+          ]
+      end
+    end
   end
 
   defp get_test_case_results(_), do: []
@@ -323,9 +452,10 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
             "unknown"
           else
             # Check if all test cases passed
-            all_passed = Enum.all?(test_results, fn {_name, result} ->
-              Map.get(result, :passed, false)
-            end)
+            all_passed =
+              Enum.all?(test_results, fn {_name, result} ->
+                Map.get(result, :passed, false)
+              end)
 
             if all_passed, do: "success", else: "partial"
           end
@@ -333,8 +463,11 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
           "unknown"
         end
 
-      "failed" -> "failed"
-      _ -> "unknown"
+      "failed" ->
+        "failed"
+
+      _ ->
+        "unknown"
     end
   end
 
@@ -369,19 +502,23 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
         <div class="mb-3 flex items-center justify-between md:justify-start">
           <span class="text-sm font-medium text-gray-700">Filters</span>
           <div class="md:hidden">
-            <.button
-              variant="outline"
-              size="lg"
-              phx-click="reset_filters"
-              class="w-auto"
-            >
+            <.button variant="outline" size="lg" phx-click="reset_filters" class="w-auto">
               <Lucideicons.refresh_ccw class="w-4 h-4 -mx-4" />
             </.button>
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-3 md:flex md:flex-wrap md:gap-4 md:items-center" id={"filters-#{@filter_reset_key}"}>
+        <div
+          class="grid grid-cols-2 gap-3 md:flex md:flex-wrap md:gap-4 md:items-center"
+          id={"filters-#{@filter_reset_key}"}
+        >
           <form phx-change="filter_status" class="w-full md:w-auto">
-            <.select :let={select} id="status-filter" name="status" value={@status_filter} key={"status-#{@filter_reset_key}"}>
+            <.select
+              :let={select}
+              id="status-filter"
+              name="status"
+              value={@status_filter}
+              key={"status-#{@filter_reset_key}"}
+            >
               <.select_trigger builder={select} class="w-full md:w-48" />
               <.select_content builder={select} class="w-full md:w-48">
                 <.select_item builder={select} value="All Status" label="All Status">
@@ -401,7 +538,13 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
           </form>
 
           <form phx-change="filter_success" class="w-full md:w-auto">
-            <.select :let={select} id="success-filter" name="success" value={@success_filter} key={"success-#{@filter_reset_key}"}>
+            <.select
+              :let={select}
+              id="success-filter"
+              name="success"
+              value={@success_filter}
+              key={"success-#{@filter_reset_key}"}
+            >
               <.select_trigger builder={select} class="w-full md:w-48" />
               <.select_content builder={select} class="w-full md:w-48">
                 <.select_item builder={select} value="All Results" label="All Results">
@@ -455,12 +598,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
           <% end %>
 
           <div class="hidden md:flex w-full md:w-auto justify-center md:justify-start">
-            <.button
-              variant="outline"
-              size="lg"
-              phx-click="reset_filters"
-              class="w-full md:w-auto"
-            >
+            <.button variant="outline" size="lg" phx-click="reset_filters" class="w-full md:w-auto">
               <Lucideicons.refresh_ccw class="w-4 h-4 -mx-4" />
             </.button>
           </div>
@@ -471,7 +609,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
         <%= if Enum.empty?(@eval_runs) do %>
           <.empty_state />
         <% else %>
-          <.results_grid eval_runs={@eval_runs} />
+          <.results_grid eval_runs={@eval_runs} delete_confirmation_id={@delete_confirmation_id} />
         <% end %>
       </div>
 
@@ -555,15 +693,42 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
                 </h3>
                 <%= if eval_run.prompt do %>
                   <p class="text-sm text-gray-500 mt-1">
-                    Prompt: {String.slice(eval_run.prompt.name, 0, 25)}{if String.length(eval_run.prompt.name) > 25,do: "..."}
+                    Prompt: {String.slice(eval_run.prompt.name, 0, 25)}{if String.length(
+                                                                             eval_run.prompt.name
+                                                                           ) > 25,
+                                                                           do: "..."}
                   </p>
                 <% end %>
               </div>
               <div class="flex flex-col gap-1 ml-2">
                 <span class={[
-                  "inline-flex px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap",
+                  "inline-flex px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap items-center",
                   status_badge_class(eval_run.status)
                 ]}>
+                  <%= if eval_run.status == "running" do %>
+                    <svg
+                      class="animate-spin -ml-1 mr-1 h-3 w-3 text-blue-800"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        class="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                      >
+                      </circle>
+                      <path
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      >
+                      </path>
+                    </svg>
+                  <% end %>
                   {String.capitalize(eval_run.status)}
                 </span>
                 <% success_status = get_eval_run_success_status(eval_run) %>
@@ -611,16 +776,49 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
             </div>
 
             <div class="flex justify-end">
-              <.button
-                variant="outline"
-                size="sm"
-                phx-click="view_results"
-                phx-value-id={eval_run.id}
-                disabled={eval_run.status not in ["completed", "failed"]}
-                class="w-full"
-              >
-                <Lucideicons.eye class="h-4 w-4 mr-2" /> View Results
-              </.button>
+              <%= if @delete_confirmation_id == eval_run.id do %>
+                <div class="flex gap-2 w-full">
+                  <.button
+                    variant="outline"
+                    size="sm"
+                    phx-click="confirm_delete"
+                    phx-value-id={eval_run.id}
+                    class="flex-1 border-green-300 text-green-700 hover:bg-green-50"
+                  >
+                    <Lucideicons.check class="h-4 w-4 mr-2" /> Confirm
+                  </.button>
+                  <.button
+                    variant="outline"
+                    size="sm"
+                    phx-click="cancel_delete"
+                    class="flex-1 border-red-300 text-red-700 hover:bg-red-50"
+                  >
+                    <Lucideicons.x class="h-4 w-4 mr-2" /> Cancel
+                  </.button>
+                </div>
+              <% else %>
+                <div class="flex gap-2 w-full">
+                  <.button
+                    variant="outline"
+                    size="sm"
+                    phx-click="view_results"
+                    phx-value-id={eval_run.id}
+                    disabled={eval_run.status not in ["completed", "failed"]}
+                    class="flex-1"
+                  >
+                    <Lucideicons.eye class="h-4 w-4 mr-2" /> View Results
+                  </.button>
+                  <.button
+                    variant="outline"
+                    size="sm"
+                    phx-click="delete_eval_run"
+                    phx-value-id={eval_run.id}
+                    class="px-3 border-red-300 text-red-700 hover:bg-red-50"
+                  >
+                    <Lucideicons.trash_2 class="h-4 w-4" />
+                  </.button>
+                </div>
+              <% end %>
             </div>
           </div>
         </div>
@@ -633,8 +831,9 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
     ~H"""
     <%= if @eval_run do %>
       <div class="space-y-6">
+
         <div class="bg-gray-50 rounded-lg p-4">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div>
               <h3 class="text-lg font-medium text-gray-900">{@eval_run.eval.name}</h3>
               <p class="text-sm text-gray-600 mt-1">Model: {@eval_run.model}</p>
@@ -657,6 +856,43 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
               <% end %>
             </div>
           </div>
+
+          <%= if @eval_run.status == "completed" and @eval_run.results do %>
+            <!-- Summary Statistics -->
+            <% test_results = get_test_case_results(@eval_run.results) %>
+            <% {passed_count, total_count, avg_score, length_analysis} =
+              calculate_summary_stats(test_results) %>
+
+            <div class="border-t border-gray-200 pt-4">
+              <h4 class="text-lg font-medium text-gray-900 mb-3">Evaluation Summary</h4>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="text-center">
+                  <div class="text-2xl font-bold text-gray-900">{passed_count}/{total_count}</div>
+                  <div class="text-sm text-gray-600">Tests Passed</div>
+                </div>
+                <div class="text-center">
+                  <div class="text-2xl font-bold text-gray-900">
+                    {Float.round(passed_count / total_count * 100, 1)}%
+                  </div>
+                  <div class="text-sm text-gray-600">Pass Rate</div>
+                </div>
+                <div class="text-center">
+                  <div class="text-2xl font-bold text-gray-900">{format_score(avg_score)}</div>
+                  <div class="text-sm text-gray-600">Avg Score</div>
+                </div>
+                <div class="text-center">
+                  <div class="text-2xl font-bold text-gray-900">{length_analysis.avg_ratio}x</div>
+                  <div class="text-sm text-gray-600">Avg Length Ratio</div>
+                </div>
+              </div>
+              <%= if length_analysis.avg_ratio > 3.0 do %>
+                <div class="mt-3 p-3 bg-yellow-100 border border-yellow-300 rounded text-sm text-yellow-800">
+                  ⚠️ Responses are significantly longer than expected. Consider reviewing conciseness instructions.
+                </div>
+              <% end %>
+            </div>
+
+          <% end %>
         </div>
 
         <%= if @eval_run.status == "completed" and @eval_run.results do %>
@@ -701,7 +937,22 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
                     </div>
 
                     <div>
-                      <h6 class="text-sm font-medium text-gray-700 mb-2">Actual Output</h6>
+                      <h6 class="text-sm font-medium text-gray-700 mb-2">
+                        Actual Output <% expected_len =
+                          String.length(Map.get(result, :expected, "")) %>
+                        <% actual_len = String.length(Map.get(result, :output, "")) %>
+                        <%= if expected_len > 0 and actual_len > 0 do %>
+                          <span class={[
+                            "text-xs px-1 py-0.5 rounded ml-2",
+                            if(actual_len > expected_len * 3,
+                              do: "bg-red-100 text-red-700",
+                              else: "bg-green-100 text-green-700"
+                            )
+                          ]}>
+                            {Float.round(actual_len / expected_len, 1)}x length
+                          </span>
+                        <% end %>
+                      </h6>
                       <div class="bg-gray-50 rounded p-3 text-sm max-h-40 overflow-y-auto">
                         <div class="prose prose-sm max-w-none">
                           {to_html(Map.get(result, :output, ""))}
@@ -732,21 +983,21 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
             </div>
           </div>
         <% end %>
+      </div>
 
-        <%= if @eval_run.status == "failed" and @eval_run.results do %>
-          <div>
-            <h4 class="text-lg font-medium text-red-700 mb-4">Error Details</h4>
-            <div class="bg-red-50 border border-red-200 rounded-lg p-4">
-              <pre class="text-sm text-red-800 whitespace-pre-wrap">{inspect(@eval_run.results)}</pre>
-            </div>
+      <%= if @eval_run.status == "failed" and @eval_run.results do %>
+        <div>
+          <h4 class="text-lg font-medium text-red-700 mb-4">Error Details</h4>
+          <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+            <pre class="text-sm text-red-800 whitespace-pre-wrap">{inspect(@eval_run.results)}</pre>
           </div>
-        <% end %>
-
-        <div class="flex justify-end pt-4 border-t border-gray-200">
-          <.button variant="outline" phx-click="close_drawer" class="w-full">
-            Close
-          </.button>
         </div>
+      <% end %>
+
+      <div class="flex justify-end pt-4 border-t border-gray-200">
+        <.button variant="outline" phx-click="close_drawer" class="w-full">
+          Close
+        </.button>
       </div>
     <% else %>
       <div class="space-y-4">
@@ -759,5 +1010,47 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
       </div>
     <% end %>
     """
+  end
+
+  defp calculate_summary_stats(test_results) do
+    passed_count =
+      Enum.count(test_results, fn {_name, result} -> Map.get(result, :passed, false) end)
+
+    total_count = length(test_results)
+
+    avg_score =
+      Enum.sum(Enum.map(test_results, fn {_name, result} -> Map.get(result, :score, 0.0) end)) /
+        total_count
+
+    length_analysis = calculate_length_analysis(test_results)
+    {passed_count, total_count, avg_score, length_analysis}
+  end
+
+  defp calculate_length_analysis(test_results) do
+    ratios =
+      test_results
+      |> Enum.map(fn {_name, result} ->
+        expected_len = String.length(Map.get(result, :expected, ""))
+        actual_len = String.length(Map.get(result, :output, ""))
+
+        if expected_len > 0 and actual_len > 0 do
+          actual_len / expected_len
+        else
+          1.0
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    avg_ratio =
+      if Enum.empty?(ratios) do
+        1.0
+      else
+        Enum.sum(ratios) / length(ratios)
+      end
+
+    %{
+      avg_ratio: Float.round(avg_ratio, 1),
+      ratios: ratios
+    }
   end
 end

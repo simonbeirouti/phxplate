@@ -36,7 +36,7 @@ defmodule Phxplate.AI.EvalRun do
     |> cast(attrs, [:eval_id, :prompt_id, :model, :results, :score, :status, :started_at, :completed_at, :run_by])
     |> validate_required([:eval_id, :model])
     |> validate_inclusion(:status, @statuses)
-    |> validate_number(:score, greater_than_or_equal_to: 0.0, less_than_or_equal_to: 1.0)
+    |> validate_number(:score, greater_than_or_equal_to: 0.0, less_than_or_equal_to: 5.0)
     |> foreign_key_constraint(:eval_id)
     |> foreign_key_constraint(:prompt_id)
     |> foreign_key_constraint(:run_by)

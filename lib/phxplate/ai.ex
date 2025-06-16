@@ -68,6 +68,50 @@ defmodule Phxplate.AI do
   end
 
   @doc """
+  Returns the total count of conversations.
+  """
+  def count_conversations do
+    try do
+      Repo.aggregate(Conversation, :count, :id)
+    rescue
+      _ -> 0
+    end
+  end
+
+  @doc """
+  Returns the total count of conversations with optional filtering.
+
+  ## Options
+
+    * `:archived` - Filter by archived status (true/false)
+    * `:user_id` - Filter by specific user
+  """
+  def count_conversations(opts) do
+    try do
+      archived = Keyword.get(opts, :archived)
+      user_id = Keyword.get(opts, :user_id)
+
+      query = Conversation
+
+      query = if archived != nil do
+        where(query, [c], c.archived == ^archived)
+      else
+        query
+      end
+
+      query = if user_id do
+        where(query, [c], c.user_id == ^user_id)
+      else
+        query
+      end
+
+      Repo.aggregate(query, :count, :id)
+    rescue
+      _ -> 0
+    end
+  end
+
+  @doc """
   Update a conversation's title.
   """
   def update_conversation_title(conversation_id, user_id, title) do
@@ -113,8 +157,6 @@ defmodule Phxplate.AI do
         update_conversation_title(conversation_id, user_id, fallback_title)
     end
   end
-
-
 
   @doc """
   Archives a conversation.
@@ -203,6 +245,50 @@ defmodule Phxplate.AI do
   end
 
   @doc """
+  Returns the total count of AI messages.
+  """
+  def count_messages do
+    try do
+      Repo.aggregate(Message, :count, :id)
+    rescue
+      _ -> 0
+    end
+  end
+
+  @doc """
+  Returns the total count of AI messages with optional filtering.
+
+  ## Options
+
+    * `:role` - Filter by message role (:user, :assistant, :system)
+    * `:conversation_id` - Filter by specific conversation
+  """
+  def count_messages(opts) do
+    try do
+      role = Keyword.get(opts, :role)
+      conversation_id = Keyword.get(opts, :conversation_id)
+
+      query = Message
+
+      query = if role do
+        where(query, [m], m.role == ^role)
+      else
+        query
+      end
+
+      query = if conversation_id do
+        where(query, [m], m.conversation_id == ^conversation_id)
+      else
+        query
+      end
+
+      Repo.aggregate(query, :count, :id)
+    rescue
+      _ -> 0
+    end
+  end
+
+  @doc """
   Gets the latest prompt and eval settings from the last message in a conversation.
   Returns a map with prompt_name and eval_name, or nil if no messages exist.
   """
@@ -229,7 +315,7 @@ defmodule Phxplate.AI do
   # AI Chat Functions (with persistence)
   # ============================================================================
 
-    @doc """
+  @doc """
   Stream chat completion for a conversation using the specified model.
   """
   def stream_chat_in_conversation(conversation_id, user_id, user_message, model_api_id, opts \\ %{}) do
@@ -296,7 +382,7 @@ defmodule Phxplate.AI do
     end
   end
 
-    @doc """
+  @doc """
   Completes a streaming conversation by saving the final AI response with the model used.
   """
   def complete_streaming_conversation(conversation_id, ai_response, model_api_id, opts \\ %{}) do
@@ -526,6 +612,50 @@ defmodule Phxplate.AI do
   end
 
   @doc """
+  Returns the total count of AI prompts.
+  """
+  def count_prompts do
+    try do
+      Repo.aggregate(Prompt, :count, :id)
+    rescue
+      _ -> 0
+    end
+  end
+
+  @doc """
+  Returns the total count of AI prompts with optional filtering.
+
+  ## Options
+
+    * `:is_active` - Filter by active status (true/false)
+    * `:category` - Filter by category
+  """
+  def count_prompts(opts) do
+    try do
+      is_active = Keyword.get(opts, :is_active)
+      category = Keyword.get(opts, :category)
+
+      query = Prompt
+
+      query = if is_active != nil do
+        where(query, [p], p.is_active == ^is_active)
+      else
+        query
+      end
+
+      query = if category do
+        where(query, [p], p.category == ^category)
+      else
+        query
+      end
+
+      Repo.aggregate(query, :count, :id)
+    rescue
+      _ -> 0
+    end
+  end
+
+  @doc """
   List prompts with pagination and optional filtering.
   """
   def list_prompts(page, per_page, opts \\ []) do
@@ -666,6 +796,42 @@ defmodule Phxplate.AI do
   end
 
   @doc """
+  Returns the total count of AI evaluations.
+  """
+  def count_evals do
+    try do
+      Repo.aggregate(Eval, :count, :id)
+    rescue
+      _ -> 0
+    end
+  end
+
+  @doc """
+  Returns the total count of AI evaluations with optional filtering.
+
+  ## Options
+
+    * `:is_active` - Filter by active status (true/false)
+  """
+  def count_evals(opts) do
+    try do
+      is_active = Keyword.get(opts, :is_active)
+
+      query = Eval
+
+      query = if is_active != nil do
+        where(query, [e], e.is_active == ^is_active)
+      else
+        query
+      end
+
+      Repo.aggregate(query, :count, :id)
+    rescue
+      _ -> 0
+    end
+  end
+
+  @doc """
   List evaluations with pagination and optional filtering.
   """
   def list_evals(page, per_page, opts \\ []) do
@@ -757,6 +923,50 @@ defmodule Phxplate.AI do
   end
 
   @doc """
+  Returns the total count of evaluation runs.
+  """
+  def count_eval_runs do
+    try do
+      Repo.aggregate(EvalRun, :count, :id)
+    rescue
+      _ -> 0
+    end
+  end
+
+  @doc """
+  Returns the total count of evaluation runs with optional filtering.
+
+  ## Options
+
+    * `:status` - Filter by status ("pending", "running", "completed", "failed")
+    * `:eval_id` - Filter by specific evaluation
+  """
+  def count_eval_runs(opts) do
+    try do
+      status = Keyword.get(opts, :status)
+      eval_id = Keyword.get(opts, :eval_id)
+
+      query = EvalRun
+
+      query = if status do
+        where(query, [er], er.status == ^status)
+      else
+        query
+      end
+
+      query = if eval_id do
+        where(query, [er], er.eval_id == ^eval_id)
+      else
+        query
+      end
+
+      Repo.aggregate(query, :count, :id)
+    rescue
+      _ -> 0
+    end
+  end
+
+  @doc """
   List all evaluation runs with pagination and optional filtering.
   """
   def list_all_eval_runs(page, per_page, opts \\ []) do
@@ -806,6 +1016,16 @@ defmodule Phxplate.AI do
   end
 
   @doc """
+  Delete an evaluation run.
+  """
+  def delete_eval_run(eval_run_id) do
+    case get_eval_run(eval_run_id) do
+      nil -> {:error, :eval_run_not_found}
+      eval_run -> Repo.delete(eval_run)
+    end
+  end
+
+  @doc """
   Run an evaluation against a specific model and optional prompt.
   """
   def run_evaluation(eval_id, model, user_id, prompt_id \\ nil) do
@@ -833,6 +1053,5 @@ defmodule Phxplate.AI do
       eval -> {:ok, eval}
     end
   end
-
 
 end

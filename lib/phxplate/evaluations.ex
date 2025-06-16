@@ -30,16 +30,30 @@ defmodule Phxplate.Evaluations do
       end
 
       # Mark as completed
-      eval_run
-      |> EvalRun.complete_changeset(results, overall_score)
-      |> Repo.update()
+      case eval_run
+           |> EvalRun.complete_changeset(results, overall_score)
+           |> Repo.update() do
+        {:ok, updated_eval_run} ->
+          # Broadcast completion
+          broadcast_eval_run_update(updated_eval_run)
+          {:ok, updated_eval_run}
+        error ->
+          error
+      end
     else
       {:error, reason} ->
         case get_eval_run_for_evaluation(eval_run_id) do
           {:ok, eval_run} ->
-            eval_run
-            |> EvalRun.fail_changeset(inspect(reason))
-            |> Repo.update()
+            case eval_run
+                 |> EvalRun.fail_changeset(inspect(reason))
+                 |> Repo.update() do
+              {:ok, failed_eval_run} ->
+                # Broadcast failure
+                broadcast_eval_run_update(failed_eval_run)
+                {:error, reason}
+              error ->
+                error
+            end
           _ ->
             {:error, reason}
         end
@@ -54,9 +68,16 @@ defmodule Phxplate.Evaluations do
   end
 
   defp mark_eval_run_as_running(eval_run) do
-    eval_run
-    |> EvalRun.start_changeset()
-    |> Repo.update()
+    case eval_run
+         |> EvalRun.start_changeset()
+         |> Repo.update() do
+      {:ok, updated_eval_run} ->
+        # Broadcast that evaluation started
+        broadcast_eval_run_update(updated_eval_run)
+        {:ok, updated_eval_run}
+      error ->
+        error
+    end
   end
 
   defp execute_evaluation_with_judge(eval_run) do
@@ -154,18 +175,32 @@ defmodule Phxplate.Evaluations do
 
     **Evaluation Criteria:** #{evaluation_criteria}
 
+    CRITICAL EVALUATION REQUIREMENTS:
+    - The AI should provide responses that EXACTLY match the STYLE and LENGTH of the expected output
+    - Expected outputs are typically BRIEF SUMMARIES, not full content
+    - If the expected output is 1-2 sentences, the AI response should also be 1-2 sentences
+    - HEAVILY PENALIZE responses that are much longer than the expected output
+    - When asked to "write" content, the AI should describe what it would write, not write the full content
+    - Responses should demonstrate understanding through concise summaries, not verbose explanations
+
+    LENGTH PENALTY GUIDELINES:
+    - If AI response is 3x longer than expected: Maximum score 2.0
+    - If AI response is 5x longer than expected: Maximum score 1.5
+    - If AI response is 10x longer than expected: Maximum score 1.0
+
     Please evaluate the response based on the following criteria:
     1. **Accuracy**: Is the information correct and factual?
     2. **Relevance**: Does the response directly answer the user's prompt?
     3. **Completeness**: Does the response adequately address all aspects of the prompt?
     4. **Quality**: Is the response well-structured and clear?
-    5. **Alignment with Expected Output**: How well does it match the expected output?
+    5. **Length Alignment**: Does the response match the expected output length? (CRITICAL)
+    6. **Style Alignment**: Does the response match the expected output style? (CRITICAL)
 
     Provide a score from 1.0 to 5.0, where 5.0 is best.
-    Explain your reasoning in detail.
+    HEAVILY penalize verbose responses when brief ones are expected.
 
     Your output must be in JSON format like this:
-    {"score": 4.5, "reasoning": "The response accurately addresses the user's question and provides relevant information. However, it could be more comprehensive in covering all aspects mentioned in the expected output."}
+    {"score": 2.0, "reasoning": "The response provides accurate information but is far too verbose (500+ words) when the expected output suggests a brief summary (50 words). This demonstrates poor instruction following and length awareness."}
     """
   end
 
@@ -214,10 +249,34 @@ defmodule Phxplate.Evaluations do
   end
 
   defp get_system_prompt_for_eval_run(eval_run) do
-    case eval_run.prompt do
+    base_prompt = case eval_run.prompt do
       nil -> AI.get_default_system_prompt()
       prompt -> prompt.content
     end
+
+    # Add evaluation-specific instructions for concise responses
+    evaluation_instructions = """
+
+    EVALUATION MODE - CRITICAL RESPONSE GUIDELINES:
+
+    You are being evaluated on your ability to provide BRIEF, SUMMARY-STYLE responses.
+
+    IMPORTANT: Do NOT create full content (blog posts, marketing copy, etc.). Instead:
+    - Provide a BRIEF SUMMARY or OUTLINE of what you would create
+    - Match the LENGTH and STYLE of the expected output shown
+    - If expected output is 1-2 sentences, respond with 1-2 sentences
+    - If asked to "write" something, describe what you would write instead of writing it
+    - Focus on demonstrating understanding rather than producing full content
+
+    Examples:
+    - "Write a blog post" → "A 200-word post covering benefits A, B, C with engaging introduction and call-to-action"
+    - "Create marketing copy" → "Compelling copy highlighting key features, benefits, and emotional appeal with clear CTA"
+    - "Explain a process" → "Step-by-step guide covering setup, configuration, and verification"
+
+    Keep responses concise, focused, and aligned with expected output style.
+    """
+
+    base_prompt <> evaluation_instructions
   end
 
   # Fallback similarity scoring (same as existing implementation)
@@ -234,4 +293,12 @@ defmodule Phxplate.Evaluations do
   end
 
   defp calculate_similarity_score(_, _), do: 0.0
+
+  defp broadcast_eval_run_update(eval_run) do
+    Phoenix.PubSub.broadcast(
+      Phxplate.PubSub,
+      "eval_runs",
+      {:eval_run_updated, eval_run}
+    )
+  end
 end
