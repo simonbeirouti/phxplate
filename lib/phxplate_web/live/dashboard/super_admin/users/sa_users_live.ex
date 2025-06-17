@@ -11,7 +11,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
   alias Phxplate.{Accounts, Repo, Companies}
   alias PhxplateWeb.{PageMeta, Components.ActivityTimelineComponent}
   alias Phxplate.PubSub.DataSync
-  import PhxplateWeb.Components.UI.Drawer
 
   @impl true
   @doc """

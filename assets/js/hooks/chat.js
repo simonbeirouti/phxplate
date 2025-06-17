@@ -268,7 +268,6 @@ const ChatHooks = {
 
         this.supportStatusChannel.join()
           .receive("ok", (resp) => {
-            console.log("Joined support status channel successfully", resp);
             if (resp.status) {
               this.updateSupportStatus(resp.status);
             }
@@ -279,23 +278,19 @@ const ChatHooks = {
 
         // Listen for status changes
         this.supportStatusChannel.on("status_changed", (payload) => {
-          console.log("Received status change:", payload);
           this.updateSupportStatus(payload.status);
         });
       }
     },
 
     updateSupportStatus(status) {
-      console.log("Customer side updating support status to:", status);
-      // Store the current status
       this.currentSupportStatus = status;
       
       const statusElement = document.getElementById("support-status");
       if (statusElement) {
         statusElement.textContent = status === "online" ? "Support online" : "Support offline";
-        console.log("Customer status element updated to:", statusElement.textContent);
       } else {
-        console.log("Customer status element not found");
+        console.error("Customer status element not found");
       }
     },
 
@@ -996,7 +991,6 @@ const ChatHooks = {
 
       channel.join()
         .receive("ok", (resp) => {
-          console.log("Joined chat session successfully", resp);
           if (resp.messages && resp.messages.length > 0) {
             this.hasExistingMessages = true;
             this.renderMessages(resp.messages);
@@ -1336,7 +1330,7 @@ const ChatHooks = {
         // Close the session
         this.channel.push("close_session", {})
           .receive("ok", () => {
-            console.log("Chat session closed successfully");
+            console.info("Chat session closed successfully");
             // The session_closed event will be handled by the channel.on("session_closed") handler
           })
           .receive("error", (resp) => {
@@ -1716,7 +1710,6 @@ const ChatHooks = {
 
       channel.join()
         .receive("ok", (resp) => {
-          console.log("Joined admin chat channel successfully", resp);
           if (resp.sessions) {
             this.renderSessions(resp.sessions);
           }
@@ -1771,7 +1764,7 @@ const ChatHooks = {
         
         this.adminChannel.join()
           .receive("ok", (resp) => {
-            console.log("Joined session channel for admin typing");
+            console.info("Joined session channel for admin typing");
           })
           .receive("error", (resp) => {
             console.error("Unable to join session channel for admin typing", resp);

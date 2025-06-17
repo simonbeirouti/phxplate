@@ -47,6 +47,7 @@ required_vars=(
   "AWS_ACCESS_KEY_ID"
   "AWS_SECRET_ACCESS_KEY"
   "AWS_REGION"
+  "ANTHROPIC_API_KEY"
 )
 
 # Check required variables
@@ -76,6 +77,7 @@ fly secrets set BUCKET_NAME="$BUCKET_NAME"
 fly secrets set AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"
 fly secrets set AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
 fly secrets set AWS_REGION="$AWS_REGION"
+fly secrets set ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
 
 # Set a flag to indicate if seeding is needed for first deployment
 if [ "$IS_FIRST_DEPLOYMENT" = true ]; then

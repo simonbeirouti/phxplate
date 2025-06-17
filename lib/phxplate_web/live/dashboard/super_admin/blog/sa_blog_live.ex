@@ -15,8 +15,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
   alias PhxplateWeb.Components.ActivityTimelineComponent
   alias Phxplate.PubSub.DataSync
   alias PhxplateWeb.Components.Markdown
-  import PhxplateWeb.Components.UI.Drawer
-  import PhxplateWeb.Components.UI.DialogDrawerWrapper
 
   @impl true
   def mount(_params, _session, socket) do

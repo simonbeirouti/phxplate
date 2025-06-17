@@ -8,7 +8,6 @@ defmodule PhxplateWeb.Dashboard.Basic.BookmarksLive do
   created or deleted.
   """
   use PhxplateWeb, :live_view
-  use SaladUI
 
   alias Phxplate.{Bookmarks, PubSub.DataSync}
   alias PhxplateWeb.PageMeta

@@ -255,16 +255,16 @@ defmodule Phxplate.Subscriptions do
     else
       # Use the router routes for success and cancel URLs
       base_url = Application.get_env(:phxplate, :base_url) || "https://#{System.get_env("PHX_HOST")}"
-      
+
       # Ensure base_url doesn't end with a slash
       base_url = String.trim_trailing(base_url, "/")
-      
+
       # Make sure we have a valid base URL, fallback to the PHX_HOST directly if needed
       base_url = if String.contains?(base_url, "://"), do: base_url, else: "https://#{System.get_env("PHX_HOST")}"
-      
+
       success_url = "#{base_url}/callbacks/stripe/success?session_id={CHECKOUT_SESSION_ID}"
       cancel_url = "#{base_url}/callbacks/stripe/cancel"
-      
+
       # Log the URLs for debugging
       Logger.info("Creating Stripe checkout with URLs: success=#{success_url}, cancel=#{cancel_url}")
 
@@ -421,7 +421,7 @@ defmodule Phxplate.Subscriptions do
 
               # Get the scheduled plan change details before clearing
               scheduled_plan_id = subscription.metadata["scheduled_plan_change"]["plan_id"]
-              scheduled_plan = nil
+              _scheduled_plan = nil
 
               # Try to get the scheduled plan details if possible
               try do
@@ -437,7 +437,7 @@ defmodule Phxplate.Subscriptions do
               Logger.info("Cleared scheduled downgrade before processing upgrade")
 
               # Return the updated subscription for further processing
-              subscription = updated_subscription
+              _subscription = updated_subscription
             {:error, error} ->
               Logger.error("Failed to clear scheduled downgrade: #{inspect(error)}")
           end
@@ -905,7 +905,7 @@ defmodule Phxplate.Subscriptions do
   # Helper function to track subscription changes
   defp track_subscription_change(action, user, actor, additional_data) do
     tracking_actor = actor || user
-    additional_data = additional_data || %{}
+    additional_data = if is_nil(additional_data), do: %{}, else: additional_data
     Phxplate.Tracking.track_user_activity(action, user, tracking_actor, additional_data)
   end
 

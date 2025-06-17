@@ -126,6 +126,15 @@ if config_env() == :prod do
     secret_access_key: s3_secret_access_key,
     region: s3_region
 
+  # Anthropic configuration
+  anthropic_api_key =
+    System.get_env("ANTHROPIC_API_KEY") ||
+      raise """
+      environment variable ANTHROPIC_API_KEY is missing.
+      """
+
+  config :anthropix, api_key: anthropic_api_key
+
   # ## SSL Support
   #
   # To get SSL working, you will need to add the `https` key

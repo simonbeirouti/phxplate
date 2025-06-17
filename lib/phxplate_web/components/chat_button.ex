@@ -52,7 +52,7 @@ defmodule PhxplateWeb.Components.ChatButton do
 
       <div
         id="chat-modal"
-        class="chat-modal-wrapper fixed bottom-20 right-4 w-80 md:w-96 border border-gray-300 mb-2 bg-secondary rounded-lg shadow-xl hidden"
+        class="chat-modal-wrapper fixed bottom-20 right-4 w-96 border border-gray-300 mb-2 bg-secondary rounded-lg shadow-xl hidden"
         phx-hook="ChatModal"
         data-user={@encoded_user_data}
       >

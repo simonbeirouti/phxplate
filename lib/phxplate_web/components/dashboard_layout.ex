@@ -2,7 +2,6 @@ defmodule PhxplateWeb.Components.DashboardLayout do
   @moduledoc false
   use PhxplateWeb, :live_component
   use SaladUI
-  import PhxplateWeb.Components.UI.DialogDrawerWrapper
 
   import Lucideicons, except: [import: 1, quote: 1, menu: 1, link: 1]
 
@@ -90,10 +89,10 @@ defmodule PhxplateWeb.Components.DashboardLayout do
           </.breadcrumb>
 
           <div class="flex-grow" />
-          <.button variant="outline" class="mr-2" phx-click="toggle_support" phx-target={@myself}>
+          <button class="mr-2 p-3 border border-gray-50 shadow-sm rounded-md hover:bg-gray-100" phx-click="toggle_support" phx-target={@myself}>
             <Lucideicons.bell_plus class="w-4 h-4" />
             <span class="sr-only">Support & Feature Requests</span>
-          </.button>
+          </button>
         </header>
 
         <div
@@ -101,7 +100,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
           class="hidden md:hidden absolute w-full bg-white border-b mt-16 shadow-lg z-50"
         >
           <div class="space-y-1 px-2 pb-3 pt-2">
-            <.mobile_nav_main items={@layout_data.navMain} />
+            <.mobile_nav_main groups={@layout_data.navGroups} />
             <.mobile_nav_projects companies={@layout_data.companies} />
             <.mobile_nav_bookmarked bookmarked={@layout_data.bookmarked} />
             <.mobile_nav_user user={@layout_data.user} />
@@ -126,7 +125,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
         <.nav_user user={@data.user} />
       </.sidebar_header>
       <.sidebar_content>
-        <.nav_main items={@data.navMain} />
+        <.nav_main groups={@data.navGroups} />
         <.nav_projects
           :if={length(@data.companies) >= 1}
           label="Companies"
@@ -145,30 +144,32 @@ defmodule PhxplateWeb.Components.DashboardLayout do
 
   def nav_main(assigns) do
     ~H"""
-    <.sidebar_group>
-      <.sidebar_group_label>
-        Platform
-      </.sidebar_group_label>
-      <.sidebar_menu :for={item <- @items}>
-        <.sidebar_menu_item>
-          <.as_child tag={&collapsible_trigger/1} child={&sidebar_menu_button/1} tooltip={item.title}>
-            <.dynamic :if={not is_nil(item.icon)} tag={item.icon} />
-            <span>
-              {item.title}
-            </span>
-          </.as_child>
-          <.sidebar_menu_sub>
-            <.sidebar_menu_sub_item :for={sub_item <- item.items}>
-              <.as_child tag={&sidebar_menu_sub_button/1} child="a" href={sub_item.url}>
-                <span>
-                  {sub_item.title}
-                </span>
-              </.as_child>
-            </.sidebar_menu_sub_item>
-          </.sidebar_menu_sub>
-        </.sidebar_menu_item>
-      </.sidebar_menu>
-    </.sidebar_group>
+    <%= for group <- @groups do %>
+      <.sidebar_group>
+        <.sidebar_group_label>
+          {group.label}
+        </.sidebar_group_label>
+        <.sidebar_menu :for={item <- group.items}>
+          <.sidebar_menu_item>
+            <.as_child tag={&collapsible_trigger/1} child={&sidebar_menu_button/1} tooltip={item.title}>
+              <.dynamic :if={not is_nil(item.icon)} tag={item.icon} />
+              <span>
+                {item.title}
+              </span>
+            </.as_child>
+            <.sidebar_menu_sub>
+              <.sidebar_menu_sub_item :for={sub_item <- item.items}>
+                <.as_child tag={&sidebar_menu_sub_button/1} child="a" href={sub_item.url}>
+                  <span>
+                    {sub_item.title}
+                  </span>
+                </.as_child>
+              </.sidebar_menu_sub_item>
+            </.sidebar_menu_sub>
+          </.sidebar_menu_item>
+        </.sidebar_menu>
+      </.sidebar_group>
+    <% end %>
     """
   end
 
@@ -279,34 +280,36 @@ defmodule PhxplateWeb.Components.DashboardLayout do
 
   def mobile_nav_main(assigns) do
     ~H"""
-    <div class="space-y-1">
-      <div class="px-3 py-2 text-sm font-medium text-gray-500">Platform</div>
-      <%= for item <- @items do %>
-        <div class="space-y-1">
-          <button
-            type="button"
-            class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            phx-click={JS.toggle(to: "#mobile-submenu-#{id(item.title)}")}
-          >
-            <div class="flex items-center">
-              <.dynamic :if={not is_nil(item.icon)} tag={item.icon} class="mr-2 h-4 w-4" />
-              <span>{item.title}</span>
+    <%= for group <- @groups do %>
+      <div class="space-y-1">
+        <div class="px-3 py-2 text-sm font-medium text-gray-500">{group.label}</div>
+        <%= for item <- group.items do %>
+          <div class="space-y-1">
+            <button
+              type="button"
+              class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              phx-click={JS.toggle(to: "#mobile-submenu-#{id(item.title)}")}
+            >
+              <div class="flex items-center">
+                <.dynamic :if={not is_nil(item.icon)} tag={item.icon} class="mr-2 h-4 w-4" />
+                <span>{item.title}</span>
+              </div>
+              <Lucideicons.chevron_right class="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-90" />
+            </button>
+            <div id={"mobile-submenu-#{id(item.title)}"} class="hidden space-y-1 pl-4">
+              <%= for sub_item <- item.items do %>
+                <.link
+                  href={sub_item.url}
+                  class="block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  {sub_item.title}
+                </.link>
+              <% end %>
             </div>
-            <Lucideicons.chevron_right class="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-90" />
-          </button>
-          <div id={"mobile-submenu-#{id(item.title)}"} class="hidden space-y-1 pl-4">
-            <%= for sub_item <- item.items do %>
-              <.link
-                href={sub_item.url}
-                class="block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-              >
-                {sub_item.title}
-              </.link>
-            <% end %>
           </div>
-        </div>
-      <% end %>
-    </div>
+        <% end %>
+      </div>
+    <% end %>
     """
   end
 
@@ -408,6 +411,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
       label =
         seg
         |> String.replace("_", " ")
+        |> String.replace("-", " ")
         |> String.split()
         |> Enum.map(&String.capitalize/1)
         |> Enum.join(" ")
