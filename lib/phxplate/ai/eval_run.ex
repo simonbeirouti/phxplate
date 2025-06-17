@@ -21,6 +21,16 @@ defmodule Phxplate.AI.EvalRun do
     field :started_at, :utc_datetime
     field :completed_at, :utc_datetime
 
+    # Advanced AI parameters used for this evaluation run
+    field :max_tokens, :integer
+    field :max_tokens_active, :boolean, default: false
+    field :temperature, :float
+    field :temperature_active, :boolean, default: false
+    field :top_k, :integer
+    field :top_k_active, :boolean, default: false
+    field :top_p, :float
+    field :top_p_active, :boolean, default: false
+
     belongs_to :eval, Eval
     belongs_to :prompt, Prompt
     belongs_to :run_by_user, User, foreign_key: :run_by
@@ -33,10 +43,18 @@ defmodule Phxplate.AI.EvalRun do
   """
   def changeset(eval_run, attrs) do
     eval_run
-    |> cast(attrs, [:eval_id, :prompt_id, :model, :results, :score, :status, :started_at, :completed_at, :run_by])
+    |> cast(attrs, [
+      :eval_id, :prompt_id, :model, :results, :score, :status, :started_at, :completed_at, :run_by,
+      :max_tokens, :max_tokens_active, :temperature, :temperature_active,
+      :top_k, :top_k_active, :top_p, :top_p_active
+    ])
     |> validate_required([:eval_id, :model])
     |> validate_inclusion(:status, @statuses)
     |> validate_number(:score, greater_than_or_equal_to: 0.0, less_than_or_equal_to: 5.0)
+    |> validate_number(:max_tokens, greater_than: 0)
+    |> validate_number(:temperature, greater_than_or_equal_to: 0.0, less_than_or_equal_to: 1.0)
+    |> validate_number(:top_k, greater_than: 0)
+    |> validate_number(:top_p, greater_than: 0.0, less_than_or_equal_to: 1.0)
     |> foreign_key_constraint(:eval_id)
     |> foreign_key_constraint(:prompt_id)
     |> foreign_key_constraint(:run_by)

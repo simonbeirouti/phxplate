@@ -10,16 +10,14 @@ defmodule Phxplate.AI.Conversation do
   alias Phxplate.Accounts.User
   alias Phxplate.AI.Message
   alias Phxplate.AI.Prompt
-  alias Phxplate.AI.Eval
 
   schema "ai_conversations" do
     field :title, :string
     field :system_prompt, :string
     field :archived, :boolean, default: false
 
-    # Selected prompt and eval for the conversation
+    # Selected prompt for the conversation
     belongs_to :selected_prompt, Prompt
-    belongs_to :selected_eval, Eval
 
     # Advanced AI parameters for the conversation
     field :max_tokens, :integer
@@ -44,7 +42,7 @@ defmodule Phxplate.AI.Conversation do
     conversation
     |> cast(attrs, [
       :title, :system_prompt, :archived, :user_id,
-      :selected_prompt_id, :selected_eval_id,
+      :selected_prompt_id,
       :max_tokens, :max_tokens_active, :temperature, :temperature_active,
       :top_k, :top_k_active, :top_p, :top_p_active
     ])
@@ -92,12 +90,11 @@ defmodule Phxplate.AI.Conversation do
   end
 
   @doc """
-  Changeset for updating prompt and eval settings.
+  Changeset for updating prompt settings.
   """
-  def prompt_eval_changeset(conversation, attrs) do
+  def prompt_changeset(conversation, attrs) do
     conversation
-    |> cast(attrs, [:selected_prompt_id, :selected_eval_id])
+    |> cast(attrs, [:selected_prompt_id])
     |> foreign_key_constraint(:selected_prompt_id)
-    |> foreign_key_constraint(:selected_eval_id)
   end
 end

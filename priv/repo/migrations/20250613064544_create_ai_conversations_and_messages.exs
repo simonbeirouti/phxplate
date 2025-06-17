@@ -11,9 +11,8 @@ defmodule Phxplate.Repo.Migrations.CreateAiConversationsAndMessages do
       add :archived, :boolean, default: false, null: false
       add :user_id, references(:users, on_delete: :delete_all), null: false
 
-      # Selected prompt and eval for the conversation (will be added as foreign keys in later migration)
+      # Selected prompt for the conversation (will be added as foreign key in later migration)
       add :selected_prompt_id, :integer, null: true
-      add :selected_eval_id, :integer, null: true
 
       # Advanced AI parameters for the conversation
       add :max_tokens, :integer, null: true
@@ -35,9 +34,8 @@ defmodule Phxplate.Repo.Migrations.CreateAiConversationsAndMessages do
       add :metadata, :map, default: %{}
       add :conversation_id, references(:ai_conversations, on_delete: :delete_all), null: false
 
-      # Prompt and eval used for this specific message (will be added as foreign keys in later migration)
+      # Prompt used for this specific message (will be added as foreign key in later migration)
       add :prompt_id, :integer, null: true
-      add :eval_id, :integer, null: true
 
       # Advanced AI parameters used for this specific message (for performance tracking)
       add :max_tokens, :integer, null: true

@@ -53,7 +53,7 @@ defmodule Phxplate.AI do
   def get_conversation(conversation_id, user_id) do
     Conversation
     |> where([c], c.id == ^conversation_id and c.user_id == ^user_id)
-    |> preload([:messages, :selected_prompt, :selected_eval])
+    |> preload([:messages, :selected_prompt])
     |> Repo.one()
   end
 
@@ -199,15 +199,15 @@ defmodule Phxplate.AI do
   end
 
   @doc """
-  Update a conversation's prompt and eval settings.
+  Update a conversation's prompt settings.
   """
-  def update_conversation_prompt_eval(conversation_id, user_id, prompt_eval_params) do
+  def update_conversation_prompt(conversation_id, user_id, prompt_params) do
     case get_conversation(conversation_id, user_id) do
       nil ->
         {:error, :conversation_not_found}
       conversation ->
         conversation
-        |> Conversation.prompt_eval_changeset(prompt_eval_params)
+        |> Conversation.prompt_changeset(prompt_params)
         |> Repo.update()
     end
   end
@@ -389,14 +389,13 @@ defmodule Phxplate.AI do
     # Extract active advanced parameters for the message
     active_params = extract_active_advanced_params(opts)
 
-    # Include prompt and eval information
-    prompt_eval_params = %{
-      prompt_id: opts[:prompt_id],
-      eval_id: opts[:eval_id]
+    # Include prompt information
+    prompt_params = %{
+      prompt_id: opts[:prompt_id]
     }
 
     # Merge all message parameters
-    message_params = Map.merge(active_params, prompt_eval_params)
+    message_params = Map.merge(active_params, prompt_params)
 
     # Include advanced parameters in metadata for backward compatibility
     metadata = Map.take(opts, [:max_tokens, :temperature, :top_k, :top_p])
@@ -448,31 +447,53 @@ defmodule Phxplate.AI do
   # ============================================================================
 
   @doc """
-  Send a simple text message to Claude and get a response.
-  Optionally accepts a system prompt to guide the response.
-
-  ## Examples
-
-      iex> Phxplate.AI.chat("Hello, how are you?")
-      {:ok, "Hello! I'm doing well, thank you for asking..."}
-
-      iex> Phxplate.AI.chat("What is the capital of France?", "You are a geography expert.")
-      {:ok, "The capital of France is Paris."}
+  Send a single message to the AI and get a response (non-streaming).
+  This is used for evaluations and other non-interactive use cases.
   """
-  def chat(message, system_prompt \\ @default_system_prompt, model \\ nil) when is_binary(message) do
-    model = model || Models.default_model_api_id()
-    messages = [%{role: "user", content: message}]
+  def chat(message, system_prompt \\ @default_system_prompt, model \\ nil) do
+    model_api_id = if model, do: model, else: Models.default_model_api_id()
 
     case Anthropix.chat(client(),
-      model: model,
-      messages: messages,
-      system: system_prompt
+      model: model_api_id,
+      system: system_prompt,
+      messages: [%{role: "user", content: message}]
     ) do
+      {:ok, %{content: [%{text: text}]}} -> {:ok, text}
       {:ok, %{"content" => [%{"text" => text}]}} -> {:ok, text}
-      {:ok, response} -> {:ok, extract_text_from_response(response)}
-      {:error, reason} -> {:error, reason}
+      {:error, error} -> {:error, error}
     end
   end
+
+  @doc """
+  Send a single message to the AI with advanced parameters and get a response (non-streaming).
+  This is used for evaluations and other use cases that need specific AI parameters.
+  """
+  def chat_with_params(message, system_prompt \\ @default_system_prompt, model \\ nil, advanced_params \\ %{}) do
+    model_api_id = if model, do: model, else: Models.default_model_api_id()
+
+    base_params = [
+      model: model_api_id,
+      system: system_prompt,
+      messages: [%{role: "user", content: message}]
+    ]
+
+    # Add advanced parameters if they are provided and active
+    params = base_params
+    |> maybe_add_param_to_keyword(:max_tokens, advanced_params[:max_tokens], advanced_params[:max_tokens_active])
+    |> maybe_add_param_to_keyword(:temperature, advanced_params[:temperature], advanced_params[:temperature_active])
+    |> maybe_add_param_to_keyword(:top_k, advanced_params[:top_k], advanced_params[:top_k_active])
+    |> maybe_add_param_to_keyword(:top_p, advanced_params[:top_p], advanced_params[:top_p_active])
+
+    case Anthropix.chat(client(), params) do
+      {:ok, %{content: [%{text: text}]}} -> {:ok, text}
+      {:ok, %{"content" => [%{"text" => text}]}} -> {:ok, text}
+      {:error, error} -> {:error, error}
+    end
+  end
+
+  defp maybe_add_param_to_keyword(params, _key, _value, false), do: params
+  defp maybe_add_param_to_keyword(params, _key, nil, _active), do: params
+  defp maybe_add_param_to_keyword(params, key, value, true), do: Keyword.put(params, key, value)
 
   @doc """
   Send a conversation (list of messages) to Claude.
@@ -1029,14 +1050,22 @@ defmodule Phxplate.AI do
   Run an evaluation against a specific model and optional prompt.
   Now uses the evaluation queue for rate limiting.
   """
-  def run_evaluation(eval_id, model, user_id, prompt_id \\ nil) do
+  def run_evaluation(eval_id, model, user_id, prompt_id \\ nil, advanced_params \\ %{}) do
     with {:ok, _eval} <- get_eval_for_run(eval_id),
          {:ok, eval_run} <- create_eval_run(%{
            eval_id: eval_id,
            prompt_id: prompt_id,
            model: model,
            run_by: user_id,
-           status: "pending"
+           status: "pending",
+           max_tokens: advanced_params[:max_tokens],
+           max_tokens_active: advanced_params[:max_tokens_active] || false,
+           temperature: advanced_params[:temperature],
+           temperature_active: advanced_params[:temperature_active] || false,
+           top_k: advanced_params[:top_k],
+           top_k_active: advanced_params[:top_k_active] || false,
+           top_p: advanced_params[:top_p],
+           top_p_active: advanced_params[:top_p_active] || false
          }) do
 
       # Add to the evaluation queue instead of starting directly

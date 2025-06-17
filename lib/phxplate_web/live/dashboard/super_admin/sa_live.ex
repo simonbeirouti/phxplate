@@ -78,7 +78,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
     {:noreply, socket}
   end
 
-  # Handle company creation
+  @impl true
   def handle_info({:created, %{type: :company, company: _company}}, socket) do
     {:noreply,
      update(socket, :stats, fn stats ->

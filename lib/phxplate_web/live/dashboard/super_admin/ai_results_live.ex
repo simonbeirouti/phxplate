@@ -706,9 +706,14 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
           <div class="p-6">
             <div class="flex items-start justify-between mb-4">
               <div class="flex-1 min-w-0">
-                <h3 class="text-lg font-semibold text-gray-900 truncate">
-                  {eval_run.eval.name}
-                </h3>
+                <div class="flex items-center gap-2">
+                  <h3 class="text-lg font-semibold text-gray-900 truncate">
+                    {eval_run.eval.name}
+                  </h3>
+                  <%= if not Enum.empty?(get_active_advanced_params(eval_run)) do %>
+                    <Lucideicons.settings class="h-4 w-4 text-blue-600 flex-shrink-0" title="Advanced parameters used" />
+                  <% end %>
+                </div>
                 <%= if eval_run.prompt do %>
                   <p class="text-sm text-gray-500 mt-1">
                     Prompt: {String.slice(eval_run.prompt.name, 0, 25)}{if String.length(eval_run.prompt.name) > 25, do: "..."}
@@ -856,6 +861,20 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
               <p class="text-sm text-gray-600 mt-1">Model: {get_display_model_name(@eval_run.model)}</p>
               <%= if @eval_run.prompt do %>
                 <p class="text-sm text-gray-600">Prompt: {@eval_run.prompt.name}</p>
+              <% end %>
+              <% active_params = get_active_advanced_params(@eval_run) %>
+              <%= if not Enum.empty?(active_params) do %>
+                <div class="mt-3">
+                  <div class="flex items-center gap-2 mb-2">
+                    <Lucideicons.settings class="h-4 w-4 text-blue-600" />
+                    <span class="text-sm font-medium text-blue-900">Parameters: </span>
+                    <%= for param <- active_params do %>
+                      <span class="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                        {param}
+                      </span>
+                    <% end %>
+                  </div>
+                </div>
               <% end %>
             </div>
             <div class="text-right">
@@ -1105,5 +1124,40 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
       # Otherwise, it's already a display name
       display_name -> display_name
     end
+  end
+
+  defp get_active_advanced_params(eval_run) do
+    params = []
+
+    # Check Max Tokens
+    params = if eval_run.max_tokens_active and eval_run.max_tokens do
+      ["Max Tokens: #{eval_run.max_tokens}" | params]
+    else
+      params
+    end
+
+    # Check Temperature
+    params = if eval_run.temperature_active and eval_run.temperature do
+      ["Temperature: #{Float.round(eval_run.temperature, 2)}" | params]
+    else
+      params
+    end
+
+    # Check Top K
+    params = if eval_run.top_k_active and eval_run.top_k do
+      ["Top K: #{eval_run.top_k}" | params]
+    else
+      params
+    end
+
+    # Check Top P
+    params = if eval_run.top_p_active and eval_run.top_p do
+      ["Top P: #{Float.round(eval_run.top_p, 2)}" | params]
+    else
+      params
+    end
+
+    # Reverse to maintain the order we added them
+    Enum.reverse(params)
   end
 end

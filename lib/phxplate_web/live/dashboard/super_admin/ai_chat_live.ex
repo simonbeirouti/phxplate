@@ -10,7 +10,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
   alias Phxplate.AI.Models
   alias PhxplateWeb.PageMeta
   alias PhxplateWeb.Components.Markdown
-  import PhxplateWeb.Components.AI.{ModelSelector, PromptSelector, EvalSelector}
+  import PhxplateWeb.Components.AI.{ModelSelector, PromptSelector}
   import PhxplateWeb.Components.UI.{Slider, Switch}
 
   @impl true
@@ -18,7 +18,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     user_id = socket.assigns.current_user.id
     conversations = AI.list_conversations(user_id)
     all_prompts = AI.list_prompts_for_chat()
-    all_evals = AI.list_evals()
     default_system_prompt = AI.get_default_system_prompt()
 
     {:ok,
@@ -38,8 +37,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
      |> assign(:selected_model, Models.default_model_display_name())
      |> assign(:available_models, Models.available_models())
      |> assign(:available_prompts, all_prompts)
-     |> assign(:available_evals, all_evals)
-     |> assign(:selected_eval, get_default_eval_selection(all_evals))
      |> assign(:selected_system_prompt, get_default_system_prompt_name(all_prompts))
      |> assign(:current_system_prompt, default_system_prompt)
      |> assign(:screen_mode, "dialog")
@@ -160,7 +157,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
       prompt_id = get_prompt_id_from_name(selected_prompt, socket.assigns.available_prompts)
 
       Task.start(fn ->
-        AI.update_conversation_prompt_eval(conversation_id, user_id, %{selected_prompt_id: prompt_id})
+        AI.update_conversation_prompt(conversation_id, user_id, %{selected_prompt_id: prompt_id})
       end)
     end
 
@@ -170,24 +167,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
   @impl true
   def handle_event("set_screen_mode", %{"mode" => mode}, socket) do
     {:noreply, assign(socket, :screen_mode, mode)}
-  end
-
-  @impl true
-  def handle_event("select_eval", %{"eval" => eval_name}, socket) do
-    socket = assign(socket, :selected_eval, eval_name)
-
-    # Save eval selection to current conversation if one exists
-    if socket.assigns.current_conversation do
-      user_id = socket.assigns.current_user.id
-      conversation_id = socket.assigns.current_conversation.id
-      eval_id = get_eval_id_from_name(eval_name, socket.assigns.available_evals)
-
-      Task.start(fn ->
-        AI.update_conversation_prompt_eval(conversation_id, user_id, %{selected_eval_id: eval_id})
-      end)
-    end
-
-    {:noreply, socket}
   end
 
   @impl true
@@ -420,8 +399,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
             top_k_active: socket.assigns.top_k_active,
             top_p: socket.assigns.top_p,
             top_p_active: socket.assigns.top_p_active,
-            prompt_id: get_prompt_id_from_name(socket.assigns.selected_system_prompt, socket.assigns.available_prompts),
-            eval_id: get_eval_id_from_name(socket.assigns.selected_eval, socket.assigns.available_evals)
+            prompt_id: get_prompt_id_from_name(socket.assigns.selected_system_prompt, socket.assigns.available_prompts)
           }
 
           case AI.stream_chat_in_conversation(
@@ -589,29 +567,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     end
   end
 
-  # Helper function to get default eval selection
-  defp get_default_eval_selection(evals) do
-    case evals do
-      [] -> "No Eval Selected"
-      [first_eval | _] -> first_eval.name
-    end
-  end
-
   # Helper function to get prompt ID from name
   defp get_prompt_id_from_name("Default System", _prompts), do: nil
   defp get_prompt_id_from_name(prompt_name, prompts) do
     case Enum.find(prompts, &(&1.name == prompt_name)) do
       nil -> nil
       prompt -> prompt.id
-    end
-  end
-
-  # Helper function to get eval ID from name
-  defp get_eval_id_from_name("No Eval Selected", _evals), do: nil
-  defp get_eval_id_from_name(eval_name, evals) do
-    case Enum.find(evals, &(&1.name == eval_name)) do
-      nil -> nil
-      eval -> eval.id
     end
   end
 
@@ -664,14 +625,13 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
       top_k_active: assigns.top_k_active,
       top_p: if(assigns.top_p_active, do: assigns.top_p, else: nil),
       top_p_active: assigns.top_p_active,
-      selected_prompt_id: get_prompt_id_from_name(assigns.selected_system_prompt, assigns.available_prompts),
-      selected_eval_id: get_eval_id_from_name(assigns.selected_eval, assigns.available_evals)
+      selected_prompt_id: get_prompt_id_from_name(assigns.selected_system_prompt, assigns.available_prompts)
     }
   end
 
   # Helper function to load advanced parameters from conversation
   defp load_advanced_params_from_conversation(socket, conversation) do
-    # Load prompt and eval selections from conversation or fallback to defaults
+    # Load prompt selection from conversation or fallback to defaults
     selected_system_prompt =
       if conversation.selected_prompt_id do
         case Enum.find(socket.assigns.available_prompts, &(&1.id == conversation.selected_prompt_id)) do
@@ -680,16 +640,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
         end
       else
         get_default_system_prompt_name(socket.assigns.available_prompts)
-      end
-
-    selected_eval =
-      if conversation.selected_eval_id do
-        case Enum.find(socket.assigns.available_evals, &(&1.id == conversation.selected_eval_id)) do
-          nil -> get_default_eval_selection(socket.assigns.available_evals)
-          eval -> eval.name
-        end
-      else
-        get_default_eval_selection(socket.assigns.available_evals)
       end
 
     # Update current system prompt content
@@ -713,7 +663,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     |> assign(:top_p, conversation.top_p || 0.9)
     |> assign(:top_p_active, conversation.top_p_active || false)
     |> assign(:selected_system_prompt, selected_system_prompt)
-    |> assign(:selected_eval, selected_eval)
     |> assign(:current_system_prompt, current_system_prompt)
   end
 
@@ -1057,35 +1006,25 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
             <% end %>
           </:subtitle>
           <:actions>
-            <div class="flex items-center gap-3">
-              <.model_selector
-                selected_model={@selected_model}
-                on_change="select_model"
-                class="w-[140px]"
-              />
-              <.button phx-click="new_conversation" class="bg-black hover:bg-gray-800">
-                <Lucideicons.plus class="h-4 w-4 mr-2" /> New Chat
-              </.button>
-            </div>
+            <.button phx-click="new_conversation" class="bg-black hover:bg-gray-800">
+              <Lucideicons.plus class="h-4 w-4 mr-2" /> New Chat
+            </.button>
           </:actions>
         </.header>
 
         <div class="mt-4 mb-4 w-full">
           <div class="flex items-center gap-2 h-10">
+            <.model_selector
+              selected_model={@selected_model}
+              on_change="select_model"
+              class="w-[140px]"
+            />
             <.prompt_selector
               available_prompts={@available_prompts}
               selected_prompt={@selected_system_prompt}
               on_change="select_system_prompt"
               class="w-48"
               id="system-prompt-select"
-            />
-            <.eval_selector
-              available_evals={@available_evals}
-              selected_eval={@selected_eval}
-              on_change="select_eval"
-              class="w-48"
-              id="chat-eval-select"
-
             />
             <.button
               variant="outline"
@@ -1114,9 +1053,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                 </p>
                 <p class="text-xs text-gray-400 mt-1">
                   System prompt: <span class="font-medium">{@selected_system_prompt}</span>
-                </p>
-                <p class="text-xs text-gray-400 mt-1">
-                  Evaluation: <span class="font-medium">{@selected_eval}</span>
                 </p>
                 <%= if @max_tokens_active || @temperature_active || @top_k_active || @top_p_active do %>
                   <p class="text-xs text-blue-600 mt-1">

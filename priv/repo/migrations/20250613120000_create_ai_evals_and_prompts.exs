@@ -39,6 +39,16 @@ defmodule Phxplate.Repo.Migrations.CreateAiEvalsAndPrompts do
       add :completed_at, :utc_datetime
       add :run_by, references(:users, on_delete: :nilify_all)
 
+      # Advanced AI parameters used for this evaluation run
+      add :max_tokens, :integer, null: true
+      add :max_tokens_active, :boolean, default: false, null: false
+      add :temperature, :float, null: true
+      add :temperature_active, :boolean, default: false, null: false
+      add :top_k, :integer, null: true
+      add :top_k_active, :boolean, default: false, null: false
+      add :top_p, :float, null: true
+      add :top_p_active, :boolean, default: false, null: false
+
       timestamps(type: :utc_datetime)
     end
 

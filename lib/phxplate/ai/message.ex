@@ -9,7 +9,6 @@ defmodule Phxplate.AI.Message do
   import Ecto.Changeset
   alias Phxplate.AI.Conversation
   alias Phxplate.AI.Prompt
-  alias Phxplate.AI.Eval
 
   @roles [:user, :assistant, :system]
 
@@ -19,9 +18,8 @@ defmodule Phxplate.AI.Message do
     field :model, :string
     field :metadata, :map, default: %{}
 
-    # Prompt and eval used for this specific message
+    # Prompt used for this specific message
     belongs_to :prompt, Prompt
-    belongs_to :eval, Eval
 
     # Advanced AI parameters used for this specific message (for performance tracking)
     field :max_tokens, :integer
@@ -41,7 +39,7 @@ defmodule Phxplate.AI.Message do
     message
     |> cast(attrs, [
       :role, :content, :model, :metadata, :conversation_id,
-      :prompt_id, :eval_id,
+      :prompt_id,
       :max_tokens, :temperature, :top_k, :top_p
     ])
     |> validate_required([:role, :content, :conversation_id])
@@ -53,6 +51,5 @@ defmodule Phxplate.AI.Message do
     |> validate_number(:top_p, greater_than: 0.0, less_than_or_equal_to: 1.0)
     |> foreign_key_constraint(:conversation_id)
     |> foreign_key_constraint(:prompt_id)
-    |> foreign_key_constraint(:eval_id)
   end
 end

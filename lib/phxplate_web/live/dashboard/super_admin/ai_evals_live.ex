@@ -11,7 +11,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
   alias PhxplateWeb.PageMeta
   import PhxplateWeb.Components.AI.PromptSelector
   import PhxplateWeb.Components.AI.ModelSelector
-  import PhxplateWeb.Components.UI.Select
+  import PhxplateWeb.Components.UI.{Select, Slider, Switch}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -33,6 +33,16 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
      |> assign(:total_count, 0)
      |> assign(:screen_mode, "dialog")
      |> assign(:delete_eval_id, nil)
+     |> assign(:show_advanced_settings, false)
+     |> assign(:show_advanced_settings_form, false)
+     |> assign(:max_tokens, 4000)
+     |> assign(:max_tokens_active, false)
+     |> assign(:temperature, 0.7)
+     |> assign(:temperature_active, false)
+     |> assign(:top_k, 5)
+     |> assign(:top_k_active, false)
+     |> assign(:top_p, 0.9)
+     |> assign(:top_p_active, false)
      |> load_evals()
      |> PageMeta.assign_metadata(
        title: "AI Evaluations",
@@ -181,6 +191,59 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
   end
 
   @impl true
+  def handle_event("show_advanced_settings", _params, socket) do
+    {:noreply, assign(socket, :show_advanced_settings, true)}
+  end
+
+  @impl true
+  def handle_event("close_advanced_settings", _params, socket) do
+    {:noreply, assign(socket, :show_advanced_settings, false)}
+  end
+
+  @impl true
+  def handle_event("toggle_advanced_settings", _params, socket) do
+    current_state = Map.get(socket.assigns, :show_advanced_settings_form, false)
+    {:noreply, assign(socket, :show_advanced_settings_form, !current_state)}
+  end
+
+  @impl true
+  def handle_event("update_advanced_settings", params, socket) do
+    # Convert slider integer values back to appropriate ranges
+    temperature =
+      case params["temperature"] do
+        nil -> 0.7
+        temp_str -> String.to_integer(temp_str) / 100.0
+      end
+
+    top_p =
+      case params["top_p"] do
+        nil -> 0.9
+        top_p_str -> String.to_integer(top_p_str) / 100.0
+      end
+
+    # Parse the new values
+    max_tokens = String.to_integer(params["max_tokens"] || "4000")
+    max_tokens_active = params["max_tokens_active"] == "true"
+    temperature_active = params["temperature_active"] == "true"
+    top_k = String.to_integer(params["top_k"] || "5")
+    top_k_active = params["top_k_active"] == "true"
+    top_p_active = params["top_p_active"] == "true"
+
+    socket =
+      socket
+      |> assign(:max_tokens, max_tokens)
+      |> assign(:max_tokens_active, max_tokens_active)
+      |> assign(:temperature, temperature)
+      |> assign(:temperature_active, temperature_active)
+      |> assign(:top_k, top_k)
+      |> assign(:top_k_active, top_k_active)
+      |> assign(:top_p, top_p)
+      |> assign(:top_p_active, top_p_active)
+
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_event("execute_eval", _params, socket) do
     eval = socket.assigns.selected_item
     current_user = socket.assigns.current_user
@@ -199,8 +262,20 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
           end
       end
 
+    # Build advanced parameters
+    advanced_params = %{
+      max_tokens: if(socket.assigns.max_tokens_active, do: socket.assigns.max_tokens, else: nil),
+      max_tokens_active: socket.assigns.max_tokens_active,
+      temperature: if(socket.assigns.temperature_active, do: socket.assigns.temperature, else: nil),
+      temperature_active: socket.assigns.temperature_active,
+      top_k: if(socket.assigns.top_k_active, do: socket.assigns.top_k, else: nil),
+      top_k_active: socket.assigns.top_k_active,
+      top_p: if(socket.assigns.top_p_active, do: socket.assigns.top_p, else: nil),
+      top_p_active: socket.assigns.top_p_active
+    }
+
     # Store the display name in the database, evaluation logic will convert to API ID
-    case AI.run_evaluation(eval.id, model_display_name, current_user.id, prompt_id) do
+    case AI.run_evaluation(eval.id, model_display_name, current_user.id, prompt_id, advanced_params) do
       {:ok, _eval_run} ->
         {:noreply,
          socket
@@ -506,10 +581,41 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
               selected_model={@selected_model}
               prompts={@prompts}
               selected_prompt_name={@selected_prompt_name}
+              show_advanced_settings_form={@show_advanced_settings_form}
+              max_tokens={@max_tokens}
+              max_tokens_active={@max_tokens_active}
+              temperature={@temperature}
+              temperature_active={@temperature_active}
+              top_k={@top_k}
+              top_k_active={@top_k_active}
+              top_p={@top_p}
+              top_p_active={@top_p_active}
             />
         <% end %>
       </.dialog_drawer_wrapper>
     </div>
+
+    <.dialog_drawer_wrapper
+      id="advanced-settings-wrapper"
+      show={@show_advanced_settings}
+      hook="DialogDrawerMode"
+      mode={@screen_mode}
+      on_cancel={JS.push("close_advanced_settings")}
+      name="Advanced AI Parameters"
+      description="Configure advanced parameters for evaluation runs"
+      class="sm:max-w-6xl"
+    >
+      <.advanced_settings_content
+        max_tokens={@max_tokens}
+        max_tokens_active={@max_tokens_active}
+        temperature={@temperature}
+        temperature_active={@temperature_active}
+        top_k={@top_k}
+        top_k_active={@top_k_active}
+        top_p={@top_p}
+        top_p_active={@top_p_active}
+      />
+    </.dialog_drawer_wrapper>
     """
   end
 
@@ -804,6 +910,219 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
           </div>
         </div>
 
+        <div class="flex items-center justify-between">
+          <.label>Advanced Parameters</.label>
+          <.button
+            type="button"
+            variant="outline"
+            size="sm"
+            phx-click="toggle_advanced_settings"
+          >
+            <Lucideicons.settings class="h-4 w-4 mr-1" />
+            <%= if Map.get(assigns, :show_advanced_settings_form, false), do: "Hide", else: "Configure" %>
+          </.button>
+        </div>
+
+        <%= if Map.get(assigns, :show_advanced_settings_form, false) do %>
+          <div class="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-6">
+            <.form
+              for={%{}}
+              as={:advanced_settings}
+              phx-change="update_advanced_settings"
+              class="grid grid-cols-1 md:grid-cols-2 gap-6"
+            >
+              <!-- Max Tokens -->
+              <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                  <label class="text-sm font-medium text-gray-900">Max Tokens</label>
+                  <div class="flex items-center gap-2">
+                    <span class={[
+                      "text-xs px-2 py-1 rounded-full",
+                      if(Map.get(assigns, :max_tokens_active, false),
+                        do: "bg-green-100 text-green-800",
+                        else: "bg-gray-100 text-gray-600"
+                      )
+                    ]}>
+                      {if Map.get(assigns, :max_tokens_active, false), do: "Active", else: "Inactive"}
+                    </span>
+                    <.switch
+                      id="max_tokens_active_switch"
+                      name="max_tokens_active"
+                      value={Map.get(assigns, :max_tokens_active, false)}
+                    />
+                  </div>
+                </div>
+                <div class="space-y-2">
+                  <.slider
+                    id="max_tokens_slider"
+                    name="max_tokens"
+                    value={Map.get(assigns, :max_tokens, 4000)}
+                    min={1}
+                    max={4096}
+                    step={1}
+                    class={[
+                      "w-full",
+                      if(!Map.get(assigns, :max_tokens_active, false), do: "opacity-50 pointer-events-none", else: "")
+                    ]}
+                  />
+                  <div class="flex justify-between text-xs text-gray-500">
+                    <span>1</span>
+                    <span class="font-medium">{Map.get(assigns, :max_tokens, 4000)}</span>
+                    <span>4096</span>
+                  </div>
+                </div>
+                <p class="text-xs text-gray-500">
+                  Maximum number of tokens to generate in the response.
+                </p>
+              </div>
+
+              <!-- Temperature -->
+              <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                  <label class="text-sm font-medium text-gray-900">Temperature</label>
+                  <div class="flex items-center gap-2">
+                    <span class={[
+                      "text-xs px-2 py-1 rounded-full",
+                      if(Map.get(assigns, :temperature_active, false),
+                        do: "bg-green-100 text-green-800",
+                        else: "bg-gray-100 text-gray-600"
+                      )
+                    ]}>
+                      {if Map.get(assigns, :temperature_active, false), do: "Active", else: "Inactive"}
+                    </span>
+                    <.switch
+                      id="temperature_active_switch"
+                      name="temperature_active"
+                      value={Map.get(assigns, :temperature_active, false)}
+                    />
+                  </div>
+                </div>
+                <div class="space-y-2">
+                  <.slider
+                    id="temperature_slider"
+                    name="temperature"
+                    value={round(Map.get(assigns, :temperature, 0.7) * 100)}
+                    min={0}
+                    max={100}
+                    step={1}
+                    class={[
+                      "w-full",
+                      if(!Map.get(assigns, :temperature_active, false), do: "opacity-50 pointer-events-none", else: "")
+                    ]}
+                  />
+                  <div class="flex justify-between text-xs text-gray-500">
+                    <span>0.00</span>
+                    <span class="font-medium">{Float.round(Map.get(assigns, :temperature, 0.7), 2)}</span>
+                    <span>1.00</span>
+                  </div>
+                </div>
+                <p class="text-xs text-gray-500">
+                  Controls randomness. Lower values make responses more focused and deterministic.
+                </p>
+              </div>
+
+              <!-- Top K -->
+              <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                  <label class="text-sm font-medium text-gray-900">Top K</label>
+                  <div class="flex items-center gap-2">
+                    <span class={[
+                      "text-xs px-2 py-1 rounded-full",
+                      if(Map.get(assigns, :top_k_active, false),
+                        do: "bg-green-100 text-green-800",
+                        else: "bg-gray-100 text-gray-600"
+                      )
+                    ]}>
+                      {if Map.get(assigns, :top_k_active, false), do: "Active", else: "Inactive"}
+                    </span>
+                    <.switch id="top_k_active_switch" name="top_k_active" value={Map.get(assigns, :top_k_active, false)} />
+                  </div>
+                </div>
+                <div class="space-y-2">
+                  <.slider
+                    id="top_k_slider"
+                    name="top_k"
+                    value={Map.get(assigns, :top_k, 5)}
+                    min={1}
+                    max={5}
+                    step={1}
+                    class={["w-full", if(!Map.get(assigns, :top_k_active, false), do: "opacity-50 pointer-events-none", else: "")]}
+                  />
+                  <div class="flex justify-between text-xs text-gray-500">
+                    <span>1</span>
+                    <span class="font-medium">{Map.get(assigns, :top_k, 5)}</span>
+                    <span>5</span>
+                  </div>
+                </div>
+                <p class="text-xs text-gray-500">
+                  Limits the number of highest probability tokens to consider.
+                </p>
+              </div>
+
+              <!-- Top P -->
+              <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                  <label class="text-sm font-medium text-gray-900">Top P</label>
+                  <div class="flex items-center gap-2">
+                    <span class={[
+                      "text-xs px-2 py-1 rounded-full",
+                      if(Map.get(assigns, :top_p_active, false),
+                        do: "bg-green-100 text-green-800",
+                        else: "bg-gray-100 text-gray-600"
+                      )
+                    ]}>
+                      {if Map.get(assigns, :top_p_active, false), do: "Active", else: "Inactive"}
+                    </span>
+                    <.switch id="top_p_active_switch" name="top_p_active" value={Map.get(assigns, :top_p_active, false)} />
+                  </div>
+                </div>
+                <div class="space-y-2">
+                  <.slider
+                    id="top_p_slider"
+                    name="top_p"
+                    value={round(Map.get(assigns, :top_p, 0.9) * 100)}
+                    min={1}
+                    max={100}
+                    step={1}
+                    class={["w-full", if(!Map.get(assigns, :top_p_active, false), do: "opacity-50 pointer-events-none", else: "")]}
+                  />
+                  <div class="flex justify-between text-xs text-gray-500">
+                    <span>0.01</span>
+                    <span class="font-medium">{Float.round(Map.get(assigns, :top_p, 0.9), 2)}</span>
+                    <span>1.00</span>
+                  </div>
+                </div>
+                <p class="text-xs text-gray-500">
+                  Cumulative probability cutoff for token selection.
+                </p>
+              </div>
+            </.form>
+          </div>
+        <% end %>
+
+        <%= if Map.get(assigns, :max_tokens_active, false) || Map.get(assigns, :temperature_active, false) || Map.get(assigns, :top_k_active, false) || Map.get(assigns, :top_p_active, false) do %>
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div class="flex items-center gap-2 mb-2">
+              <Lucideicons.settings class="h-4 w-4 text-blue-600" />
+              <span class="text-sm font-medium text-blue-900">Advanced Parameters Active</span>
+            </div>
+            <div class="grid grid-cols-2 gap-4 text-xs text-blue-700">
+              <%= if Map.get(assigns, :max_tokens_active, false) do %>
+                <div>Max Tokens: {Map.get(assigns, :max_tokens, 4000)}</div>
+              <% end %>
+              <%= if Map.get(assigns, :temperature_active, false) do %>
+                <div>Temperature: {Float.round(Map.get(assigns, :temperature, 0.7), 2)}</div>
+              <% end %>
+              <%= if Map.get(assigns, :top_k_active, false) do %>
+                <div>Top K: {Map.get(assigns, :top_k, 5)}</div>
+              <% end %>
+              <%= if Map.get(assigns, :top_p_active, false) do %>
+                <div>Top P: {Float.round(Map.get(assigns, :top_p, 0.9), 2)}</div>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+
         <div class="mt-6 flex flex-col space-y-3">
           <.button phx-click="execute_eval" class="w-full">Run Evaluation</.button>
           <.button type="button" variant="outline" phx-click="close_drawer" class="w-full">
@@ -821,6 +1140,192 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
         </div>
       </div>
     <% end %>
+    """
+  end
+
+  # Component for advanced AI settings
+  defp advanced_settings_content(assigns) do
+    ~H"""
+    <div class="space-y-6">
+      <.form
+        for={%{}}
+        as={:advanced_settings}
+        phx-change="update_advanced_settings"
+        class="grid grid-cols-2 gap-6"
+      >
+        <!-- Max Tokens -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="text-sm font-medium text-gray-900">Max Tokens</label>
+            <div class="flex items-center gap-2">
+              <span class={[
+                "text-xs px-2 py-1 rounded-full",
+                if(Map.get(assigns, :max_tokens_active, false),
+                  do: "bg-green-100 text-green-800",
+                  else: "bg-gray-100 text-gray-600"
+                )
+              ]}>
+                {if Map.get(assigns, :max_tokens_active, false), do: "Active", else: "Inactive"}
+              </span>
+              <.switch
+                id="max_tokens_active_switch"
+                name="max_tokens_active"
+                value={Map.get(assigns, :max_tokens_active, false)}
+              />
+            </div>
+          </div>
+          <div class="space-y-2">
+            <.slider
+              id="max_tokens_slider"
+              name="max_tokens"
+              value={Map.get(assigns, :max_tokens, 4000)}
+              min={1}
+              max={4096}
+              step={1}
+              class={[
+                "w-full",
+                if(!Map.get(assigns, :max_tokens_active, false), do: "opacity-50 pointer-events-none", else: "")
+              ]}
+            />
+            <div class="flex justify-between text-xs text-gray-500">
+              <span>1</span>
+              <span class="font-medium">{Map.get(assigns, :max_tokens, 4000)}</span>
+              <span>4096</span>
+            </div>
+          </div>
+          <p class="text-xs text-gray-500">
+            Maximum number of tokens to generate in the response.
+          </p>
+        </div>
+
+        <!-- Temperature -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="text-sm font-medium text-gray-900">Temperature</label>
+            <div class="flex items-center gap-2">
+              <span class={[
+                "text-xs px-2 py-1 rounded-full",
+                if(Map.get(assigns, :temperature_active, false),
+                  do: "bg-green-100 text-green-800",
+                  else: "bg-gray-100 text-gray-600"
+                )
+              ]}>
+                {if Map.get(assigns, :temperature_active, false), do: "Active", else: "Inactive"}
+              </span>
+              <.switch
+                id="temperature_active_switch"
+                name="temperature_active"
+                value={Map.get(assigns, :temperature_active, false)}
+              />
+            </div>
+          </div>
+          <div class="space-y-2">
+            <.slider
+              id="temperature_slider"
+              name="temperature"
+              value={round(Map.get(assigns, :temperature, 0.7) * 100)}
+              min={0}
+              max={100}
+              step={1}
+              class={[
+                "w-full",
+                if(!Map.get(assigns, :temperature_active, false), do: "opacity-50 pointer-events-none", else: "")
+              ]}
+            />
+            <div class="flex justify-between text-xs text-gray-500">
+              <span>0.00</span>
+              <span class="font-medium">{Float.round(Map.get(assigns, :temperature, 0.7), 2)}</span>
+              <span>1.00</span>
+            </div>
+          </div>
+          <p class="text-xs text-gray-500">
+            Controls randomness. Lower values make responses more focused and deterministic.
+          </p>
+        </div>
+
+        <!-- Top K -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="text-sm font-medium text-gray-900">Top K</label>
+            <div class="flex items-center gap-2">
+              <span class={[
+                "text-xs px-2 py-1 rounded-full",
+                if(Map.get(assigns, :top_k_active, false),
+                  do: "bg-green-100 text-green-800",
+                  else: "bg-gray-100 text-gray-600"
+                )
+              ]}>
+                {if Map.get(assigns, :top_k_active, false), do: "Active", else: "Inactive"}
+              </span>
+              <.switch id="top_k_active_switch" name="top_k_active" value={Map.get(assigns, :top_k_active, false)} />
+            </div>
+          </div>
+          <div class="space-y-2">
+            <.slider
+              id="top_k_slider"
+              name="top_k"
+              value={Map.get(assigns, :top_k, 5)}
+              min={1}
+              max={5}
+              step={1}
+              class={["w-full", if(!Map.get(assigns, :top_k_active, false), do: "opacity-50 pointer-events-none", else: "")]}
+            />
+            <div class="flex justify-between text-xs text-gray-500">
+              <span>1</span>
+              <span class="font-medium">{Map.get(assigns, :top_k, 5)}</span>
+              <span>5</span>
+            </div>
+          </div>
+          <p class="text-xs text-gray-500">
+            Limits the number of highest probability tokens to consider.
+          </p>
+        </div>
+
+        <!-- Top P -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="text-sm font-medium text-gray-900">Top P</label>
+            <div class="flex items-center gap-2">
+              <span class={[
+                "text-xs px-2 py-1 rounded-full",
+                if(Map.get(assigns, :top_p_active, false),
+                  do: "bg-green-100 text-green-800",
+                  else: "bg-gray-100 text-gray-600"
+                )
+              ]}>
+                {if Map.get(assigns, :top_p_active, false), do: "Active", else: "Inactive"}
+              </span>
+              <.switch id="top_p_active_switch" name="top_p_active" value={Map.get(assigns, :top_p_active, false)} />
+            </div>
+          </div>
+          <div class="space-y-2">
+            <.slider
+              id="top_p_slider"
+              name="top_p"
+              value={round(Map.get(assigns, :top_p, 0.9) * 100)}
+              min={1}
+              max={100}
+              step={1}
+              class={["w-full", if(!Map.get(assigns, :top_p_active, false), do: "opacity-50 pointer-events-none", else: "")]}
+            />
+            <div class="flex justify-between text-xs text-gray-500">
+              <span>0.01</span>
+              <span class="font-medium">{Float.round(Map.get(assigns, :top_p, 0.9), 2)}</span>
+              <span>1.00</span>
+            </div>
+          </div>
+          <p class="text-xs text-gray-500">
+            Cumulative probability cutoff for token selection.
+          </p>
+        </div>
+      </.form>
+
+      <div class="col-span-2 flex justify-end pt-4 border-t border-gray-200">
+        <.button variant="outline" phx-click="close_advanced_settings" class="w-full">
+          Close
+        </.button>
+      </div>
+    </div>
     """
   end
 

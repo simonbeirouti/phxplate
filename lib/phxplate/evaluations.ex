@@ -142,7 +142,7 @@ defmodule Phxplate.Evaluations do
       |> Enum.map(fn {{test_name, test_input}, index} ->
         IO.puts("🔄 Processing test case #{index}/#{length(Map.keys(eval.test_cases))}: #{test_name}")
 
-        case run_single_test_case(test_input, system_prompt, model_api_id, eval, test_name) do
+        case run_single_test_case(test_input, system_prompt, model_api_id, eval, test_name, eval_run) do
           {:ok, result} ->
             IO.puts("✅ Test case #{test_name} completed successfully")
             {test_name, result}
@@ -189,14 +189,26 @@ defmodule Phxplate.Evaluations do
       {:error, error}
   end
 
-  defp run_single_test_case(test_input, system_prompt, model_api_id, eval, test_name) do
+  defp run_single_test_case(test_input, system_prompt, model_api_id, eval, test_name, eval_run) do
     IO.puts("🧪 Running test case: #{test_name}")
     IO.puts("📝 Test input: #{String.slice(test_input, 0, 100)}...")
+
+    # Build advanced parameters from eval_run
+    advanced_params = %{
+      max_tokens: if(eval_run.max_tokens_active, do: eval_run.max_tokens, else: nil),
+      max_tokens_active: eval_run.max_tokens_active,
+      temperature: if(eval_run.temperature_active, do: eval_run.temperature, else: nil),
+      temperature_active: eval_run.temperature_active,
+      top_k: if(eval_run.top_k_active, do: eval_run.top_k, else: nil),
+      top_k_active: eval_run.top_k_active,
+      top_p: if(eval_run.top_p_active, do: eval_run.top_p, else: nil),
+      top_p_active: eval_run.top_p_active
+    }
 
     # Get the AI's response to the test input with timeout handling
     model_response_result = try do
       # Add a timeout wrapper for the AI call
-      task = Task.async(fn -> AI.chat(test_input, system_prompt, model_api_id) end)
+      task = Task.async(fn -> AI.chat_with_params(test_input, system_prompt, model_api_id, advanced_params) end)
       case Task.yield(task, 30_000) || Task.shutdown(task) do  # 30 second timeout
         {:ok, result} -> result
         nil -> {:error, :timeout}
