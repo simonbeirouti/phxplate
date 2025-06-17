@@ -104,4 +104,4 @@ config :ex_aws,
 config :anthropix, api_key: System.get_env("ANTHROPIC_API_KEY")
 
 # Path to install SaladUI components
-config :salad_ui, components_path: Path.join(File.cwd!(), "lib/phxplate_web/components")
+config :salad_ui, components_path: Path.join(File.cwd!(), "lib/phxplate_web/components/ui")
