@@ -21,7 +21,7 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
 
       <.plan_selector plans={@plans} current_user={@current_user} current_subscription={@current_subscription} target={@myself} />
   """
-  attr :plans, :map, required: true, doc: "Map of plans returned by list_all_plans()."
+  attr :plans, :map, required: true, doc: "Map of subscription plans returned by list_all_plans()."
   attr :current_user, :any, default: nil, doc: "The currently logged-in user, if any."
   attr :current_subscription, :any, default: nil, doc: "The user's current subscription, if any."
   attr :target, :any, default: nil, doc: "The target for phx-target, if any."
@@ -116,10 +116,10 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
       </.card_header>
       <.card_content>
         <ul class="space-y-4">
-          <%= for {_feature_name, feature_value} <- @plan.features do %>
+          <%= for feature_key <- get_ordered_features(@plan) do %>
             <li class="flex items-start gap-2">
               <span class="text-primary">✓</span>
-              {feature_value}
+              {Map.get(@plan.features, feature_key, "")}
             </li>
           <% end %>
         </ul>
@@ -152,10 +152,13 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
     """
   end
 
+
+
   defp filter_plans(plans_map, interval) when interval == "month" do
     plans_map
     |> Map.values()
     |> Enum.map(& &1.monthly)
+    |> Enum.filter(&is_subscription_plan/1)
     |> Enum.sort_by(& &1.unit_amount)
   end
 
@@ -163,8 +166,24 @@ defmodule PhxplateWeb.Components.Subscription.PlanSelector do
     plans_map
     |> Map.values()
     |> Enum.map(& &1.yearly)
+    |> Enum.filter(&is_subscription_plan/1)
     |> Enum.sort_by(& &1.unit_amount)
   end
+
+  # Helper function to safely check if a plan is a subscription plan
+  defp is_subscription_plan(%Plan{product_type: :subscription}), do: true
+  defp is_subscription_plan(%Plan{interval: interval}) when interval in ["month", "year"], do: true
+  defp is_subscription_plan(_), do: false
+
+  defp get_ordered_features(%Plan{features_order: features_order, features: _features}) when is_list(features_order) do
+    features_order
+  end
+
+  defp get_ordered_features(%Plan{features: features}) when is_map(features) do
+    Map.keys(features) |> Enum.sort()
+  end
+
+  defp get_ordered_features(_), do: []
 
   defp format_price(%Plan{unit_amount: amount, currency: currency}) when is_integer(amount) do
     formatted_amount = amount / 100

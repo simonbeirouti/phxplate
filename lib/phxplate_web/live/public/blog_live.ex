@@ -71,26 +71,24 @@ defmodule PhxplateWeb.Public.BlogLive do
           </div>
         </div>
       <% else %>
-        <div class="space-y-8 grid grid-cols-1 sm:grid-cols-2">
+        <div class="gap-4 grid grid-cols-1 sm:grid-cols-2">
           <%= for post <- @posts do %>
             <.link href={~p"/blog/#{post.slug}"}>
               <article class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
                 <div class="p-6">
-                  <div class="flex items-center justify-between mb-4">
+                  <div class="flex flex-col md:flex-row items-center justify-between mb-4 gap-2">
                     <h2 class="text-2xl font-bold text-gray-900 mb-3">{post.title}</h2>
                     <time class="text-sm text-gray-500">
                       {format_date(post.inserted_at)}
                     </time>
                   </div>
 
-                  <p class="text-gray-600 mb-4 leading-relaxed">
+                  <p class="text-gray-600 mb-4 leading-relaxed text-center md:text-left">
                     {post.description || Markdown.excerpt(post.content, 200)}
                   </p>
 
-                  <div class="flex items-center justify-between">
-                    <.button variant="ghost" class="w-full">
-                      Read more <Lucideicons.arrow_right class="ml-1 h-4 w-4" />
-                    </.button>
+                  <div class="flex items-center justify-center md:justify-start">
+                      Read more <Lucideicons.arrow_right class="ml-2 h-4 w-4" />
                   </div>
                 </div>
               </article>

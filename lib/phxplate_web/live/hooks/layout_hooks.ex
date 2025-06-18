@@ -138,12 +138,20 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
         icon: &Lucideicons.user/1,
         items: [
           %{
-            title: "Basic Dashboard",
+            title: "Dashboard",
             url: "/dashboard/basic"
           },
           %{
             title: "Bookmarks",
             url: "/dashboard/basic/bookmarks"
+          },
+          %{
+            title: "Invites",
+            url: "/dashboard/invites"
+          },
+          %{
+            title: "Account",
+            url: "/dashboard/account"
           }
         ]
       }
@@ -178,12 +186,20 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
             url: "/dashboard/super_admin"
           },
           %{
-            title: "Platform Blogs",
+            title: "Subscriptions",
+            url: "/dashboard/super_admin/subscriptions"
+          },
+          %{
+            title: "Blogs",
             url: "/dashboard/super_admin/blogs"
           },
           %{
-            title: "Platform Companies",
+            title: "Companies",
             url: "/dashboard/super_admin/companies"
+          },
+          %{
+            title: "Settings",
+            url: "/dashboard/super_admin/platform-settings"
           }
         ]
       },
@@ -197,11 +213,11 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
             url: "/dashboard/super_admin/chat"
           },
           %{
-            title: "Feature Requests",
+            title: "Feature/Feedback",
             url: "/dashboard/super_admin/feature-feedbacks"
           },
           %{
-            title: "Platform Users",
+            title: "Users",
             url: "/dashboard/super_admin/users"
           }
         ]

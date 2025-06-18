@@ -43,6 +43,12 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
   """
   @impl true
   def mount(_params, _session, socket) do
+    # Subscribe to platform settings changes and plan changes for the billing component
+    if connected?(socket) do
+      Phxplate.PubSub.DataSync.subscribe("platform_settings", "all")
+      Phxplate.PubSub.DataSync.subscribe("plans", "all")
+    end
+
     user = socket.assigns.current_user |> Repo.preload([:profile, :subscription])
     activities = Phxplate.Tracking.get_user_activities(user.id, 20)
 
@@ -225,6 +231,38 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
      socket
      |> put_flash(:error, error_msg)}
   end
+
+  # Handle platform settings updates and forward to billing component
+  @impl true
+  def handle_info({:updated, %{type: :platform_setting}} = msg, socket) do
+    # Forward the message to the billing component
+    send_update(BillingLive, id: "user_billing", platform_settings_updated: msg)
+    {:noreply, socket}
+  end
+
+  # Handle plan updates and forward to billing component
+  @impl true
+  def handle_info({:created, %{type: :plan}} = msg, socket) do
+    # Forward the message to the billing component
+    send_update(BillingLive, id: "user_billing", plans_updated: msg)
+    {:noreply, socket}
+  end
+
+  def handle_info({:updated, %{type: :plan}} = msg, socket) do
+    # Forward the message to the billing component
+    send_update(BillingLive, id: "user_billing", plans_updated: msg)
+    {:noreply, socket}
+  end
+
+  def handle_info({:deleted, %{type: :plan}} = msg, socket) do
+    # Forward the message to the billing component
+    send_update(BillingLive, id: "user_billing", plans_updated: msg)
+    {:noreply, socket}
+  end
+
+  # Catch-all for other PubSub messages we don't need to handle
+  @impl true
+  def handle_info(_msg, socket), do: {:noreply, socket}
 
   defp handle_profile_save(socket, profile_params) do
     profile_params = clean_params(profile_params)

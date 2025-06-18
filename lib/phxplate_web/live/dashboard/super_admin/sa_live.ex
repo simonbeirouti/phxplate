@@ -260,11 +260,13 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
             title: "Active Subscriptions",
             value: stats.total_subscriptions,
             icon: "credit_card",
+            link: ~p"/dashboard/super_admin/subscriptions"
           },
           %{
             title: "Total Revenue",
             value: "$ #{stats.total_revenue}",
             icon: "dollar_sign",
+            link: ~p"/dashboard/super_admin/subscriptions"
           }
         ]
       },

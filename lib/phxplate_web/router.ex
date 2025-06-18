@@ -218,6 +218,8 @@ defmodule PhxplateWeb.Router do
       live "/super_admin/feature-feedbacks", Dashboard.SuperAdmin.FeedbackRequestsLive, :index
       live "/super_admin/users", Dashboard.SuperAdmin.UsersLive, :index
       live "/super_admin/companies", Dashboard.SuperAdmin.CompaniesLive, :index
+      live "/super_admin/subscriptions", Dashboard.SuperAdmin.SubscriptionsLive, :index
+      live "/super_admin/platform-settings", Dashboard.SuperAdmin.PlatformSettingsLive, :index
       live "/super_admin/chat", Admin.ChatDashboardLive, :index
       live "/super_admin/ai-chat", Dashboard.SuperAdmin.AiChatLive, :index
       live "/super_admin/ai-chat/:conversation_id", Dashboard.SuperAdmin.AiChatLive, :show

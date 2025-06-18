@@ -6,6 +6,7 @@ import ChatHooks from "./chat"
 import DialogDrawerMode from "./dialog_drawer_mode"
 import FeatureRequestEvents from "./feature_request_events"
 import TimezoneDetector from "./timezone_detector"
+import Sortable from "./sortable"
 
 export default {
   NavMenu,
@@ -15,5 +16,6 @@ export default {
   DialogDrawerMode,
   FeatureRequestEvents,
   TimezoneDetector,
+  Sortable,
   ...ChatHooks
 }

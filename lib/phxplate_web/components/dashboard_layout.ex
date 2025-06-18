@@ -250,21 +250,6 @@ defmodule PhxplateWeb.Components.DashboardLayout do
                 </dropdownmenugroup>
                 <.menu_separator></.menu_separator>
               <% end %>
-              <dropdownmenugroup>
-                <.link href={~p"/dashboard/invites"}>
-                  <.menu_item>
-                    <Lucideicons.mail class="w-4 h-4 mr-2" /> Invites
-                  </.menu_item>
-                </.link>
-              </dropdownmenugroup>
-              <dropdownmenugroup>
-                <.link href={~p"/dashboard/account"}>
-                  <.menu_item>
-                    <Lucideicons.settings class="w-4 h-4 mr-2" /> Account
-                  </.menu_item>
-                </.link>
-              </dropdownmenugroup>
-              <.menu_separator></.menu_separator>
               <.link href={~p"/logout"} method="delete">
                 <.menu_item>
                   <Lucideicons.log_out class="w-4 h-4 mr-2" /> Log out
