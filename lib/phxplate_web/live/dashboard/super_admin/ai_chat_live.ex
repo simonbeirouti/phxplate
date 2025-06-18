@@ -50,6 +50,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
      |> assign(:top_k_active, false)
      |> assign(:top_p, 0.9)
      |> assign(:top_p_active, false)
+     |> assign(:is_new_conversation, false)
      |> PageMeta.assign_metadata(
        title: "AI Chat",
        description: "Chat with AI and manage conversations",
@@ -352,22 +353,109 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
 
   @impl true
   def handle_event("send_message", %{"message" => message}, socket) when message != "" do
+    trimmed_message = String.trim(message)
+
     case socket.assigns.current_conversation do
       nil ->
-        # Create new conversation if none exists
-        handle_event("new_conversation", %{}, socket)
-        |> case do
-          {:noreply, updated_socket} ->
-            # Send the message after creating the conversation
-            send(self(), {:send_message_after_create, String.trim(message)})
-            {:noreply, updated_socket}
+        # Create new conversation and immediately send message
+        user_id = socket.assigns.current_user.id
+        title = "New Conversation"
+
+        # Include current advanced parameters if any are active
+        advanced_params = build_advanced_params_for_conversation(socket.assigns)
+
+        case AI.create_conversation(
+               user_id,
+               title,
+               socket.assigns.current_system_prompt,
+               advanced_params
+             ) do
+                    {:ok, conversation} ->
+            conversations = AI.list_conversations(user_id)
+
+            # Set loading state and clear input (don't add user message yet - let AI module handle it)
+            socket =
+              socket
+              |> assign(:conversations, conversations)
+              |> assign(:current_conversation, conversation)
+              |> assign(:messages, [])
+              |> assign(:input_message, "")
+              |> assign(:loading, true)
+              |> assign(:streaming, true)
+              |> assign(:current_stream, "")
+              |> assign(:show_mobile_drawer, false)
+              |> assign(:is_new_conversation, true)  # Flag to track new conversation
+
+            # Send async request to AI
+            pid = self()
+            conversation_id = conversation.id
+
+                        Task.start(fn ->
+              IO.puts("🚀 Starting AI chat task for new conversation #{conversation_id}")
+
+              selected_model_api_id = get_model_api_id(socket.assigns.selected_model)
+              IO.puts("📱 Selected model: #{selected_model_api_id}")
+
+              # Build advanced parameters
+              advanced_opts = %{
+                max_tokens: socket.assigns.max_tokens,
+                max_tokens_active: socket.assigns.max_tokens_active,
+                temperature: socket.assigns.temperature,
+                temperature_active: socket.assigns.temperature_active,
+                top_k: socket.assigns.top_k,
+                top_k_active: socket.assigns.top_k_active,
+                top_p: socket.assigns.top_p,
+                top_p_active: socket.assigns.top_p_active,
+                prompt_id: get_prompt_id_from_name(socket.assigns.selected_system_prompt, socket.assigns.available_prompts)
+              }
+
+              IO.puts("⚙️ Advanced opts: #{inspect(advanced_opts)}")
+              IO.puts("💬 Message: #{trimmed_message}")
+
+              case AI.stream_chat_in_conversation(
+                     conversation_id,
+                     user_id,
+                     trimmed_message,
+                     selected_model_api_id,
+                     advanced_opts
+                   ) do
+                {:ok, stream, _conversation, model_api_id, opts} ->
+                  IO.puts("✅ AI streaming started successfully")
+                  # First, send the user message to display
+                  send(pid, {:user_message_added, trimmed_message})
+
+                  accumulated_response =
+                    stream
+                    |> Stream.map(&AI.extract_text_from_stream/1)
+                    |> Enum.reduce("", fn chunk, acc ->
+                      new_acc = acc <> chunk
+                      send(pid, {:stream_chunk, chunk})
+                      new_acc
+                    end)
+
+                  IO.puts("🏁 AI streaming completed")
+                  send(
+                    pid,
+                    {:stream_complete, accumulated_response, conversation_id, model_api_id, opts}
+                  )
+
+                {:error, error} ->
+                  IO.puts("❌ AI streaming error: #{inspect(error)}")
+                  send(pid, {:ai_error, error})
+              end
+            end)
+
+            {:noreply, socket}
+
+          {:error, _changeset} ->
+            {:noreply, put_flash(socket, :error, "Failed to create new conversation")}
         end
 
       conversation ->
         # Add user message to the chat display immediately
         user_message = %{
           role: "user",
-          content: String.trim(message),
+          content: trimmed_message,
           timestamp: DateTime.utc_now()
         }
 
@@ -405,7 +493,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
           case AI.stream_chat_in_conversation(
                  conversation.id,
                  user_id,
-                 String.trim(message),
+                 trimmed_message,
                  selected_model_api_id,
                  advanced_opts
                ) do
@@ -444,10 +532,19 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     {:noreply, assign(socket, :input_message, message)}
   end
 
+
+
   @impl true
-  def handle_info({:send_message_after_create, message}, socket) do
-    # This handles sending a message after creating a new conversation
-    handle_event("send_message", %{"message" => message}, socket)
+  def handle_info({:user_message_added, message}, socket) do
+    # Add the user message to the display
+    user_message = %{
+      role: "user",
+      content: message,
+      timestamp: DateTime.utc_now()
+    }
+
+    messages = socket.assigns.messages ++ [user_message]
+    {:noreply, assign(socket, :messages, messages)}
   end
 
   @impl true
@@ -468,11 +565,26 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     is_first_response = length(socket.assigns.messages) == 1
 
     # Add the complete streamed message to the chat display
+    # Include metadata for advanced parameters if any were active
+    metadata = if opts[:max_tokens_active] || opts[:temperature_active] || opts[:top_k_active] || opts[:top_p_active] do
+      %{
+        max_tokens: if(opts[:max_tokens_active], do: opts[:max_tokens], else: nil),
+        temperature: if(opts[:temperature_active], do: opts[:temperature], else: nil),
+        top_k: if(opts[:top_k_active], do: opts[:top_k], else: nil),
+        top_p: if(opts[:top_p_active], do: opts[:top_p], else: nil)
+      }
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Map.new()
+    else
+      %{}
+    end
+
     ai_message = %{
       role: "assistant",
       content: full_response,
       model: get_model_short_name(model_api_id),
-      timestamp: DateTime.utc_now()
+      timestamp: DateTime.utc_now(),
+      metadata: metadata
     }
 
     messages = socket.assigns.messages ++ [ai_message]
@@ -498,9 +610,18 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
       end
     end
 
-    # Update conversations list to reflect the updated timestamp
+        # Update conversations list to reflect the updated timestamp
     user_id = socket.assigns.current_user.id
     conversations = AI.list_conversations(user_id)
+
+    # Navigate to the conversation URL if this was a new conversation
+    socket = if Map.get(socket.assigns, :is_new_conversation, false) do
+      socket
+      |> assign(:is_new_conversation, false)
+      |> push_navigate(to: ~p"/dashboard/super_admin/ai-chat/#{conversation_id}")
+    else
+      socket
+    end
 
     {:noreply,
      socket
@@ -611,6 +732,27 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
       String.slice(title, 0, max_length) <> "..."
     else
       title
+    end
+  end
+
+    # Helper function to check if a message has active advanced parameters
+  defp has_active_advanced_params?(message) do
+    # Check if any advanced parameter fields are populated (these are only set when active)
+    # For messages loaded from database, these will be in the message struct
+    # For display messages, we need to check metadata
+    case message do
+      %{max_tokens: max_tokens, temperature: temp, top_k: top_k, top_p: top_p}
+      when not is_nil(max_tokens) or not is_nil(temp) or not is_nil(top_k) or not is_nil(top_p) ->
+        true
+
+      _ ->
+        # Fallback to metadata check for display messages
+        metadata = Map.get(message, :metadata, %{})
+        # Only show as advanced if parameters differ from defaults
+        (metadata[:max_tokens] && metadata[:max_tokens] != 4000) ||
+        (metadata[:temperature] && metadata[:temperature] != 0.7) ||
+        (metadata[:top_k] && metadata[:top_k] != 5) ||
+        (metadata[:top_p] && metadata[:top_p] != 0.9)
     end
   end
 
@@ -1091,7 +1233,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                               {message.model}
                             </span>
                           <% end %>
-                          <%= if Map.get(message, :metadata, %{}) != %{} do %>
+                          <%= if has_active_advanced_params?(message) do %>
                             <span
                               class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full"
                               title="Advanced parameters used"
