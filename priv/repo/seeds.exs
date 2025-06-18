@@ -1165,9 +1165,6 @@ blog_post_data = [
   }
 ]
 
-# Get the first super admin to be the author of blog posts
-super_admin = List.first(created_data.super_admins)
-
 # Create blog posts with various statuses
 created_blog_posts = Enum.map(blog_post_data, fn post_data ->
   {:ok, blog_post} = %Post{}
@@ -1385,14 +1382,11 @@ end)
 
 created_data = Map.put(created_data, :chat_sessions, created_chat_sessions)
 
-# Create some test purchases for single purchase products
-created_purchases = []
-
 # Create purchases for some basic users
 purchase_users = Enum.take(created_data.basic_users, 3)
 single_purchase_products = created_data.single_purchase_plans
 
-created_purchases = Enum.with_index(purchase_users) |> Enum.reduce([], fn {user, index}, acc ->
+created_purchases = Enum.with_index(purchase_users) |> Enum.reduce([], fn {user, _index}, acc ->
   # Each user purchases 1-2 products
   products_to_purchase = Enum.take_random(single_purchase_products, Enum.random(1..2))
 
