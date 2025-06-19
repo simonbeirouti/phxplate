@@ -27,7 +27,7 @@ defmodule PhxplateWeb.UserForgotPasswordLive do
         </.header>
 
         <.simple_form for={@form} id="reset_password_form" phx-submit="send_email">
-          <.input class="text-base" field={@form[:email]} type="email" placeholder="Email" required />
+          <.input class="text-base" field={@form[:email]} type="email" label="Email" placeholder="your@email.com" required />
           <:actions>
             <.button phx-disable-with="Sending..." class="w-full">
               Send password reset instructions

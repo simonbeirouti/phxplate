@@ -6,7 +6,6 @@ defmodule PhxplateWeb.Dashboard.FeatureRequestLive do
   priority and feasibility ratings, along with a description of the requested feature.
   """
   use PhxplateWeb, :live_component
-  use SaladUI, except: [input: 1]
   alias Phxplate.FeatureRequests.FeatureRequestController
 
   def update(assigns, socket) do
@@ -109,14 +108,11 @@ defmodule PhxplateWeb.Dashboard.FeatureRequestLive do
             </div>
 
             <div>
-              <label for="feature_description" class="block text-sm font-medium text-gray-700 mb-2">
-                Feature Description
-              </label>
-              <PhxplateWeb.CoreComponents.input
+              <.textarea
                 field={@form[:feature_description]}
-                type="textarea"
+                label="Feature Description"
+                class="text-base"
                 placeholder="Describe your feature request in detail (minimum 20 characters)..."
-                rows={6}
               />
               <%= if @show_errors do %>
                 <.error :for={{msg, _opts} <- @form[:feature_description].errors}>

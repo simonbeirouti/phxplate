@@ -11,8 +11,9 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
   alias Phxplate.Companies
   alias Phoenix.LiveView.JS
   import PhxplateWeb.Components.UI.DialogDrawerWrapper
-  import SaladUI.Button, only: [button: 1]
-  alias SaladUI.Input
+  import PhxplateWeb.Components.UI.Input
+  import PhxplateWeb.Components.UI.Textarea
+  import PhxplateWeb.Components.UI.Button
 
   attr :companies, :list, required: true, doc: "List of companies to display"
 
@@ -93,13 +94,11 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
             phx-hook="ResetForm"
           >
             <div class="flex flex-col">
-              <label for="name" class="block text-sm font-medium text-gray-700 mb-2">
-                Company Name
-              </label>
-              <Input.input
+              <.input
                 id="name"
                 name="name"
                 type="text"
+                label="Company Name"
                 value=""
                 placeholder="Enter company name"
                 required
@@ -107,10 +106,8 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
             </div>
 
             <div class="flex flex-col">
-              <label for="phone" class="block text-sm font-medium text-gray-700 mb-2">
-                Phone Number
-              </label>
-              <Input.input
+              <.input
+                label="Phone Number"
                 id="phone"
                 name="phone"
                 type="tel"
@@ -120,10 +117,8 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
             </div>
 
             <div class="flex flex-col">
-              <label for="website" class="block text-sm font-medium text-gray-700 mb-2">
-                Website
-              </label>
-              <Input.input
+              <.input
+                label="Website"
                 id="website"
                 name="website"
                 type="url"
@@ -133,10 +128,8 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
             </div>
 
             <div class="flex flex-col">
-              <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
-                Email
-              </label>
-              <Input.input
+              <.input
+                label="Email"
                 id="email"
                 name="email"
                 type="email"
@@ -146,10 +139,8 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
             </div>
 
             <div class="flex flex-col">
-              <label for="address" class="block text-sm font-medium text-gray-700 mb-2">
-                Address
-              </label>
-              <Input.input
+              <.input
+                label="Address"
                 id="address"
                 name="address"
                 type="text"
@@ -159,10 +150,8 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
             </div>
 
             <div class="flex flex-col">
-              <label for="description" class="block text-sm font-medium text-gray-700 mb-2">
-                Description
-              </label>
-              <textarea
+              <.textarea
+                label="Description"
                 id="description"
                 name="description"
                 value=""
@@ -203,6 +192,11 @@ defmodule PhxplateWeb.Components.CompaniesGrid do
         case plan.features["projects"] do
           "Unlimited" -> 999_999
           limit when is_integer(limit) -> limit
+          limit when is_binary(limit) ->
+            case Integer.parse(limit) do
+              {int_limit, ""} -> int_limit
+              _ -> 0
+            end
           _ -> 0
         end
     end

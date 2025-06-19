@@ -18,10 +18,12 @@ defmodule Phxplate.Subscriptions do
 
   import Ecto.Query, warn: false
   alias Phxplate.Repo
-  alias Phxplate.Subscriptions.{Subscription, Plan}
+  alias Phxplate.Subscriptions.{Subscription, Plan, Purchase}
   alias Phxplate.Accounts.User
   alias Phxplate.Accounts
   alias Phxplate.PubSub.DataSync
+  alias Phxplate.PlatformSetting
+  require Logger
 
   require Logger
 
@@ -88,6 +90,19 @@ defmodule Phxplate.Subscriptions do
           {:created, %{type: :subscription, subscription: subscription}}
         )
 
+        # Track subscription creation
+        subscription_with_plan = subscription |> Repo.preload(:plan)
+        track_subscription_entity_change(
+          "subscription_created",
+          subscription_with_plan,
+          %{id: subscription.user_id},
+          %{
+            "plan_name" => subscription_with_plan.plan.name,
+            "plan_tier" => subscription.paid_tier,
+            "status" => subscription.subscription_status
+          }
+        )
+
         # Update user role based on the new subscription's plan
         try do
           user = Accounts.get_user!(subscription.user_id)
@@ -118,6 +133,20 @@ defmodule Phxplate.Subscriptions do
         )
         DataSync.broadcast("subscriptions", "all",
           {:updated, %{type: :subscription, subscription: updated_subscription}}
+        )
+
+        # Track subscription update
+        subscription_with_plan = updated_subscription |> Repo.preload(:plan)
+        track_subscription_entity_change(
+          "subscription_updated",
+          subscription_with_plan,
+          %{id: updated_subscription.user_id},
+          %{
+            "plan_name" => subscription_with_plan.plan.name,
+            "plan_tier" => updated_subscription.paid_tier,
+            "status" => updated_subscription.subscription_status,
+            "changes" => attrs
+          }
         )
 
         # Update user role based on the updated subscription's plan
@@ -189,16 +218,25 @@ defmodule Phxplate.Subscriptions do
       |> order_by([p], asc: p.unit_amount)
       |> Repo.all()
 
-    plans
-    |> Enum.group_by(& &1.metadata["tier"])
-    |> Enum.map(fn {tier, tier_plans} ->
-      {tier,
-       %{
-         monthly: Enum.find(tier_plans, &(&1.interval == "month")),
-         yearly: Enum.find(tier_plans, &(&1.interval == "year"))
-       }}
-    end)
-    |> Enum.into(%{})
+    # Separate subscription plans from single purchase products
+    {subscription_plans, single_purchase_plans} =
+      Enum.split_with(plans, &(&1.product_type == :subscription))
+
+    # Group subscription plans by tier
+    subscription_structure =
+      subscription_plans
+      |> Enum.group_by(& &1.metadata["tier"])
+      |> Enum.map(fn {tier, tier_plans} ->
+        {tier,
+         %{
+           monthly: Enum.find(tier_plans, &(&1.interval == "month")),
+           yearly: Enum.find(tier_plans, &(&1.interval == "year"))
+         }}
+      end)
+      |> Enum.into(%{})
+
+    # Add single purchase products as a separate category
+    Map.put(subscription_structure, :single_purchase, single_purchase_plans)
   end
 
   @doc """
@@ -207,6 +245,16 @@ defmodule Phxplate.Subscriptions do
   def list_plans_by_interval(interval) when interval in ["month", "year"] do
     Plan
     |> where([p], p.interval == ^interval)
+    |> order_by([p], asc: p.unit_amount)
+    |> Repo.all()
+  end
+
+  @doc """
+  Lists all single purchase products ordered by amount.
+  """
+  def list_single_purchase_products do
+    Plan
+    |> where([p], p.product_type == :single_purchase)
     |> order_by([p], asc: p.unit_amount)
     |> Repo.all()
   end
@@ -230,6 +278,52 @@ defmodule Phxplate.Subscriptions do
   """
   def get_plan_by_stripe_price_id(stripe_price_id) do
     Repo.get_by(Plan, stripe_price_id: stripe_price_id)
+  end
+
+  @doc """
+  Updates a plan.
+
+  Updates an existing plan with the provided attributes.
+
+  ## Parameters
+    - plan: The plan struct to update
+    - attrs: Map of attributes to update
+
+  ## Returns
+    - `{:ok, plan}` on success
+    - `{:error, changeset}` on validation failure
+  """
+  def update_plan(%Plan{} = plan, attrs) do
+    # Convert features map if it's provided
+    attrs = if attrs["features"] do
+      Map.put(attrs, "features", process_features_map(attrs["features"]))
+    else
+      attrs
+    end
+
+    # Convert metadata if tier is provided
+    attrs = if attrs["tier"] do
+      metadata = Map.get(attrs, "metadata", plan.metadata || %{})
+      updated_metadata = Map.put(metadata, "tier", attrs["tier"])
+      attrs
+      |> Map.put("metadata", updated_metadata)
+      |> Map.delete("tier")
+    else
+      attrs
+    end
+
+    plan
+    |> Plan.changeset(attrs)
+    |> Repo.update()
+  end
+
+  # Helper function to process features map from form params
+  defp process_features_map(features) when is_map(features) do
+    features
+    |> Enum.reject(fn {key, value} ->
+      key == "" or value == "" or String.starts_with?(key, "new_feature_")
+    end)
+    |> Enum.into(%{})
   end
 
   @doc """
@@ -806,37 +900,52 @@ defmodule Phxplate.Subscriptions do
     |> Repo.one() || 0
   end
 
-  @spec admin_update_subscription_status(any(), any(), any()) :: any()
+  @doc """
+  Creates an admin subscription for a user (super admin only).
+
+  ## Parameters
+    - user_id: The ID of the user to create a subscription for
+    - tier: The subscription tier (:small, :medium, :large)
+    - status: The subscription status
+    - actor: The user performing the action (must be super admin)
+
+  ## Returns
+    - `{:ok, subscription}` on success
+    - `{:error, :unauthorized}` if actor is not super admin
+    - `{:error, reason}` on other failures
+  """
+  def admin_create_subscription(user_id, tier, status, actor) when tier in @valid_tiers and status in @valid_statuses do
+    case actor do
+      %User{role: :super_admin} ->
+        with {:ok, plan} <- find_plan_by_tier(tier) do
+          attrs = %{
+            user_id: user_id,
+            paid_tier: tier,
+            plan_id: plan.id,
+            subscription_status: status,
+            stripe_customer_id: "admin_created_#{user_id}",
+            stripe_subscription_id: "admin_created_#{user_id}"
+          }
+          create_subscription(attrs)
+        end
+      _ ->
+        {:error, :unauthorized}
+    end
+  end
+  def admin_create_subscription(_user_id, _tier, _status, _actor), do: {:error, :invalid_parameters}
+
   @doc """
   Admin-only function to update a subscription's status.
   This bypasses Stripe and only updates the local database record.
   Should only be used by super admins for administrative purposes.
   """
-  def admin_update_subscription_status(subscription, status, actor \\ nil)
+  def admin_update_subscription_status(subscription, status, actor)
   def admin_update_subscription_status(%Subscription{} = subscription, status, actor) when status in @valid_statuses do
-    case update_subscription(subscription, %{subscription_status: status}) do
-      {:ok, updated_subscription} ->
-        # Track the status change
-        user = %{id: subscription.user_id}
-        action = case status do
-          :active -> "subscription_reactivated"
-          :canceled -> "subscription_cancelled"
-          _ -> "subscription_status_updated"
-        end
-
-        track_subscription_change(
-          action,
-          user,
-          actor,
-          %{
-            "status" => status,
-            "plan" => subscription.plan.name,
-            "end_date" => Calendar.strftime(subscription.subscription_period_end, "%Y-%m-%d")
-          }
-        )
-
-        {:ok, updated_subscription}
-      error -> error
+    case actor do
+      %User{role: :super_admin} ->
+        update_subscription(subscription, %{subscription_status: status})
+      _ ->
+        {:error, :unauthorized}
     end
   end
   def admin_update_subscription_status(_subscription, _status, _actor), do: {:error, :invalid_status}
@@ -846,67 +955,55 @@ defmodule Phxplate.Subscriptions do
   This bypasses Stripe and only updates the local database record.
   Should only be used by super admins for administrative purposes.
   """
-  def admin_update_subscription_tier(subscription, tier, actor \\ nil)
+  def admin_update_subscription_tier(subscription, tier, actor)
   def admin_update_subscription_tier(%Subscription{} = subscription, :none, actor) do
-    # Special handling for downgrading to no subscription
-    case delete_subscription(subscription) do
-      {:ok, _deleted} ->
-        if actor do
-          track_subscription_change(
-            "subscription_tier_update",
-            %{id: subscription.user_id},
-            actor,
-            %{"tier" => "none"}
-          )
+    case actor do
+      %User{role: :super_admin} ->
+        # Special handling for downgrading to no subscription
+        case delete_subscription(subscription) do
+          {:ok, _deleted} ->
+            track_subscription_change(
+              "subscription_tier_update",
+              %{id: subscription.user_id},
+              actor,
+              %{"tier" => "none"}
+            )
+            {:ok, nil}
+          error -> error
         end
-        {:ok, nil}
-      error -> error
+      _ ->
+        {:error, :unauthorized}
     end
   end
   def admin_update_subscription_tier(%Subscription{} = subscription, tier, actor) when tier in @valid_tiers do
-    with {:ok, plan} <- find_plan_by_tier(tier),
-         {:ok, updated_subscription} <- update_subscription(subscription, %{
-           paid_tier: tier,
-           plan_id: plan.id
-         }) do
-      if actor do
-        track_subscription_change(
-          "subscription_tier_update",
-          %{id: subscription.user_id},
-          actor,
-          %{"tier" => tier}
-        )
-      end
-      {:ok, updated_subscription}
+    case actor do
+      %User{role: :super_admin} ->
+        with {:ok, plan} <- find_plan_by_tier(tier) do
+          update_subscription(subscription, %{paid_tier: tier, plan_id: plan.id})
+        end
+      _ ->
+        {:error, :unauthorized}
     end
   end
   def admin_update_subscription_tier(_subscription, _tier, _actor), do: {:error, :invalid_tier}
-
-  @doc """
-  Admin-only function to create a subscription for a user.
-  This bypasses Stripe and only creates a local database record.
-  Should only be used by super admins for administrative purposes.
-  """
-  def admin_create_subscription(user_id, tier, status) when tier in @valid_tiers and status in @valid_statuses do
-    with {:ok, plan} <- find_plan_by_tier(tier) do
-      attrs = %{
-        user_id: user_id,
-        paid_tier: tier,
-        plan_id: plan.id,
-        subscription_status: status,
-        stripe_customer_id: "admin_created_#{user_id}",
-        stripe_subscription_id: "admin_created_#{user_id}"
-      }
-      create_subscription(attrs)
-    end
-  end
-  def admin_create_subscription(_user_id, _tier, _status), do: {:error, :invalid_parameters}
 
   # Helper function to track subscription changes
   defp track_subscription_change(action, user, actor, additional_data) do
     tracking_actor = actor || user
     additional_data = if is_nil(additional_data), do: %{}, else: additional_data
     Phxplate.Tracking.track_user_activity(action, user, tracking_actor, additional_data)
+  end
+
+  # Helper function to track subscription entity changes
+  defp track_subscription_entity_change(action, subscription, actor, additional_data) do
+    tracking_actor = actor || %{id: subscription.user_id}
+    additional_data = if is_nil(additional_data), do: %{}, else: additional_data
+    Phxplate.Tracking.track_subscription_activity(action, subscription, tracking_actor, additional_data)
+  end
+
+  # Helper function to track plan changes
+  defp track_plan_activity(action, plan, actor, changes, metadata) do
+    Phxplate.Tracking.track_plan_activity(action, plan, actor, changes, metadata)
   end
 
   # Helper function to find plan by tier
@@ -959,5 +1056,701 @@ defmodule Phxplate.Subscriptions do
       :no_role_change_needed
     end
   end
+
+  # Purchase-related functions
+
+  @doc """
+  Lists all plans by product type (subscription or single_purchase).
+  """
+  def list_plans_by_product_type(product_type) when product_type in [:subscription, :single_purchase] do
+    Plan
+    |> where([p], p.product_type == ^product_type)
+    |> order_by([p], asc: p.unit_amount)
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets a purchase by ID.
+  """
+  def get_purchase!(id), do: Repo.get!(Purchase, id) |> Repo.preload([:user, :plan])
+
+  @doc """
+  Gets a purchase by Stripe payment intent ID.
+  """
+  def get_purchase_by_stripe_payment_intent_id(stripe_payment_intent_id) when is_binary(stripe_payment_intent_id) do
+    case Repo.get_by(Purchase, stripe_payment_intent_id: stripe_payment_intent_id) do
+      nil -> {:error, :not_found}
+      purchase -> {:ok, purchase |> Repo.preload([:user, :plan])}
+    end
+  end
+
+  @doc """
+  Creates a purchase.
+  """
+  def create_purchase(attrs \\ %{}) do
+    %Purchase{}
+    |> Purchase.changeset(attrs)
+    |> Repo.insert()
+    |> case do
+      {:ok, purchase} = result ->
+        # Broadcast creation
+        DataSync.broadcast("purchases", purchase.user_id,
+          {:created, %{type: :purchase, purchase: purchase}}
+        )
+        DataSync.broadcast("purchases", "all",
+          {:created, %{type: :purchase, purchase: purchase}}
+        )
+        result
+      error -> error
+    end
+  end
+
+  @doc """
+  Updates a purchase.
+  """
+  def update_purchase(%Purchase{} = purchase, attrs) do
+    purchase
+    |> Purchase.changeset(attrs)
+    |> Repo.update()
+    |> case do
+      {:ok, updated_purchase} = result ->
+        # Broadcast update
+        DataSync.broadcast("purchases", updated_purchase.user_id,
+          {:updated, %{type: :purchase, purchase: updated_purchase}}
+        )
+        DataSync.broadcast("purchases", "all",
+          {:updated, %{type: :purchase, purchase: updated_purchase}}
+        )
+        result
+      error -> error
+    end
+  end
+
+  @doc """
+  Updates a purchase status.
+  """
+  def update_purchase_status(%Purchase{} = purchase, attrs) do
+    purchase
+    |> Purchase.status_changeset(attrs)
+    |> Repo.update()
+    |> case do
+      {:ok, updated_purchase} = result ->
+        # Broadcast status update
+        DataSync.broadcast("purchases", updated_purchase.user_id,
+          {:status_updated, %{type: :purchase, purchase: updated_purchase}}
+        )
+        DataSync.broadcast("purchases", "all",
+          {:status_updated, %{type: :purchase, purchase: updated_purchase}}
+        )
+        result
+      error -> error
+    end
+  end
+
+  @doc """
+  Lists all purchases for a user.
+  """
+  def list_user_purchases(user_id) do
+    Purchase
+    |> where([p], p.user_id == ^user_id)
+    |> order_by([p], desc: p.inserted_at)
+    |> Repo.all()
+    |> Repo.preload([:plan])
+  end
+
+  @doc """
+  Lists all purchases with pagination.
+  """
+  def list_purchases(opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    offset = Keyword.get(opts, :offset, 0)
+
+    Purchase
+    |> limit(^limit)
+    |> offset(^offset)
+    |> order_by([p], desc: p.inserted_at)
+    |> Repo.all()
+    |> Repo.preload([:user, :plan])
+  end
+
+  @doc """
+  Creates a checkout session for a single purchase product.
+  """
+  def create_single_purchase_checkout_session(%User{} = user, %Plan{product_type: :single_purchase} = plan) do
+    stripe_price_id = plan.stripe_price_id
+
+    if is_nil(stripe_price_id) do
+      {:error, "Plan does not have a Stripe price ID"}
+    else
+      base_url = Application.get_env(:phxplate, :base_url) || "https://#{System.get_env("PHX_HOST")}"
+      base_url = String.trim_trailing(base_url, "/")
+      base_url = if String.contains?(base_url, "://"), do: base_url, else: "https://#{System.get_env("PHX_HOST")}"
+
+      success_url = "#{base_url}/callbacks/stripe/purchase_success?session_id={CHECKOUT_SESSION_ID}"
+      cancel_url = "#{base_url}/callbacks/stripe/cancel"
+
+      Logger.info("Creating Stripe single purchase checkout with URLs: success=#{success_url}, cancel=#{cancel_url}")
+
+      session_params = %{
+        payment_method_types: ["card"],
+        line_items: [
+          %{
+            price: stripe_price_id,
+            quantity: 1
+          }
+        ],
+        mode: "payment", # Single payment mode for one-time purchases
+        success_url: success_url,
+        cancel_url: cancel_url,
+        client_reference_id: user.id,
+        metadata: %{
+          user_id: user.id,
+          plan_id: plan.id,
+          product_type: "single_purchase"
+        }
+      }
+
+      # Add customer info if available
+      session_params = if user.email do
+        Map.put(session_params, :customer_email, user.email)
+      else
+        session_params
+      end
+
+      case Stripe.Session.create(session_params) do
+        {:ok, session} ->
+          Logger.info("Single purchase checkout session created: #{session.id}")
+          {:ok, session}
+        {:error, error} ->
+          Logger.error("Failed to create single purchase checkout session: #{inspect(error)}")
+          {:error, error}
+      end
+    end
+  end
+
+  @doc """
+  Handles successful single purchase payment from Stripe webhook.
+  """
+  def handle_successful_single_purchase_payment(payment_intent) do
+    user_id = payment_intent.metadata["user_id"]
+    plan_id = payment_intent.metadata["plan_id"]
+
+    if user_id && plan_id do
+      attrs = %{
+        stripe_customer_id: payment_intent.customer,
+        stripe_payment_intent_id: payment_intent.id,
+        stripe_charge_id: List.first(payment_intent.charges.data).id,
+        purchase_status: :completed,
+        amount: payment_intent.amount,
+        currency: payment_intent.currency,
+        user_id: user_id,
+        plan_id: plan_id,
+        purchased_at: DateTime.utc_now(),
+        metadata: payment_intent.metadata
+      }
+
+      case create_purchase(attrs) do
+        {:ok, purchase} ->
+          Logger.info("Single purchase recorded: #{purchase.id}")
+          {:ok, purchase}
+        {:error, changeset} ->
+          Logger.error("Failed to record single purchase: #{inspect(changeset.errors)}")
+          {:error, changeset}
+      end
+    else
+      Logger.error("Missing user_id or plan_id in payment intent metadata")
+      {:error, :missing_metadata}
+    end
+  end
+
+  @doc """
+  Counts total completed purchases.
+  """
+  def count_completed_purchases do
+    Purchase
+    |> where([p], p.purchase_status == :completed)
+    |> Repo.aggregate(:count, :id)
+  end
+
+  @doc """
+  Calculates total revenue from single purchases.
+  """
+  def calculate_single_purchase_revenue do
+    Purchase
+    |> where([p], p.purchase_status == :completed)
+    |> select([p], sum(p.amount))
+    |> Repo.one() || 0
+  end
+
+  @doc """
+  Creates a plan (super admin only).
+
+  ## Parameters
+    - attrs: Map of attributes for the new plan
+    - actor: The user performing the action (must be super admin)
+
+  ## Returns
+    - `{:ok, plan}` on success
+    - `{:error, :unauthorized}` if actor is not super admin
+    - `{:error, changeset}` on validation failure
+  """
+  def create_plan(attrs, actor) do
+    case actor do
+      %User{role: :super_admin} ->
+                # Create in Stripe first
+        case create_stripe_plan(attrs) do
+          {:ok, stripe_data} ->
+            # Convert all keys to strings to ensure consistency
+            normalized_attrs = normalize_keys_to_strings(attrs)
+            normalized_stripe_data = normalize_keys_to_strings(stripe_data)
+
+            # Create in database with Stripe IDs
+            plan_attrs = Map.merge(normalized_attrs, normalized_stripe_data)
+
+            %Plan{}
+            |> Plan.changeset(plan_attrs)
+            |> Repo.insert()
+            |> case do
+              {:ok, plan} = result ->
+                # Broadcast plan creation
+                DataSync.broadcast("plans", "all", {:created, %{type: :plan, plan: plan}})
+
+                # Track plan creation
+                track_plan_activity(
+                  "plan_created",
+                  plan,
+                  actor,
+                  %{
+                    "name" => plan.name,
+                    "unit_amount" => plan.unit_amount,
+                    "currency" => plan.currency,
+                    "interval" => plan.interval,
+                    "product_type" => plan.product_type,
+                    "tier" => plan.metadata["tier"]
+                  },
+                  %{}
+                )
+
+                result
+              error ->
+                # Clean up Stripe product if database insert fails
+                if stripe_data[:stripe_product_id] do
+                  Stripe.Product.update(stripe_data[:stripe_product_id], %{active: false})
+                end
+                error
+            end
+          error -> error
+        end
+      _ ->
+        {:error, :unauthorized}
+    end
+  end
+
+  @doc """
+  Updates a plan (super admin only).
+
+  ## Parameters
+    - plan: The plan to update
+    - attrs: Map of attributes to update
+    - actor: The user performing the action (must be super admin)
+
+  ## Returns
+    - `{:ok, plan}` on success
+    - `{:error, :unauthorized}` if actor is not super admin
+    - `{:error, changeset}` on validation failure
+  """
+  def update_plan(%Plan{} = plan, attrs, actor) do
+    case actor do
+      %User{role: :super_admin} ->
+                # Update in Stripe first
+        case update_stripe_plan(plan, attrs) do
+          {:ok, stripe_data} ->
+            # Convert all keys to strings to ensure consistency
+            normalized_attrs = normalize_keys_to_strings(attrs)
+            normalized_stripe_data = normalize_keys_to_strings(stripe_data)
+
+            # Update in database with any new Stripe data
+            plan_attrs = Map.merge(normalized_attrs, normalized_stripe_data)
+
+            plan
+            |> Plan.changeset(plan_attrs)
+            |> Repo.update()
+            |> case do
+              {:ok, updated_plan} = result ->
+                # Broadcast plan update
+                DataSync.broadcast("plans", "all", {:updated, %{type: :plan, plan: updated_plan}})
+
+                # Track plan update with changes
+                changes = Map.take(plan_attrs, ["name", "description", "unit_amount", "features", "features_order"])
+                |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+                |> Enum.into(%{})
+
+                track_plan_activity(
+                  "plan_updated",
+                  updated_plan,
+                  actor,
+                  changes,
+                  %{
+                    "tier" => updated_plan.metadata["tier"],
+                    "product_type" => updated_plan.product_type
+                  }
+                )
+
+                result
+              error -> error
+            end
+          error -> error
+        end
+      _ ->
+        {:error, :unauthorized}
+    end
+  end
+
+  @doc """
+  Deletes a plan (super admin only).
+
+  ## Parameters
+    - plan: The plan to delete
+    - actor: The user performing the action (must be super admin)
+
+  ## Returns
+    - `{:ok, plan}` on success
+    - `{:error, :unauthorized}` if actor is not super admin
+    - `{:error, changeset}` on constraint violations
+  """
+  def delete_plan(%Plan{} = plan, actor) do
+    case actor do
+      %User{role: :super_admin} ->
+        # Archive in Stripe first (can't delete if used)
+        case archive_stripe_plan(plan) do
+          {:ok, _} ->
+            Repo.delete(plan)
+            |> case do
+              {:ok, deleted_plan} = result ->
+                # Broadcast plan deletion
+                DataSync.broadcast("plans", "all", {:deleted, %{type: :plan, id: deleted_plan.id}})
+
+                # Track plan deletion
+                track_plan_activity(
+                  "plan_deleted",
+                  deleted_plan,
+                  actor,
+                  %{},
+                  %{
+                    "name" => deleted_plan.name,
+                    "tier" => deleted_plan.metadata["tier"],
+                    "product_type" => deleted_plan.product_type,
+                    "unit_amount" => deleted_plan.unit_amount
+                  }
+                )
+
+                result
+              error -> error
+            end
+          error -> error
+        end
+      _ ->
+        {:error, :unauthorized}
+    end
+  end
+
+  # Platform Settings Management
+
+  @doc """
+  Gets a platform setting by key.
+
+  ## Parameters
+    - key: The setting key to retrieve
+
+  ## Returns
+    - The platform setting if found
+    - nil if not found
+  """
+  def get_platform_setting(key) do
+    Repo.get_by(PlatformSetting, key: key)
+  end
+
+  @doc """
+  Gets the value of a platform setting by key.
+
+  ## Parameters
+    - key: The setting key to retrieve
+    - default: Default value if setting not found
+
+  ## Returns
+    - The boolean value of the setting
+    - The default value if setting not found
+  """
+  def get_platform_setting_value(key, default \\ false) do
+    case get_platform_setting(key) do
+      nil -> default
+      setting -> setting.value
+    end
+  end
+
+  @doc """
+  Updates a platform setting value.
+
+  ## Parameters
+    - key: The setting key to update
+    - value: The new boolean value
+    - actor: The user performing the action (must be super admin)
+
+  ## Returns
+    - `{:ok, setting}` on success
+    - `{:error, :unauthorized}` if actor is not super admin
+    - `{:error, :not_found}` if setting doesn't exist
+    - `{:error, changeset}` on validation failure
+  """
+  def update_platform_setting(key, value, actor) do
+    case actor do
+      %User{role: :super_admin} ->
+        case get_platform_setting(key) do
+          nil ->
+            {:error, :not_found}
+          setting ->
+            setting
+            |> PlatformSetting.changeset(%{value: value})
+            |> Repo.update()
+            |> case do
+              {:ok, updated_setting} = result ->
+                # Broadcast setting update
+                DataSync.broadcast("platform_settings", "all",
+                  {:updated, %{type: :platform_setting, setting: updated_setting}})
+                result
+              error -> error
+            end
+        end
+      _ ->
+        {:error, :unauthorized}
+    end
+  end
+
+  @doc """
+  Lists all platform settings.
+
+  ## Returns
+    - List of all platform settings
+  """
+  def list_platform_settings do
+    PlatformSetting
+    |> order_by([s], asc: s.key)
+    |> Repo.all()
+  end
+
+  @doc """
+  Checks if subscriptions are enabled.
+
+  ## Returns
+    - true if subscriptions are enabled
+    - false otherwise
+  """
+  def subscriptions_enabled? do
+    get_platform_setting_value("subscriptions_enabled", true)
+  end
+
+  @doc """
+  Checks if single purchases are enabled.
+
+  ## Returns
+    - true if single purchases are enabled
+    - false otherwise
+  """
+  def single_purchases_enabled? do
+    get_platform_setting_value("single_purchases_enabled", false)
+  end
+
+  # Private helper functions for Stripe integration
+
+    defp create_stripe_plan(attrs) do
+    name = attrs[:name] || attrs["name"]
+    product_type = attrs[:product_type] || attrs["product_type"]
+    description = attrs[:description] || attrs["description"] || ""
+    metadata = attrs[:metadata] || attrs["metadata"] || %{}
+
+    Logger.info("Creating Stripe plan: #{name} (#{product_type})")
+
+    # Create Stripe product
+    case Stripe.Product.create(%{
+      name: name,
+      description: description,
+      metadata: metadata
+    }) do
+      {:ok, product} ->
+        Logger.info("Stripe product created: #{product.id}")
+
+        # Create Stripe price based on product type
+        case product_type do
+          :subscription ->
+            create_stripe_subscription_price(product.id, attrs)
+          :single_purchase ->
+            create_stripe_one_time_price(product.id, attrs)
+          "subscription" ->
+            create_stripe_subscription_price(product.id, attrs)
+          "single_purchase" ->
+            create_stripe_one_time_price(product.id, attrs)
+          _ ->
+            {:error, "Invalid product type"}
+        end
+      {:error, error} ->
+        Logger.error("Failed to create Stripe product: #{inspect(error)}")
+        {:error, error}
+    end
+  end
+
+  defp create_stripe_subscription_price(product_id, attrs) do
+    unit_amount = attrs[:unit_amount] || attrs["unit_amount"]
+    currency = attrs[:currency] || attrs["currency"]
+    interval = attrs[:interval] || attrs["interval"]
+
+    case Stripe.Price.create(%{
+      unit_amount: unit_amount,
+      currency: currency,
+      product: product_id,
+      recurring: %{interval: interval}
+    }) do
+      {:ok, price} ->
+        {:ok, %{
+          stripe_product_id: product_id,
+          stripe_price_id: price.id
+        }}
+      {:error, error} ->
+        # Clean up product if price creation fails
+        Stripe.Product.update(product_id, %{active: false})
+        {:error, error}
+    end
+  end
+
+  defp create_stripe_one_time_price(product_id, attrs) do
+    unit_amount = attrs[:unit_amount] || attrs["unit_amount"]
+    currency = attrs[:currency] || attrs["currency"]
+
+    case Stripe.Price.create(%{
+      unit_amount: unit_amount,
+      currency: currency,
+      product: product_id
+      # No recurring field for one-time payments
+    }) do
+      {:ok, price} ->
+        {:ok, %{
+          stripe_product_id: product_id,
+          stripe_price_id: price.id
+        }}
+      {:error, error} ->
+        # Clean up product if price creation fails
+        Stripe.Product.update(product_id, %{active: false})
+        {:error, error}
+    end
+  end
+
+      defp update_stripe_plan(plan, attrs) do
+    name = attrs[:name] || attrs["name"] || plan.name
+    description = attrs[:description] || attrs["description"] || plan.description
+    metadata = attrs[:metadata] || attrs["metadata"] || plan.metadata
+
+    Logger.info("Updating Stripe plan: #{plan.name} (#{plan.stripe_product_id})")
+
+    # Update Stripe product
+    case Stripe.Product.update(plan.stripe_product_id, %{
+      name: name,
+      description: description,
+      metadata: metadata
+    }) do
+      {:ok, _product} ->
+        Logger.info("Stripe product updated: #{plan.stripe_product_id}")
+
+        # For price updates, we need to create a new price since Stripe prices are immutable
+        # Only create new price if unit_amount, currency, or interval changed
+        needs_new_price = price_attributes_changed?(plan, attrs)
+
+        if needs_new_price do
+          Logger.info("Price attributes changed, creating new Stripe price")
+          create_new_stripe_price(plan, attrs)
+        else
+          Logger.info("No price changes needed")
+          {:ok, %{}}
+        end
+      {:error, error} ->
+        Logger.error("Failed to update Stripe product: #{inspect(error)}")
+        {:error, error}
+    end
+  end
+
+  defp price_attributes_changed?(plan, attrs) do
+    unit_amount = attrs[:unit_amount] || attrs["unit_amount"]
+    currency = attrs[:currency] || attrs["currency"]
+    interval = attrs[:interval] || attrs["interval"]
+
+    (unit_amount && unit_amount != plan.unit_amount) ||
+    (currency && currency != plan.currency) ||
+    (interval && interval != plan.interval)
+  end
+
+    defp create_new_stripe_price(plan, attrs) do
+    Logger.info("Archiving old Stripe price: #{plan.stripe_price_id}")
+
+    # Archive the old price
+    case Stripe.Price.update(plan.stripe_price_id, %{active: false}) do
+      {:ok, _} ->
+        Logger.info("Old price archived, creating new price")
+
+        # Create new price with updated attributes
+        unit_amount = attrs[:unit_amount] || attrs["unit_amount"] || plan.unit_amount
+        currency = attrs[:currency] || attrs["currency"] || plan.currency
+        interval = attrs[:interval] || attrs["interval"] || plan.interval
+
+        price_params = %{
+          unit_amount: unit_amount,
+          currency: currency,
+          product: plan.stripe_product_id
+        }
+
+        # Add recurring if it's a subscription
+        price_params = if plan.product_type == :subscription and interval do
+          Map.put(price_params, :recurring, %{interval: interval})
+        else
+          price_params
+        end
+
+        Logger.info("Creating new Stripe price with params: #{inspect(price_params)}")
+
+        case Stripe.Price.create(price_params) do
+          {:ok, new_price} ->
+            Logger.info("New Stripe price created: #{new_price.id}")
+            {:ok, %{stripe_price_id: new_price.id}}
+          {:error, error} ->
+            Logger.error("Failed to create new Stripe price: #{inspect(error)}")
+            {:error, error}
+        end
+      {:error, error} ->
+        Logger.error("Failed to archive old Stripe price: #{inspect(error)}")
+        {:error, error}
+    end
+  end
+
+  defp archive_stripe_plan(plan) do
+    # Archive Stripe product (this also archives associated prices)
+    case Stripe.Product.update(plan.stripe_product_id, %{active: false}) do
+      {:ok, _product} ->
+        {:ok, :archived}
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+
+
+  # Helper function to normalize all keys in a map to strings
+  defp normalize_keys_to_strings(map) when is_map(map) do
+    map
+    |> Enum.map(fn
+      {k, v} when is_map(v) -> {to_string(k), normalize_keys_to_strings(v)}
+      {k, v} -> {to_string(k), v}
+    end)
+    |> Enum.into(%{})
+  end
+  defp normalize_keys_to_strings(value), do: value
+
+
 
 end

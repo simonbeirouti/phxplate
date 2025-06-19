@@ -102,7 +102,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
           Phxplate.Subscriptions.admin_update_subscription_status(user.subscription, status, socket.assigns.current_user)
         else
           # Create a new subscription with basic tier if none exists
-          Phxplate.Subscriptions.admin_create_subscription(user_id, :small, status)
+          Phxplate.Subscriptions.admin_create_subscription(user_id, :small, status, socket.assigns.current_user)
         end
 
       case result do
@@ -145,7 +145,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
             Phxplate.Subscriptions.admin_update_subscription_tier(user.subscription, tier, socket.assigns.current_user)
           else
             # Create a new subscription with the selected tier
-            Phxplate.Subscriptions.admin_create_subscription(user_id, tier, :active)
+            Phxplate.Subscriptions.admin_create_subscription(user_id, tier, :active, socket.assigns.current_user)
           end
         end
 
@@ -184,7 +184,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.UsersLive do
   def handle_event("confirm_delete_user", %{"user_id" => user_id}, socket) do
     with %{role: :super_admin} <- socket.assigns.current_user,
          user = Accounts.get_user!(user_id) |> Repo.preload(:profile),
-         {:ok, _deleted} <- Accounts.delete_user(user) do
+         {:ok, _deleted} <- Accounts.delete_user(user, socket.assigns.current_user) do
       # Find any associated employee before broadcasting events
       employee = Companies.get_employee_by_user_id(user_id)
 

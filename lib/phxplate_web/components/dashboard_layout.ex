@@ -1,9 +1,6 @@
 defmodule PhxplateWeb.Components.DashboardLayout do
   @moduledoc false
   use PhxplateWeb, :live_component
-  use SaladUI
-
-  import Lucideicons, except: [import: 1, quote: 1, menu: 1, link: 1]
 
   def render(assigns) do
     assigns =
@@ -43,9 +40,20 @@ defmodule PhxplateWeb.Components.DashboardLayout do
   end
 
   def render_dashboard_layout(assigns) do
+        # Get current sidebar state with fallback
+    current_sidebar_state = assigns[:current_sidebar_state] ||
+      (if assigns[:layout_data] && assigns.layout_data[:user] do
+        user = Phxplate.Accounts.get_user!(assigns.layout_data.user.id)
+        Phxplate.Accounts.get_user_sidebar_state(user)
+      else
+        "expanded"
+      end)
+
+    assigns = assign(assigns, :current_sidebar_state, current_sidebar_state)
+
     ~H"""
     <.sidebar_provider>
-      <.sidebar_main data={@layout_data}></.sidebar_main>
+      <.sidebar_main data={@layout_data} myself={@myself} current_sidebar_state={@current_sidebar_state}></.sidebar_main>
       <.sidebar_inset>
         <%= if @layout_data.user do %>
           <.live_component
@@ -67,12 +75,12 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             <Lucideicons.x class="h-6 w-6 hidden" id="close-icon" />
           </button>
 
-    <!-- <.sidebar_trigger target="main-sidebar" class="pl-2 hidden md:block">
+          <.sidebar_trigger target={@myself} class="pl-2 hidden md:block">
             <Lucideicons.panel_left class="w-4 h-4" />
-          </.sidebar_trigger> -->
+          </.sidebar_trigger>
 
-          <!-- <.separator orientation="vertical" class="mr-2 h-4" /> -->
-          <.breadcrumb class="ml-0 md:ml-2">
+          <.separator orientation="vertical" class="mr-2 h-4" />
+          <.breadcrumb>
             <.breadcrumb_list>
               <%= for {item, idx} <- Enum.with_index(dashboard_breadcrumbs(@layout_data.current_path)) do %>
                 <.breadcrumb_item>
@@ -118,29 +126,50 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     """
   end
 
+  attr :data, :map, required: true
+  attr :myself, :any, required: true
+  attr :current_sidebar_state, :string, required: true
+  slot :inner_block
+
   def sidebar_main(assigns) do
+    # Create a user-specific sidebar ID for persisting state
+    sidebar_id = "main-sidebar-#{assigns.data.user.id}"
+    # Use the current state from the component (which is already loaded from DB)
+    current_state = assigns.current_sidebar_state
+    assigns = assign(assigns, %{sidebar_id: sidebar_id, current_state: current_state})
+
     ~H"""
-    <.sidebar collapsible="icon" id="main-sidebar" state="expanded">
+    <.sidebar
+      collapsible="icon"
+      id={@sidebar_id}
+      state={@current_state}
+      target={@myself}
+    >
       <.sidebar_header>
-        <.nav_user user={@data.user} />
+        <.nav_user user={@data.user} state={@current_state} />
       </.sidebar_header>
-      <.sidebar_content>
-        <.nav_main groups={@data.navGroups} />
+      <.sidebar_content class="overflow-visible">
+        <.nav_main groups={@data.navGroups} state={@current_state} />
         <.nav_projects
           :if={length(@data.companies) >= 1}
           label="Companies"
           projects={@data.companies}
+          state={@current_state}
         />
         <.nav_projects
           :if={length(@data.bookmarked) >= 1}
           label="Bookmarked"
           projects={@data.bookmarked}
+          state={@current_state}
         />
       </.sidebar_content>
-      <.sidebar_rail />
+      <.sidebar_rail target={@myself} />
     </.sidebar>
     """
   end
+
+  attr :groups, :list, required: true
+  attr :state, :string, required: true
 
   def nav_main(assigns) do
     ~H"""
@@ -151,27 +180,62 @@ defmodule PhxplateWeb.Components.DashboardLayout do
         </.sidebar_group_label>
         <.sidebar_menu :for={item <- group.items}>
           <.sidebar_menu_item>
-            <.as_child tag={&collapsible_trigger/1} child={&sidebar_menu_button/1} tooltip={item.title}>
-              <.dynamic :if={not is_nil(item.icon)} tag={item.icon} />
-              <span>
-                {item.title}
-              </span>
-            </.as_child>
-            <.sidebar_menu_sub>
-              <.sidebar_menu_sub_item :for={sub_item <- item.items}>
-                <.as_child tag={&sidebar_menu_sub_button/1} child="a" href={sub_item.url}>
-                  <span>
-                    {sub_item.title}
+            <div :if={@state == "collapsed"}>
+              <.dropdown_menu class="block">
+                <.as_child
+                  tag={&dropdown_menu_trigger/1}
+                  child={&sidebar_menu_button/1}
+                  state={@state}
+                  class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                >
+                  <.dynamic :if={not is_nil(item.icon)} tag={item.icon} />
+                  <span class="sr-only">
+                    {item.title}
                   </span>
                 </.as_child>
-              </.sidebar_menu_sub_item>
-            </.sidebar_menu_sub>
+                <.dropdown_menu_content
+                  class="min-w-56 rounded-lg"
+                  side="right"
+                  align="start"
+                >
+                  <.menu>
+                    <.link :for={sub_item <- item.items} href={sub_item.url}>
+                      <.menu_item>
+                        {sub_item.title}
+                      </.menu_item>
+                    </.link>
+                  </.menu>
+                </.dropdown_menu_content>
+              </.dropdown_menu>
+            </div>
+
+            <div :if={@state != "collapsed"}>
+              <.as_child tag={&collapsible_trigger/1} child={&sidebar_menu_button/1} state={@state}>
+                <.dynamic :if={not is_nil(item.icon)} tag={item.icon} />
+                <span>
+                  {item.title}
+                </span>
+              </.as_child>
+              <.sidebar_menu_sub>
+                <.sidebar_menu_sub_item :for={sub_item <- item.items}>
+                  <.as_child tag={&sidebar_menu_sub_button/1} child="a" href={sub_item.url}>
+                    <span>
+                      {sub_item.title}
+                    </span>
+                  </.as_child>
+                </.sidebar_menu_sub_item>
+              </.sidebar_menu_sub>
+            </div>
           </.sidebar_menu_item>
         </.sidebar_menu>
       </.sidebar_group>
     <% end %>
     """
   end
+
+  attr :label, :string, required: true
+  attr :projects, :list, required: true
+  attr :state, :string, required: true
 
   def nav_projects(assigns) do
     ~H"""
@@ -191,14 +255,14 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             }
             class="truncate"
           >
-            <.sidebar_menu_button class="flex items-center gap-2">
+            <.sidebar_menu_button class="flex items-center gap-2" state={@state}>
               <.avatar class="h-8 w-8 rounded-lg -ml-2">
                 <.avatar_image src={project.logo} alt={project.name} />
                 <.avatar_fallback class="rounded-lg">
                   {String.slice(project.name, 0, 2)}
                 </.avatar_fallback>
               </.avatar>
-              {project.name}
+              <span class="max-lg:hidden">{project.name}</span>
             </.sidebar_menu_button>
           </a>
         </.sidebar_menu_item>
@@ -206,6 +270,9 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     </.sidebar_group>
     """
   end
+
+  attr :user, :map, required: true
+  attr :state, :string, required: true
 
   def nav_user(assigns) do
     ~H"""
@@ -217,6 +284,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             child={&sidebar_menu_button/1}
             size="lg"
             class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+            state={@state}
           >
             <.avatar class="h-8 w-8 rounded-lg -ml-2">
               <.avatar_image src={@user.avatar} alt={@user.name} />
@@ -224,7 +292,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
                 {String.slice(@user.name, 0, 2)}
               </.avatar_fallback>
             </.avatar>
-            <div class="grid flex-1 text-left text-sm leading-tight ml-2">
+            <div class="grid flex-1 text-left text-sm leading-tight ml-2 max-lg:hidden">
               <span class="truncate font-semibold">
                 {@user.name}
               </span>
@@ -232,7 +300,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
                 {@user.email}
               </span>
             </div>
-            <.chevrons_up_down class="ml-auto size-4" />
+            <Lucideicons.chevrons_up_down class="ml-auto size-4 max-lg:hidden" />
           </.as_child>
           <.dropdown_menu_content
             class="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
@@ -244,27 +312,12 @@ defmodule PhxplateWeb.Components.DashboardLayout do
                 <dropdownmenugroup>
                   <.link href={~p"/dashboard/account?tab=subscription"}>
                     <.menu_item>
-                      <.sparkles class="w-4 h-4 mr-2" /> Upgrade to Pro
+                      <Lucideicons.sparkles class="w-4 h-4 mr-2" /> Upgrade to Pro
                     </.menu_item>
                   </.link>
                 </dropdownmenugroup>
                 <.menu_separator></.menu_separator>
               <% end %>
-              <dropdownmenugroup>
-                <.link href={~p"/dashboard/invites"}>
-                  <.menu_item>
-                    <Lucideicons.mail class="w-4 h-4 mr-2" /> Invites
-                  </.menu_item>
-                </.link>
-              </dropdownmenugroup>
-              <dropdownmenugroup>
-                <.link href={~p"/dashboard/account"}>
-                  <.menu_item>
-                    <Lucideicons.settings class="w-4 h-4 mr-2" /> Account
-                  </.menu_item>
-                </.link>
-              </dropdownmenugroup>
-              <.menu_separator></.menu_separator>
               <.link href={~p"/logout"} method="delete">
                 <.menu_item>
                   <Lucideicons.log_out class="w-4 h-4 mr-2" /> Log out
@@ -277,6 +330,8 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     </.sidebar_menu>
     """
   end
+
+  attr :groups, :list, required: true
 
   def mobile_nav_main(assigns) do
     ~H"""
@@ -313,6 +368,8 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     """
   end
 
+  attr :companies, :list, required: true
+
   def mobile_nav_projects(assigns) do
     ~H"""
     <div :if={length(@companies) >= 1} class="space-y-1">
@@ -338,6 +395,8 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     </div>
     """
   end
+
+  attr :bookmarked, :list, required: true
 
   def mobile_nav_bookmarked(assigns) do
     ~H"""
@@ -366,6 +425,8 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     </div>
     """
   end
+
+  attr :user, :map, required: true
 
   def mobile_nav_user(assigns) do
     ~H"""
@@ -424,8 +485,51 @@ defmodule PhxplateWeb.Components.DashboardLayout do
   def dashboard_breadcrumbs(_), do: [%{label: "Dashboard", href: "/dashboard"}]
 
   def handle_event("toggle_support", _params, socket) do
-    current_value = Map.get(socket.assigns, :show_support, false)
-    {:noreply, assign(socket, :show_support, !current_value)}
+    {:noreply, assign(socket, :show_support, !socket.assigns.show_support)}
+  end
+
+    def handle_event("toggle_sidebar_state", _params, socket) do
+    user_data = socket.assigns.layout_data.user
+    # Get the full User struct
+    user = Phxplate.Accounts.get_user!(user_data.id)
+
+    # Get current state from socket or database as fallback
+    current_state = socket.assigns[:current_sidebar_state] ||
+                   Phxplate.Accounts.get_user_sidebar_state(user)
+    new_state = if current_state == "expanded", do: "collapsed", else: "expanded"
+
+    case Phxplate.Accounts.update_user_sidebar_state(user, new_state) do
+      {:ok, _updated_user} ->
+        # Update the local state as well
+        {:noreply, assign(socket, :current_sidebar_state, new_state)}
+      {:error, _changeset} ->
+        # Log error but don't fail the request
+        require Logger
+        Logger.warning("Failed to update sidebar state for user #{user_data.id}: #{new_state}")
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_sidebar_state", %{"state" => state}, socket) when state in ["expanded", "collapsed"] do
+    user_data = socket.assigns.layout_data.user
+    # Get the full User struct
+    user = Phxplate.Accounts.get_user!(user_data.id)
+
+    case Phxplate.Accounts.update_user_sidebar_state(user, state) do
+      {:ok, _updated_user} ->
+        # Update the local state as well
+        {:noreply, assign(socket, :current_sidebar_state, state)}
+      {:error, _changeset} ->
+        # Log error but don't fail the request
+        require Logger
+        Logger.warning("Failed to update sidebar state for user #{user_data.id}: #{state}")
+        {:noreply, assign(socket, :current_sidebar_state, state)}
+    end
+  end
+
+  def handle_event("update_sidebar_state", _params, socket) do
+    # Invalid state, ignore
+    {:noreply, socket}
   end
 
   def handle_event("set_screen_mode", %{"mode" => mode}, socket) do
@@ -446,9 +550,16 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     {:noreply, socket}
   end
 
-  def update(assigns, socket) do
+    def update(assigns, socket) do
+    # Preserve current_sidebar_state if it exists, otherwise let render_dashboard_layout handle it
     filtered_assigns = Map.drop(assigns, [:flash])
-    {:ok, assign(socket, filtered_assigns)}
+
+    if Map.has_key?(socket.assigns, :current_sidebar_state) do
+      filtered_assigns = Map.drop(filtered_assigns, [:current_sidebar_state])
+      {:ok, assign(socket, filtered_assigns)}
+    else
+      {:ok, assign(socket, filtered_assigns)}
+    end
   end
 
   def handle_info({:feature_request_success, message}, socket) do

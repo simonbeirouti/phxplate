@@ -26,7 +26,7 @@ defmodule PhxplateWeb.UserConfirmationInstructionsLive do
         </.header>
 
         <.simple_form for={@form} id="resend_confirmation_form" phx-submit="send_instructions">
-          <.input class="text-base" field={@form[:email]} type="email" placeholder="Email" required />
+          <.input class="text-base" field={@form[:email]} type="email" label="Email" placeholder="your@email.com" required />
           <:actions>
             <.button phx-disable-with="Sending..." class="w-full">
               Resend confirmation instructions

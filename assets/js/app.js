@@ -50,3 +50,13 @@ window.addEventListener("phx:js-exec", ({detail}) => {
     liveSocket.execJS(el, el.getAttribute(detail.attr))
   })
 })
+
+// Handle tab switching from server
+window.addEventListener("phx:switch-tab", ({detail}) => {
+  const tabValue = detail.tab
+  // Find the tab trigger button and click it
+  const tabTrigger = document.querySelector(`[data-radix-collection-item][value="${tabValue}"]`)
+  if (tabTrigger) {
+    tabTrigger.click()
+  }
+})

@@ -43,6 +43,12 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
   """
   @impl true
   def mount(_params, _session, socket) do
+    # Subscribe to platform settings changes and plan changes for the billing component
+    if connected?(socket) do
+      Phxplate.PubSub.DataSync.subscribe("platform_settings", "all")
+      Phxplate.PubSub.DataSync.subscribe("plans", "all")
+    end
+
     user = socket.assigns.current_user |> Repo.preload([:profile, :subscription])
     activities = Phxplate.Tracking.get_user_activities(user.id, 20)
 
@@ -226,6 +232,38 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
      |> put_flash(:error, error_msg)}
   end
 
+  # Handle platform settings updates and forward to billing component
+  @impl true
+  def handle_info({:updated, %{type: :platform_setting}} = msg, socket) do
+    # Forward the message to the billing component
+    send_update(BillingLive, id: "user_billing", platform_settings_updated: msg)
+    {:noreply, socket}
+  end
+
+  # Handle plan updates and forward to billing component
+  @impl true
+  def handle_info({:created, %{type: :plan}} = msg, socket) do
+    # Forward the message to the billing component
+    send_update(BillingLive, id: "user_billing", plans_updated: msg)
+    {:noreply, socket}
+  end
+
+  def handle_info({:updated, %{type: :plan}} = msg, socket) do
+    # Forward the message to the billing component
+    send_update(BillingLive, id: "user_billing", plans_updated: msg)
+    {:noreply, socket}
+  end
+
+  def handle_info({:deleted, %{type: :plan}} = msg, socket) do
+    # Forward the message to the billing component
+    send_update(BillingLive, id: "user_billing", plans_updated: msg)
+    {:noreply, socket}
+  end
+
+  # Catch-all for other PubSub messages we don't need to handle
+  @impl true
+  def handle_info(_msg, socket), do: {:noreply, socket}
+
   defp handle_profile_save(socket, profile_params) do
     profile_params = clean_params(profile_params)
     social_links = extract_social_links(profile_params)
@@ -351,23 +389,24 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
                     field={@form[:first_name]}
                     type="text"
                     label="First Name"
+                    placeholder="John"
                   />
                 </div>
                 <div>
-                  <.input class="text-base" field={@form[:last_name]} type="text" label="Last Name" />
+                  <.input class="text-base" field={@form[:last_name]} type="text" label="Last Name" placeholder="Doe" />
                 </div>
               </div>
 
               <div class="grid grid-cols-2 gap-4">
                 <div>
-                  <.input class="text-base" field={@form[:phone]} type="tel" label="Phone Number" />
+                  <.input class="text-base" field={@form[:phone]} type="tel" label="Phone Number" placeholder="123-456-7890" />
                 </div>
                 <div>
-                  <.input class="text-base" field={@form[:location]} type="text" label="Location" />
+                  <.input class="text-base" field={@form[:location]} type="text" label="Location" placeholder="New York" />
                 </div>
               </div>
 
-              <.input class="text-base" field={@form[:bio]} type="textarea" label="Bio" />
+              <.textarea class="text-base" field={@form[:bio]} label="Bio" placeholder="Tell us about yourself" />
 
               <div class="space-y-4">
                 <label class="block text-sm font-semibold leading-6">Links</label>
@@ -377,7 +416,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
                     field={@form[:website]}
                     type="url"
                     label="Website"
-                    placeholder="https://"
+                    placeholder="https://www.yourwebsite.com"
                   />
                   <%= for network <- @social_networks do %>
                     <div>

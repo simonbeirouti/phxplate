@@ -419,10 +419,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             phx-hook="ResetForm"
           >
             <div class="flex flex-col">
-              <label for="title" class="block text-sm font-medium text-gray-700">
-                Title
-              </label>
               <.input
+                label="Title"
                 class="text-base"
                 id="title"
                 name="post[title]"
@@ -439,10 +437,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             </div>
 
             <div class="flex flex-col">
-              <label for="description" class="block text-sm font-medium text-gray-700">
-                Description
-              </label>
               <.input
+                label="Description"
                 class="text-base"
                 id="description"
                 name="post[description]"
@@ -458,17 +454,21 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             </div>
 
             <div class="flex flex-col">
-              <label for="content" class="block text-sm font-medium text-gray-700 mb-2">
-                Content
-              </label>
-              <textarea
+              <.textarea
+                label="Content"
+                class="text-base"
                 id="content"
                 name="post[content]"
+                value={Ecto.Changeset.get_field(@new_post_changeset, :content) || ""}
                 placeholder="Write your post content here..."
                 rows="8"
-                class="text-base flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 required
-              ><%= Ecto.Changeset.get_field(@new_post_changeset, :content) || "" %></textarea>
+              />
+              <%= if @new_post_changeset.errors[:content] do %>
+                <p class="text-sm text-red-600 mt-1 capitalize">
+                  {elem(@new_post_changeset.errors[:content], 0)}
+                </p>
+              <% end %>
               <%= if @new_post_changeset.errors[:content] do %>
                 <p class="text-sm text-red-600 mt-1 capitalize">
                   {elem(@new_post_changeset.errors[:content], 0)}
@@ -503,7 +503,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
       </.tabs_list>
 
       <.tabs_content value="view">
-        <div class="space-y-6 bg-white rounded-md shadow-sm">
+        <div class="space-y-6 bg-white rounded-md shadow-sm p-2">
           <div>
             <h3 class="text-2xl font-bold mb-2">{@selected_post.title}</h3>
 
@@ -524,13 +524,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
           id={"post-form-#{@context}"}
           phx-change="validate"
           phx-submit="save_post"
+          class="p-2"
         >
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-2 col-span-1">
-              <label for={"post_title_#{@context}"} class="block text-sm font-medium text-gray-700">
-                Title
-              </label>
               <.input
+                label="Title"
                 class="text-base"
                 id={"post_title_#{@context}"}
                 name="post[title]"
@@ -547,10 +546,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             </div>
 
             <div class="space-y-2 col-span-1">
-              <label for={"post_slug_#{@context}"} class="block text-sm font-medium text-gray-700">
-                Slug
-              </label>
               <.input
+                label="Slug"
                 class="text-base"
                 id={"post_slug_#{@context}"}
                 name="post[slug]"
@@ -566,10 +563,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             </div>
 
             <div class="space-y-2 col-span-2">
-              <label for={"post_description_#{@context}"} class="block text-sm font-medium text-gray-700">
-                Description
-              </label>
               <.input
+                label="Description"
                 class="text-base"
                 id={"post_description_#{@context}"}
                 name="post[description]"
@@ -585,17 +580,15 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
             </div>
 
             <div class="space-y-2 col-span-2">
-              <label for={"post_content_#{@context}"} class="block text-sm font-medium text-gray-700 mb-2">
-                Content
-              </label>
-              <textarea
+              <.textarea
+                label="Content"
                 id={"post_content_#{@context}"}
                 name="post[content]"
                 placeholder="Write your post content here..."
                 rows="10"
-                class="text-base flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                value={Ecto.Changeset.get_field(@changeset || Blog.change_post(@selected_post), :content) || ""}
                 required
-              ><%= Ecto.Changeset.get_field(@changeset || Blog.change_post(@selected_post), :content) || "" %></textarea>
+              />
             </div>
 
             <%= if @form_changed do %>
@@ -618,7 +611,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.BlogsLive do
       </.tabs_content>
 
       <.tabs_content value="settings">
-        <div class="space-y-4 pt-4">
+        <div class="space-y-4 pt-4 px-2">
           <div class="grid grid-cols-2 gap-4">
             <div>
               <h4 class="text-sm font-medium text-gray-500">Publication Status</h4>

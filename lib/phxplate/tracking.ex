@@ -238,4 +238,147 @@ defmodule Phxplate.Tracking do
   def get_activities_for_entity(entity_type, entity_id, limit \\ 10) do
     Activity.get_entity_activities(entity_type, entity_id, limit)
   end
+
+  @doc """
+  Tracks subscription activity.
+
+  Records an action performed by a user on a subscription entity.
+  Stores information about what was changed and any additional metadata.
+
+  ## Parameters
+    - action: The type of action performed (e.g., "subscription_created", "subscription_updated")
+    - subscription: The subscription entity that was affected by the action
+    - actor: The user who performed the action
+    - changes: Map of changes made during the action (default: empty map)
+    - metadata: Additional contextual information (default: empty map)
+
+  ## Returns
+    - `{:ok, activity}` on successful recording
+    - `{:error, changeset}` on validation failure
+  """
+  def track_subscription_activity(action, subscription, actor, changes \\ %{}, metadata \\ %{}) do
+    Activity.track(%{
+      action: action,
+      entity_type: "subscription",
+      entity_id: subscription.id,
+      changes: changes,
+      metadata: metadata,
+      actor_id: actor && actor.id,
+      company_id: nil
+    })
+  end
+
+  @doc """
+  Gets recent activities for a subscription.
+
+  Retrieves the most recent activities related to a specific subscription,
+  ordered by date with newest first.
+
+  ## Parameters
+    - subscription_id: The ID of the subscription
+    - limit: Maximum number of activities to retrieve (default: 10)
+
+  ## Returns
+    - List of activity records with associated actors
+  """
+  def get_subscription_activities(subscription_id, limit \\ 10) do
+    Activity.get_entity_activities("subscription", subscription_id, limit)
+  end
+
+  @doc """
+  Gets subscription activities for a user.
+
+  Retrieves the most recent subscription-related activities for a specific user,
+  ordered by date with newest first. This includes activities where the user
+  is the entity being tracked for subscription-related actions.
+
+  ## Parameters
+    - user_id: The ID of the user
+    - limit: Maximum number of activities to retrieve (default: 10)
+
+  ## Returns
+    - List of activity records with associated actors, filtered for subscription actions
+  """
+  def get_user_subscription_activities(user_id, limit \\ 10) do
+    import Ecto.Query
+
+    from(a in Activity,
+      where: a.entity_type == "user" and a.entity_id == ^user_id,
+      where: ilike(a.action, "%subscription%"),
+      order_by: [desc: a.inserted_at],
+      limit: ^limit,
+      preload: [:actor]
+    )
+    |> Phxplate.Repo.all()
+  end
+
+  @doc """
+  Tracks plan activity.
+
+  Records an action performed by a user on a plan entity.
+  Stores information about what was changed and any additional metadata.
+
+  ## Parameters
+    - action: The type of action performed (e.g., "plan_created", "plan_updated", "plan_deleted")
+    - plan: The plan entity that was affected by the action
+    - actor: The user who performed the action
+    - changes: Map of changes made during the action (default: empty map)
+    - metadata: Additional contextual information (default: empty map)
+
+  ## Returns
+    - `{:ok, activity}` on successful recording
+    - `{:error, changeset}` on validation failure
+  """
+  def track_plan_activity(action, plan, actor, changes \\ %{}, metadata \\ %{}) do
+    Activity.track(%{
+      action: action,
+      entity_type: "plan",
+      entity_id: plan.id,
+      changes: changes,
+      metadata: metadata,
+      actor_id: actor && actor.id,
+      company_id: nil
+    })
+  end
+
+  @doc """
+  Gets recent activities for a plan.
+
+  Retrieves the most recent activities related to a specific plan,
+  ordered by date with newest first.
+
+  ## Parameters
+    - plan_id: The ID of the plan
+    - limit: Maximum number of activities to retrieve (default: 10)
+
+  ## Returns
+    - List of activity records with associated actors
+  """
+  def get_plan_activities(plan_id, limit \\ 10) do
+    Activity.get_entity_activities("plan", plan_id, limit)
+  end
+
+  @doc """
+  Gets all plan activities for the platform.
+
+  Retrieves the most recent plan-related activities across all plans,
+  ordered by date with newest first. Useful for super admin views.
+
+  ## Parameters
+    - limit: Maximum number of activities to retrieve (default: 50)
+
+  ## Returns
+    - List of activity records with associated actors, filtered for plan actions
+  """
+  def get_all_plan_activities(limit \\ 50) do
+    import Ecto.Query
+
+    from(a in Activity,
+      where: a.entity_type == "plan",
+      order_by: [desc: a.inserted_at],
+      limit: ^limit,
+      preload: [:actor]
+    )
+    |> Phxplate.Repo.all()
+  end
 end

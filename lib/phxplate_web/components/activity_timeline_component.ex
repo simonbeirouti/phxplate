@@ -7,7 +7,7 @@ defmodule PhxplateWeb.Components.ActivityTimelineComponent do
   It supports loading more activities through pagination.
   """
   use PhxplateWeb, :live_component
-  alias PhxplateWeb.ComponentHelpers
+  alias PhxplateWeb.Components.UI.Helpers
 
   @impl true
   def update(assigns, socket) do
@@ -65,7 +65,7 @@ defmodule PhxplateWeb.Components.ActivityTimelineComponent do
             <div class="flex items-start justify-between">
               <div class="flex-1">
                 <p class="font-medium">
-                  {ComponentHelpers.humanize_action(activity.action)}
+                  {Helpers.humanize_action(activity.action)}
                 </p>
                 <!-- Mobile timestamp - shown below action on mobile -->
                 <p class="text-sm text-gray-500 mt-1 lg:hidden">
@@ -73,12 +73,9 @@ defmodule PhxplateWeb.Components.ActivityTimelineComponent do
                 </p>
                 <%= if map_size(activity.changes) > 0 do %>
                   <div class="mt-2 text-sm text-gray-600">
-                    <p class="font-medium">Changes:</p>
-                    <ul class="list-disc list-inside">
-                      <%= for {key, value} <- activity.changes do %>
-                        <li>{ComponentHelpers.humanize_key(key)}: {inspect(value)}</li>
-                      <% end %>
-                    </ul>
+                    <p class="text-gray-700">
+                      {Helpers.format_activity_changes(activity.changes)}
+                    </p>
                   </div>
                 <% end %>
               </div>

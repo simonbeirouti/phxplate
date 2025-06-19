@@ -32,11 +32,12 @@ defmodule PhxplateWeb.UserResetPasswordLive do
           Oops, something went wrong! Please check the errors below.
         </.error>
 
-        <.input class="text-base" field={@form[:password]} type="password" label="New password" required />
+        <.input class="text-base" field={@form[:password]} type="password" placeholder="********" label="New password" required />
         <.input
           class="text-base"
           field={@form[:password_confirmation]}
           type="password"
+          placeholder="********"
           label="Confirm new password"
           required
         />

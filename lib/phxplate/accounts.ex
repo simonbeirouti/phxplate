@@ -453,39 +453,77 @@ defmodule Phxplate.Accounts do
     end
   end
 
-  def update_user_role(user_id, role) do
-    user = get_user!(user_id)
-    Phxplate.Repo.update!(Ecto.Changeset.change(user, %{role: role}))
+  @doc """
+  Updates a user role (super admin only).
+
+  ## Parameters
+    - user_id: The ID of the user to update
+    - role: The new role to assign
+    - actor: The user performing the action (must be super admin)
+
+  ## Returns
+    - `{:ok, user}` on success
+    - `{:error, :unauthorized}` if actor is not super admin
+    - `{:error, reason}` on other failures
+  """
+  def update_user_role(user_id, role, actor) do
+    case actor do
+      %User{role: :super_admin} ->
+        user = get_user!(user_id)
+        case Phxplate.Repo.update(Ecto.Changeset.change(user, %{role: role})) do
+          {:ok, updated_user} = result ->
+            # Track the role update
+            Phxplate.Tracking.track_user_activity(
+              "role_update",
+              updated_user,
+              actor,
+              %{"role" => updated_user.role}
+            )
+            # Broadcast user role update
+            DataSync.broadcast("users", "all", {:role_updated, %{type: :user, user: updated_user}})
+            result
+          error -> error
+        end
+      _ ->
+        {:error, :unauthorized}
+    end
   end
 
   @doc """
   Updates a user with the given attributes.
 
+  For role updates, requires super admin privileges.
+
   ## Examples
 
-      iex> update_user(user, %{role: :admin})
+      iex> update_user(user, %{role: :admin}, %User{role: :super_admin})
       {:ok, %User{}}
 
-      iex> update_user(user, %{role: :invalid})
-      {:error, %Ecto.Changeset{}}
-
+      iex> update_user(user, %{role: :admin}, %User{role: :basic})
+      {:error, :unauthorized}
   """
   def update_user(%User{} = user, attrs, actor \\ nil) do
-    user
-    |> User.role_changeset(attrs)
-    |> Repo.update()
-    |> case do
-      {:ok, updated_user} ->
-        if Map.has_key?(attrs, :role) || Map.has_key?(attrs, "role") do
-          Phxplate.Tracking.track_user_activity(
-            "role_update",
-            updated_user,
-            actor || updated_user,
-            %{"role" => updated_user.role}
-          )
-        end
-        {:ok, updated_user}
-      error -> error
+    # Check if this is a role update and if actor has permission
+    if (Map.has_key?(attrs, :role) || Map.has_key?(attrs, "role")) &&
+       (is_nil(actor) || actor.role != :super_admin) do
+      {:error, :unauthorized}
+    else
+      user
+      |> User.role_changeset(attrs)
+      |> Repo.update()
+      |> case do
+        {:ok, updated_user} ->
+          if Map.has_key?(attrs, :role) || Map.has_key?(attrs, "role") do
+            Phxplate.Tracking.track_user_activity(
+              "role_update",
+              updated_user,
+              actor || updated_user,
+              %{"role" => updated_user.role}
+            )
+          end
+          {:ok, updated_user}
+        error -> error
+      end
     end
   end
 
@@ -658,59 +696,74 @@ defmodule Phxplate.Accounts do
   def onboarding_completed?(_), do: false
 
   @doc """
-  Delete the user from the application.
+  Delete the user from the application (super admin only).
 
   Deletes a user and associated records, handling related employee records
   and broadcasting relevant deletion events.
 
   ## Parameters
     - user: The user to delete
+    - actor: The user performing the action (must be super admin)
 
   ## Returns
     - `{:ok, user}` on success
+    - `{:error, :unauthorized}` if actor is not super admin
     - `{:error, changeset}` on failure
   """
-  def delete_user(%User{} = user) do
-    # First find and delete any associated employee records
-    if user.profile do
-      case Phxplate.Companies.get_employee_by_user_id(user.id) do
-        nil -> :ok
-        employee ->
-          # Delete the employee first
-          Phxplate.Companies.delete_employee(employee)
-      end
-    end
-
-    # Preload companies to ensure proper cascade deletion
-    user = Repo.preload(user, [:companies, :profile])
-
-    # Store company IDs before deletion for broadcasting
-    company_ids = Enum.map(user.companies, & &1.id)
-
-    # Then delete the user with proper changeset to handle company deletion
-    case user |> User.delete_changeset() |> Repo.delete() do
-      {:ok, deleted_user} = result ->
-        # Broadcast user deletion
-        DataSync.broadcast("users", "all", {:deleted, %{type: :user, id: deleted_user.id}})
-
-        # Broadcast profile deletion if exists
-        if deleted_user.profile do
-          DataSync.broadcast("profiles", deleted_user.profile.id, {:deleted, %{type: :profile, id: deleted_user.profile.id}})
+  def delete_user(%User{} = user, actor) do
+    case actor do
+      %User{role: :super_admin} ->
+        # First find and delete any associated employee records
+        if user.profile do
+          case Phxplate.Companies.get_employee_by_user_id(user.id) do
+            nil -> :ok
+            employee ->
+              # Delete the employee first
+              Phxplate.Companies.delete_employee(employee)
+          end
         end
 
-        # Broadcast company deletions
-        Enum.each(company_ids, fn company_id ->
-          DataSync.broadcast("companies", "all", {:deleted, %{type: :company, id: company_id}})
-          DataSync.broadcast("companies", company_id, {:deleted, %{type: :company, id: company_id}})
-        end)
+        # Preload companies to ensure proper cascade deletion
+        user = Repo.preload(user, [:companies, :profile])
 
-        # Force logout for the deleted user
-        DataSync.broadcast("users", deleted_user.id, {:force_logout, %{type: :user, id: deleted_user.id}})
+        # Store company IDs before deletion for broadcasting
+        company_ids = Enum.map(user.companies, & &1.id)
 
-        result
+        # Then delete the user with proper changeset to handle company deletion
+        case user |> User.delete_changeset() |> Repo.delete() do
+          {:ok, deleted_user} = result ->
+            # Track the user deletion
+            Phxplate.Tracking.track_user_activity(
+              "user_delete",
+              deleted_user,
+              actor,
+              %{"deleted_user_id" => deleted_user.id, "deleted_user_email" => deleted_user.email}
+            )
 
-      error ->
-        error
+            # Broadcast user deletion
+            DataSync.broadcast("users", "all", {:deleted, %{type: :user, id: deleted_user.id}})
+
+            # Broadcast profile deletion if exists
+            if deleted_user.profile do
+              DataSync.broadcast("profiles", deleted_user.profile.id, {:deleted, %{type: :profile, id: deleted_user.profile.id}})
+            end
+
+            # Broadcast company deletions
+            Enum.each(company_ids, fn company_id ->
+              DataSync.broadcast("companies", "all", {:deleted, %{type: :company, id: company_id}})
+              DataSync.broadcast("companies", company_id, {:deleted, %{type: :company, id: company_id}})
+            end)
+
+            # Force logout for the deleted user
+            DataSync.broadcast("users", deleted_user.id, {:force_logout, %{type: :user, id: deleted_user.id}})
+
+            result
+
+          error ->
+            error
+        end
+      _ ->
+        {:error, :unauthorized}
     end
   end
 
@@ -778,5 +831,70 @@ defmodule Phxplate.Accounts do
         result
       error -> error
     end
+  end
+
+  @doc """
+  Updates a user's sidebar state.
+
+  Updates the sidebar state for a user between "expanded" and "collapsed".
+
+  ## Parameters
+    - user: The user to update
+    - state: The new sidebar state ("expanded" or "collapsed")
+
+  ## Examples
+
+      iex> update_user_sidebar_state(user, "collapsed")
+      {:ok, %User{}}
+
+      iex> update_user_sidebar_state(user, "invalid")
+      {:error, %Ecto.Changeset{}}
+  """
+  def update_user_sidebar_state(%User{} = user, state) do
+    user
+    |> User.sidebar_state_changeset(%{sidebar_state: state})
+    |> Repo.update()
+  end
+
+  @doc """
+  Gets a user's sidebar state.
+
+  Returns the current sidebar state for a user, defaulting to "expanded"
+  if not set.
+
+  ## Parameters
+    - user: The user to get the sidebar state for
+
+  ## Examples
+
+      iex> get_user_sidebar_state(user)
+      "expanded"
+  """
+  def get_user_sidebar_state(%User{sidebar_state: state}) when state in ["expanded", "collapsed"] do
+    state
+  end
+  def get_user_sidebar_state(_user), do: "expanded"
+
+  @doc """
+  Deletes a user.
+
+  Deletes the specified user from the database. This will fail if the user
+  has foreign key constraints (like owning companies).
+
+  ## Parameters
+    - user: The user to delete
+
+  ## Examples
+
+      iex> delete_user(user)
+      {:ok, %User{}}
+
+      iex> delete_user(user_with_companies)
+      {:error, %Ecto.Changeset{}}
+  """
+  def delete_user(%User{} = user) do
+    user
+    |> User.delete_changeset()
+    |> Repo.delete()
   end
 end

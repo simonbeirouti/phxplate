@@ -83,8 +83,12 @@ defmodule PhxplateWeb.Components.UI.TabsNew do
       }
       data-target={@value}
       phx-click={
-        JS.push(@builder.on_change, value: %{tab: @value})
-        |> show_tab(@builder.id, @value)
+        if @builder.on_change do
+          JS.push(@builder.on_change, value: %{tab: @value})
+          |> show_tab(@builder.id, @value)
+        else
+          show_tab(%JS{}, @builder.id, @value)
+        end
       }
       {@rest}
     >
