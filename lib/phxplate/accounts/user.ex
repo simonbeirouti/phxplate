@@ -19,6 +19,7 @@ defmodule Phxplate.Accounts.User do
     field :confirmed_at, :utc_datetime
     field :role, Ecto.Enum, values: [:basic, :admin, :super_admin], default: :basic
     field :onboarding_completed, :boolean, default: false
+    field :sidebar_state, :string, default: "expanded"
 
     has_one :profile, Phxplate.Accounts.Profile
     has_one :subscription, Phxplate.Subscriptions.Subscription
@@ -257,6 +258,23 @@ defmodule Phxplate.Accounts.User do
     user
     |> cast(attrs, [:role])
     |> validate_role()
+  end
+
+  @doc """
+  A user changeset for updating the sidebar state.
+
+  Creates a changeset that only allows changing the user's sidebar state
+  between "expanded" and "collapsed".
+
+  ## Parameters
+    - user: The user struct to change
+    - attrs: Map of attributes containing the new sidebar_state
+  """
+  def sidebar_state_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:sidebar_state])
+    |> validate_required([:sidebar_state])
+    |> validate_inclusion(:sidebar_state, ["expanded", "collapsed"])
   end
 
   @doc """

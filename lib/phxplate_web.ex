@@ -92,13 +92,25 @@ defmodule PhxplateWeb do
 
       # Custom UI components
       import PhxplateWeb.Components.UI.Accordion
+      import PhxplateWeb.Components.UI.Breadcrumb
+      import PhxplateWeb.Components.UI.Collapsible
       import PhxplateWeb.Components.UI.Drawer
       import PhxplateWeb.Components.UI.Dialog
       import PhxplateWeb.Components.UI.DialogDrawerWrapper
+      import PhxplateWeb.Components.UI.DropdownMenu
+      import PhxplateWeb.Components.UI.Helpers
+      # import PhxplateWeb.Components.UI.Input
       import PhxplateWeb.Components.UI.Pagination
+      import PhxplateWeb.Components.UI.Menu
       import PhxplateWeb.Components.UI.Select
+      import PhxplateWeb.Components.UI.Separator
+      import PhxplateWeb.Components.UI.Sheet
+      import PhxplateWeb.Components.UI.Sidebar
+      import PhxplateWeb.Components.UI.Skeleton
       import PhxplateWeb.Components.UI.Slider
       import PhxplateWeb.Components.UI.Switch
+      import PhxplateWeb.Components.UI.Table
+      import PhxplateWeb.Components.UI.Tooltip
 
       # Salad UI components
       import SaladUI.{
@@ -108,7 +120,6 @@ defmodule PhxplateWeb do
         Button,
         Card,
         Checkbox,
-        DropdownMenu,
         Form,
         HoverCard,
         Icon,
@@ -116,14 +127,10 @@ defmodule PhxplateWeb do
         Progress,
         RadioGroup,
         ScrollArea,
-        Separator,
-        Sheet,
         Skeleton,
-        Table,
         Tabs,
         Toggle,
-        ToggleGroup,
-        Tooltip
+        ToggleGroup
       }
 
       # Shortcut for generating JS commands

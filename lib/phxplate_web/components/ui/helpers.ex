@@ -1,4 +1,4 @@
-defmodule PhxplateWeb.ComponentHelpers do
+defmodule PhxplateWeb.Components.UI.Helpers do
   @moduledoc false
   use Phoenix.Component
 
@@ -394,4 +394,101 @@ defmodule PhxplateWeb.ComponentHelpers do
     |> String.capitalize()
   end
   def humanize_key(key), do: Phoenix.Naming.humanize(key)
+
+  @doc """
+  Formats activity changes into a human-readable string.
+
+  Takes a map of changes and converts them into a readable format for display
+  in activity timelines. Handles different types of changes including simple
+  value changes, nested maps, and special formatting for certain fields.
+
+  ## Examples
+
+      iex> format_activity_changes(%{"name" => "John Doe"})
+      "Name: John Doe"
+
+      iex> format_activity_changes(%{"first_name" => "John", "last_name" => "Doe"})
+      "First name: John, Last name: Doe"
+
+      iex> format_activity_changes(%{"status" => %{"from" => "inactive", "to" => "active"}})
+      "Status changed from inactive to active"
+  """
+  def format_activity_changes(changes) when is_map(changes) and map_size(changes) == 0, do: ""
+
+  def format_activity_changes(changes) when is_map(changes) do
+    changes
+    |> Enum.map(&format_single_change/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(", ")
+  end
+
+  def format_activity_changes(_), do: ""
+
+  # Helper function to format a single change
+  defp format_single_change({key, value}) when is_map(value) do
+    cond do
+      # Handle "from/to" change format
+      Map.has_key?(value, "from") and Map.has_key?(value, "to") ->
+        from_val = format_change_value(value["from"])
+        to_val = format_change_value(value["to"])
+        "#{humanize_key(key)} changed from #{from_val} to #{to_val}"
+
+      # Handle formatted values (like currency)
+      Map.has_key?(value, "from_formatted") and Map.has_key?(value, "to_formatted") ->
+        "#{humanize_key(key)} changed from #{value["from_formatted"]} to #{value["to_formatted"]}"
+
+      # Handle nested features changes
+      key == "features" ->
+        format_features_changes(value)
+
+      # Handle other nested maps
+      true ->
+        nested_changes = Enum.map(value, fn {k, v} -> "#{humanize_key(k)}: #{format_change_value(v)}" end)
+        "#{humanize_key(key)} - #{Enum.join(nested_changes, ", ")}"
+    end
+  end
+
+  defp format_single_change({key, value}) do
+    "#{humanize_key(key)}: #{format_change_value(value)}"
+  end
+
+  # Helper function to format change values
+  defp format_change_value(value) when is_binary(value), do: value
+  defp format_change_value(value) when is_number(value), do: to_string(value)
+  defp format_change_value(value) when is_boolean(value), do: if(value, do: "true", else: "false")
+  defp format_change_value(value) when is_list(value), do: Enum.join(value, ", ")
+  defp format_change_value(value) when is_map(value), do: inspect(value)
+  defp format_change_value(nil), do: "none"
+  defp format_change_value(value), do: to_string(value)
+
+  # Helper function to format features changes
+  defp format_features_changes(features_map) do
+    changes = []
+
+    changes = if Map.has_key?(features_map, "added") do
+      added_features = features_map["added"] |> Map.keys() |> Enum.join(", ")
+      ["Added features: #{added_features}" | changes]
+    else
+      changes
+    end
+
+    changes = if Map.has_key?(features_map, "removed") do
+      removed_features = features_map["removed"] |> Map.keys() |> Enum.join(", ")
+      ["Removed features: #{removed_features}" | changes]
+    else
+      changes
+    end
+
+    changes = if Map.has_key?(features_map, "modified") do
+      modified_count = map_size(features_map["modified"])
+      ["Modified #{modified_count} feature(s)" | changes]
+    else
+      changes
+    end
+
+    case changes do
+      [] -> "Features updated"
+      _ -> Enum.join(Enum.reverse(changes), ", ")
+    end
+  end
 end

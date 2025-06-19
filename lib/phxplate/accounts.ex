@@ -832,4 +832,69 @@ defmodule Phxplate.Accounts do
       error -> error
     end
   end
+
+  @doc """
+  Updates a user's sidebar state.
+
+  Updates the sidebar state for a user between "expanded" and "collapsed".
+
+  ## Parameters
+    - user: The user to update
+    - state: The new sidebar state ("expanded" or "collapsed")
+
+  ## Examples
+
+      iex> update_user_sidebar_state(user, "collapsed")
+      {:ok, %User{}}
+
+      iex> update_user_sidebar_state(user, "invalid")
+      {:error, %Ecto.Changeset{}}
+  """
+  def update_user_sidebar_state(%User{} = user, state) do
+    user
+    |> User.sidebar_state_changeset(%{sidebar_state: state})
+    |> Repo.update()
+  end
+
+  @doc """
+  Gets a user's sidebar state.
+
+  Returns the current sidebar state for a user, defaulting to "expanded"
+  if not set.
+
+  ## Parameters
+    - user: The user to get the sidebar state for
+
+  ## Examples
+
+      iex> get_user_sidebar_state(user)
+      "expanded"
+  """
+  def get_user_sidebar_state(%User{sidebar_state: state}) when state in ["expanded", "collapsed"] do
+    state
+  end
+  def get_user_sidebar_state(_user), do: "expanded"
+
+  @doc """
+  Deletes a user.
+
+  Deletes the specified user from the database. This will fail if the user
+  has foreign key constraints (like owning companies).
+
+  ## Parameters
+    - user: The user to delete
+
+  ## Examples
+
+      iex> delete_user(user)
+      {:ok, %User{}}
+
+      iex> delete_user(user_with_companies)
+      {:error, %Ecto.Changeset{}}
+  """
+  def delete_user(%User{} = user) do
+    user
+    |> User.delete_changeset()
+    |> Repo.delete()
+  end
 end

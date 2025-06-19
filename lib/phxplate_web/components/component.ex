@@ -15,7 +15,7 @@ defmodule PhxplateWeb.Component do
     quote do
       use Phoenix.Component
 
-      import PhxplateWeb.ComponentHelpers
+      import PhxplateWeb.Components.UI.Helpers
 
       alias Phoenix.LiveView.JS
 
