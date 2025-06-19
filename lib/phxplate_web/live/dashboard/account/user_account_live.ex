@@ -389,23 +389,24 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
                     field={@form[:first_name]}
                     type="text"
                     label="First Name"
+                    placeholder="John"
                   />
                 </div>
                 <div>
-                  <.input class="text-base" field={@form[:last_name]} type="text" label="Last Name" />
+                  <.input class="text-base" field={@form[:last_name]} type="text" label="Last Name" placeholder="Doe" />
                 </div>
               </div>
 
               <div class="grid grid-cols-2 gap-4">
                 <div>
-                  <.input class="text-base" field={@form[:phone]} type="tel" label="Phone Number" />
+                  <.input class="text-base" field={@form[:phone]} type="tel" label="Phone Number" placeholder="123-456-7890" />
                 </div>
                 <div>
-                  <.input class="text-base" field={@form[:location]} type="text" label="Location" />
+                  <.input class="text-base" field={@form[:location]} type="text" label="Location" placeholder="New York" />
                 </div>
               </div>
 
-              <.input class="text-base" field={@form[:bio]} type="textarea" label="Bio" />
+              <.textarea class="text-base" field={@form[:bio]} label="Bio" placeholder="Tell us about yourself" />
 
               <div class="space-y-4">
                 <label class="block text-sm font-semibold leading-6">Links</label>
@@ -415,7 +416,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
                     field={@form[:website]}
                     type="url"
                     label="Website"
-                    placeholder="https://"
+                    placeholder="https://www.yourwebsite.com"
                   />
                   <%= for network <- @social_networks do %>
                     <div>

@@ -549,8 +549,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
     ~H"""
     <.form :let={f} for={@changeset} phx-submit="save_prompt" phx-change="form_change">
       <div class="space-y-4">
-        <.input field={f[:name]} label="Name" required />
-        <.input field={f[:description]} type="textarea" label="Description" rows="3" />
+        <.input field={f[:name]} label="Name" placeholder="Enter prompt name" required />
+        <.textarea field={f[:description]} label="Description" class="text-base" placeholder="Enter prompt description" />
 
         <div>
           <.label>Category</.label>
@@ -586,7 +586,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
           </div>
         </div>
 
-        <.input field={f[:content]} type="textarea" label="Prompt Content" rows="8" required />
+        <.textarea field={f[:content]} label="Prompt Content" class="text-base" placeholder="Enter prompt content" required />
 
         <div>
           <.label>Status</.label>

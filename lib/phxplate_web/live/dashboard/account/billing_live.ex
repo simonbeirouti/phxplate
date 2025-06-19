@@ -9,7 +9,6 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
   use PhxplateWeb, :live_component
 
   alias Phxplate.Subscriptions
-  import PhxplateWeb.Components.Subscription.PlanSelector
   import PhxplateWeb.Components.Subscription.SinglePurchaseSelector
 
   @doc """
@@ -26,7 +25,10 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
 
     plans =
       if subscriptions_enabled do
-        Subscriptions.list_all_plans()
+        # Get the structured plans that plan_selector expects (with monthly/yearly per tier)
+        all_plans = Subscriptions.list_all_plans()
+        # Remove single_purchase key if it exists to avoid confusion
+        Map.delete(all_plans, :single_purchase)
       else
         %{}
       end
@@ -54,7 +56,10 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
 
     plans =
       if subscriptions_enabled do
-        Subscriptions.list_all_plans()
+        # Get the structured plans that plan_selector expects (with monthly/yearly per tier)
+        all_plans = Subscriptions.list_all_plans()
+        # Remove single_purchase key if it exists to avoid confusion
+        Map.delete(all_plans, :single_purchase)
       else
         %{}
       end
@@ -82,7 +87,10 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
 
     plans =
       if subscriptions_enabled do
-        Subscriptions.list_all_plans()
+        # Get the structured plans that plan_selector expects (with monthly/yearly per tier)
+        all_plans = Subscriptions.list_all_plans()
+        # Remove single_purchase key if it exists to avoid confusion
+        Map.delete(all_plans, :single_purchase)
       else
         %{}
       end
@@ -122,21 +130,39 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
         nil
       end
 
+    # Load subscription activities
+    subscription_activities =
+      if subscription do
+        user_subscription_activities = Phxplate.Tracking.get_user_subscription_activities(user.id, 20)
+        subscription_entity_activities = Phxplate.Tracking.get_subscription_activities(subscription.id, 20)
+
+        # Combine and sort activities by date
+        (user_subscription_activities ++ subscription_entity_activities)
+        |> Enum.sort_by(& &1.inserted_at, :desc)
+        |> Enum.take(20)
+      else
+        Phxplate.Tracking.get_user_subscription_activities(user.id, 20)
+      end
+
+    # Calculate proration information for each plan if user has an active subscription
+    proration_info = calculate_proration_info(subscription, plans)
+
     socket =
       socket
       |> assign(assigns)
       |> assign(:subscription, subscription)
       |> assign(:plans, plans)
       |> assign(:single_purchase_plans, single_purchase_plans)
-      |> assign(:show_plans_modal, false)
       |> assign(:loading, false)
       |> assign(:loading_payment, false)
       |> assign(:checkout_url, nil)
       |> assign(:show_cancel_confirm, false)
-      |> assign(:proration_info, %{})
+      |> assign(:proration_info, proration_info)
       |> assign(:scheduled_downgrade, scheduled_downgrade)
       |> assign(:subscriptions_enabled, subscriptions_enabled)
       |> assign(:single_purchases_enabled, single_purchases_enabled)
+      |> assign(:subscription_activities, subscription_activities)
+      |> assign(:dialog_drawer_mode, "dialog")
 
     {:ok, socket}
   end
@@ -144,6 +170,7 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
   # Helper function to calculate proration information
   defp calculate_proration_info(nil, _plans), do: %{}
   defp calculate_proration_info(%{subscription_status: :canceled}, _plans), do: %{}
+  defp calculate_proration_info(_subscription, plans) when map_size(plans) == 0, do: %{}
 
   defp calculate_proration_info(subscription, plans) do
     current_plan = subscription.plan
@@ -169,29 +196,35 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
 
     # For each plan tier, calculate the prorated cost if it's an upgrade
     Enum.reduce(plans, %{}, fn {tier, tier_plans}, acc ->
-      # Get the plan with the same interval as the current subscription
-      comparable_plan = Map.get(tier_plans, String.to_atom(current_plan.interval))
+      # Ensure tier_plans is a map with the expected structure
+      if is_map(tier_plans) do
+        # Get the plan with the same interval as the current subscription
+        comparable_plan = Map.get(tier_plans, String.to_atom(current_plan.interval))
 
-      if comparable_plan && comparable_plan.unit_amount > current_plan.unit_amount do
-        # This is an upgrade - calculate prorated amount
-        price_difference = comparable_plan.unit_amount - current_plan.unit_amount
-        prorated_cost = Float.round(price_difference * days_remaining / total_days_in_period, 2)
+        if comparable_plan && comparable_plan.unit_amount > current_plan.unit_amount do
+          # This is an upgrade - calculate prorated amount
+          price_difference = comparable_plan.unit_amount - current_plan.unit_amount
+          prorated_cost = Float.round(price_difference * days_remaining / total_days_in_period, 2)
 
-        # Format for display
-        formatted_full = format_currency(comparable_plan.unit_amount, comparable_plan.currency)
-        formatted_prorated = format_currency(trunc(prorated_cost), comparable_plan.currency)
+          # Format for display
+          formatted_full = format_currency(comparable_plan.unit_amount, comparable_plan.currency)
+          formatted_prorated = format_currency(trunc(prorated_cost), comparable_plan.currency)
 
-        Map.put(acc, tier, %{
-          is_upgrade: true,
-          plan_id: comparable_plan.id,
-          full_price: formatted_full,
-          prorated_price: formatted_prorated,
-          percent_remaining: percent_remaining,
-          days_remaining: days_remaining,
-          days_used: days_used
-        })
+          Map.put(acc, tier, %{
+            is_upgrade: true,
+            plan_id: comparable_plan.id,
+            full_price: formatted_full,
+            prorated_price: formatted_prorated,
+            percent_remaining: percent_remaining,
+            days_remaining: days_remaining,
+            days_used: days_used
+          })
+        else
+          # Not an upgrade or no comparable plan
+          acc
+        end
       else
-        # Not an upgrade or no comparable plan
+        # Skip if tier_plans is not in the expected format
         acc
       end
     end)
@@ -209,17 +242,102 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
     end
   end
 
-  @impl true
-  def handle_event("show_plans_modal", _, socket) do
-    # Calculate proration information for each plan if user has an active subscription
-    proration_info = calculate_proration_info(socket.assigns.subscription, socket.assigns.plans)
-
-    {:noreply,
-     socket |> assign(:proration_info, proration_info) |> assign(:show_plans_modal, true)}
+  # Helper function to filter monthly plans
+  defp filter_monthly_plans(plans_map) do
+    plans_map
+    |> Map.values()
+    |> Enum.map(& &1.monthly)
+    |> Enum.filter(&is_subscription_plan/1)
+    |> Enum.sort_by(& &1.unit_amount)
   end
 
-  def handle_event("hide_plans_modal", _, socket) do
-    {:noreply, assign(socket, :show_plans_modal, false)}
+  # Helper function to filter yearly plans
+  defp filter_yearly_plans(plans_map) do
+    plans_map
+    |> Map.values()
+    |> Enum.map(& &1.yearly)
+    |> Enum.filter(&is_subscription_plan/1)
+    |> Enum.sort_by(& &1.unit_amount)
+  end
+
+  # Helper function to safely check if a plan is a subscription plan
+  defp is_subscription_plan(%{product_type: :subscription}), do: true
+  defp is_subscription_plan(%{interval: interval}) when interval in ["month", "year"], do: true
+  defp is_subscription_plan(_), do: false
+
+  # Plan card component
+  attr :plan, :any, required: true
+  attr :current_user, :any, default: nil
+  attr :current_subscription, :any, default: nil
+  attr :target, :any, default: nil
+  attr :loading, :boolean, default: false
+
+  def plan_card(assigns) do
+    ~H"""
+    <.card class="relative rounded-sm">
+      <.card_header>
+        <.card_title class="text-xl">{@plan.name}</.card_title>
+        <.card_description class="text-3xl font-bold">
+          {format_plan_price(@plan)}
+          <span class="ml-1 text-sm font-normal">/ {@plan.interval}</span>
+        </.card_description>
+        <.card_description class="mt-2">
+          {@plan.description}
+        </.card_description>
+      </.card_header>
+      <.card_content>
+        <%= if @plan.features && map_size(@plan.features) > 0 do %>
+          <ul class="space-y-4">
+            <%= for {_feature_key, feature_value} <- @plan.features do %>
+              <li class="flex items-start gap-2">
+                <span class="text-primary">✓</span>
+                {feature_value}
+              </li>
+            <% end %>
+          </ul>
+        <% end %>
+      </.card_content>
+      <.card_footer>
+        <%= if @current_user && @current_subscription && @current_subscription.plan_id == @plan.id do %>
+          <.button class="w-full" disabled>Current Plan</.button>
+        <% else %>
+          <.button
+            phx-click="select_plan"
+            phx-value-plan-id={@plan.id}
+            phx-target={@target}
+            class="w-full"
+            disabled={@loading}
+          >
+            <%= if @loading do %>
+              <div class="inline-block animate-spin h-4 w-4 mr-2 border-2 border-white rounded-full border-t-transparent" />
+              Processing...
+            <% else %>
+              Select Plan
+            <% end %>
+          </.button>
+        <% end %>
+      </.card_footer>
+    </.card>
+    """
+  end
+
+  defp format_plan_price(%{unit_amount: amount, currency: currency}) when is_integer(amount) do
+    formatted_amount = amount / 100
+
+    currency_symbol =
+      case currency do
+        "usd" -> "$"
+        _ -> String.upcase(currency) <> " "
+      end
+
+    "#{currency_symbol}#{formatted_amount}"
+  end
+
+  defp format_plan_price(%{unit_amount: amount}), do: to_string(amount)
+
+  @impl true
+  def handle_event("set_screen_mode", %{"mode" => mode}, socket) do
+    {:noreply, assign(socket, :dialog_drawer_mode, mode)}
   end
 
   def handle_event("update_payment_method", _, socket) do
@@ -458,26 +576,12 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
                 </div>
                 <div class="mt-5 sm:ml-6 sm:mt-0">
                   <%= if @subscription.subscription_status == :canceled do %>
-                    <div class="flex gap-2">
-                      <.button phx-click="show_plans_modal" phx-target={@myself}>
-                        Choose New Plan
-                      </.button>
-                      <.button
-                        phx-click="reactivate_subscription"
-                        phx-target={@myself}
-                        class="bg-green-600 hover:bg-green-500"
-                      >
-                        Reactivate Current Plan
-                      </.button>
-                    </div>
-                  <% else %>
-                    <.button phx-click="show_plans_modal" phx-target={@myself} disabled={@loading}>
-                      <%= if @loading do %>
-                        <div class="inline-block animate-spin h-4 w-4 mr-2 border-2 border-white rounded-full border-t-transparent" />
-                        Changing...
-                      <% else %>
-                        Change Plan
-                      <% end %>
+                    <.button
+                      phx-click="reactivate_subscription"
+                      phx-target={@myself}
+                      class="bg-green-600 hover:bg-green-500"
+                    >
+                      Reactivate Current Plan
                     </.button>
                   <% end %>
                 </div>
@@ -525,119 +629,116 @@ defmodule PhxplateWeb.Dashboard.Account.BillingLive do
             </div>
           <% end %>
 
-          <%= if @single_purchases_enabled and length(@single_purchase_plans) > 0 do %>
-            <div class="px-4 py-5 sm:p-6">
-              <.single_purchase_selector
-                products={@single_purchase_plans}
-                current_user={@user}
-                target={@myself}
-                loading={@loading}
-                title="Additional Products"
-                description="Purchase additional products and services to enhance your experience."
-              />
-            </div>
-          <% end %>
-        <% else %>
-          <%= if @subscriptions_enabled or @single_purchases_enabled do %>
-            <div class="rounded-lg bg-white shadow">
+          <%= if @subscriptions_enabled and map_size(@plans) > 0 do %>
+            <div class="overflow-hidden rounded-lg bg-white shadow">
               <div class="px-4 py-5 sm:p-6">
-                <h3 class="text-lg font-medium leading-6 text-gray-900">No active subscription</h3>
-                <div class="mt-2 max-w-xl text-sm text-gray-500">
-                  <p>
-                    <%= if @subscriptions_enabled and @single_purchases_enabled do %>
-                      Get started by selecting a subscription plan or purchasing a product.
-                    <% else %>
-                      <%= if @subscriptions_enabled do %>
-                        Get started by selecting a subscription plan.
-                      <% else %>
-                        Browse available products for purchase.
-                      <% end %>
-                    <% end %>
-                  </p>
-                </div>
-                <div class="mt-5">
-                  <.button phx-click="show_plans_modal" phx-target={@myself}>
-                    <%= if @subscriptions_enabled and @single_purchases_enabled do %>
-                      View Plans & Products
-                    <% else %>
-                      <%= if @subscriptions_enabled do %>
-                        Choose a Plan
-                      <% else %>
-                        View Products
-                      <% end %>
-                    <% end %>
-                  </.button>
-                </div>
-              </div>
-            </div>
-          <% end %>
-        <% end %>
+                <h3 class="text-lg font-medium leading-6 text-gray-900 mb-6">Subscription Plans</h3>
 
-        <%= if @show_plans_modal do %>
-          <div class="relative z-50" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
-
-            <div class="fixed inset-0 z-50 w-screen overflow-y-auto">
-              <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-                <div class="relative transform overflow-hidden rounded-lg bg-white px-4 pt-5 text-left shadow-xl transition-all sm:my-8 w-full sm:max-w-4xl sm:p-6">
-                  <div class="absolute right-0 top-0 hidden pr-4 pt-4 sm:block">
-                    <.button phx-click="hide_plans_modal" phx-target={@myself} variant="outline">
-                      <span class="sr-only">Close</span>
-                      <Lucideicons.x class="h-6 w-6" />
-                    </.button>
-                  </div>
-
-                  <div class="text-center">
-                    <h3 class="text-2xl font-semibold leading-6 text-gray-900" id="modal-title">
-                      <%= if @subscriptions_enabled and @single_purchases_enabled do %>
-                        Plans & Products
-                      <% else %>
-                        <%= if @subscriptions_enabled do %>
-                          Subscription Plans
-                        <% else %>
-                          Products
-                        <% end %>
-                      <% end %>
-                    </h3>
-                    <p class="mt-2 text-sm text-gray-500">
-                      <%= if @subscriptions_enabled and @single_purchases_enabled and length(@single_purchase_plans) > 0 do %>
-                        Choose a subscription plan or purchase a one-time product.
-                      <% else %>
-                        <%= if @subscriptions_enabled do %>
-                          Choose a plan that best fits your needs.
-                        <% else %>
-                          Select a product to purchase.
-                        <% end %>
-                      <% end %>
-                    </p>
-                  </div>
-
-                  <%= if @subscriptions_enabled do %>
-                    <.plan_selector
-                      plans={@plans}
-                      current_user={@user}
-                      current_subscription={@subscription}
-                      proration_info={@proration_info}
-                      target={@myself}
-                    />
-                  <% end %>
-
-                  <%= if @single_purchases_enabled and length(@single_purchase_plans) > 0 do %>
-                    <div class="mt-8">
-                      <.single_purchase_selector
-                        products={@single_purchase_plans}
+                <!-- Monthly Plans -->
+                <div class="mb-8">
+                  <h4 class="text-md font-semibold text-gray-700 mb-4">Monthly</h4>
+                  <div class="grid lg:grid-cols-3 gap-4">
+                    <%= for plan <- filter_monthly_plans(@plans) do %>
+                      <.plan_card
+                        plan={plan}
                         current_user={@user}
+                        current_subscription={@subscription}
                         target={@myself}
                         loading={@loading}
-                        title="One-Time Products"
-                        description="Purchase additional products without a subscription."
                       />
-                    </div>
-                  <% end %>
+                    <% end %>
+                  </div>
+                </div>
+
+                <!-- Yearly Plans -->
+                <div class="mb-8">
+                  <h4 class="text-md font-semibold text-gray-700 mb-4">Yearly</h4>
+                  <div class="grid lg:grid-cols-3 gap-4">
+                    <%= for plan <- filter_yearly_plans(@plans) do %>
+                      <.plan_card
+                        plan={plan}
+                        current_user={@user}
+                        current_subscription={@subscription}
+                        target={@myself}
+                        loading={@loading}
+                      />
+                    <% end %>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          <% end %>
+
+          <%= if @single_purchases_enabled and length(@single_purchase_plans) > 0 do %>
+            <div class="overflow-hidden rounded-lg bg-white shadow">
+              <div class="px-4 py-5 sm:p-6">
+                <.single_purchase_selector
+                  products={@single_purchase_plans}
+                  current_user={@user}
+                  target={@myself}
+                  loading={@loading}
+                  title="Single Purchase"
+                  description="Purchase additional products and services to enhance your experience."
+                />
+              </div>
+            </div>
+          <% end %>
+
+        <% else %>
+          <%= if @subscriptions_enabled and map_size(@plans) > 0 do %>
+            <div class="overflow-hidden rounded-lg bg-white shadow">
+              <div class="px-4 py-5 sm:p-6">
+                <h3 class="text-lg font-medium leading-6 text-gray-900 mb-6">Choose Your Plan</h3>
+
+                <!-- Monthly Plans -->
+                <div class="mb-8">
+                  <h4 class="text-md font-semibold text-gray-700 mb-4">Monthly</h4>
+                  <div class="grid lg:grid-cols-3 gap-4">
+                    <%= for plan <- filter_monthly_plans(@plans) do %>
+                      <.plan_card
+                        plan={plan}
+                        current_user={@user}
+                        current_subscription={@subscription}
+                        target={@myself}
+                        loading={@loading}
+                      />
+                    <% end %>
+                  </div>
+                </div>
+
+                <!-- Yearly Plans -->
+                <div class="mb-8">
+                  <h4 class="text-md font-semibold text-gray-700 mb-4">Yearly</h4>
+                  <div class="grid lg:grid-cols-3 gap-4">
+                    <%= for plan <- filter_yearly_plans(@plans) do %>
+                      <.plan_card
+                        plan={plan}
+                        current_user={@user}
+                        current_subscription={@subscription}
+                        target={@myself}
+                        loading={@loading}
+                      />
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% end %>
+
+          <%= if @single_purchases_enabled and length(@single_purchase_plans) > 0 do %>
+            <div class="overflow-hidden rounded-lg bg-white shadow">
+              <div class="px-4 py-5 sm:p-6">
+                <.single_purchase_selector
+                  products={@single_purchase_plans}
+                  current_user={@user}
+                  target={@myself}
+                  loading={@loading}
+                  title="Single Purchase"
+                  description="Purchase products without a subscription."
+                />
+              </div>
+            </div>
+          <% end %>
         <% end %>
       <% end %>
     </div>

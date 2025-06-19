@@ -24,6 +24,7 @@ defmodule PhxplateWeb.Components.AI.ModelSelector do
   attr :on_change, :string, required: true, doc: "Phoenix event to trigger on model change"
   attr :class, :string, default: "w-[200px]", doc: "CSS classes for the select trigger"
   attr :id, :string, default: "model-select", doc: "HTML ID for the select element"
+  attr :include_all_option, :boolean, default: false, doc: "Whether to include 'All Models' option"
 
   attr :side, :string,
     values: ~w(top bottom),
@@ -38,6 +39,11 @@ defmodule PhxplateWeb.Components.AI.ModelSelector do
       <.select :let={select} id={@id} name="model" value={@selected_model} side={@side}>
         <.select_trigger builder={select} class={@class} />
         <.select_content class={@class} builder={select}>
+          <%= if @include_all_option do %>
+            <.select_item builder={select} value="All Models" label="All Models">
+              All Models
+            </.select_item>
+          <% end %>
           <%= for {name, _api_id} <- @available_models do %>
             <.select_item builder={select} value={name} label={name}>
               {name}

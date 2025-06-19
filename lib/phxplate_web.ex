@@ -93,13 +93,16 @@ defmodule PhxplateWeb do
       # Custom UI components
       import PhxplateWeb.Components.UI.Accordion
       import PhxplateWeb.Components.UI.Breadcrumb
+      import PhxplateWeb.Components.UI.Button
+      import PhxplateWeb.Components.UI.Checkbox
       import PhxplateWeb.Components.UI.Collapsible
       import PhxplateWeb.Components.UI.Drawer
       import PhxplateWeb.Components.UI.Dialog
       import PhxplateWeb.Components.UI.DialogDrawerWrapper
       import PhxplateWeb.Components.UI.DropdownMenu
       import PhxplateWeb.Components.UI.Helpers
-      # import PhxplateWeb.Components.UI.Input
+      import PhxplateWeb.Components.UI.Input
+      import PhxplateWeb.Components.UI.Label
       import PhxplateWeb.Components.UI.Pagination
       import PhxplateWeb.Components.UI.Menu
       import PhxplateWeb.Components.UI.Select
@@ -110,6 +113,7 @@ defmodule PhxplateWeb do
       import PhxplateWeb.Components.UI.Slider
       import PhxplateWeb.Components.UI.Switch
       import PhxplateWeb.Components.UI.Table
+      import PhxplateWeb.Components.UI.Textarea
       import PhxplateWeb.Components.UI.Tooltip
 
       # Salad UI components
@@ -117,9 +121,7 @@ defmodule PhxplateWeb do
         Alert,
         Avatar,
         Badge,
-        Button,
         Card,
-        Checkbox,
         Form,
         HoverCard,
         Icon,

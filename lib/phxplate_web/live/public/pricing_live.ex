@@ -33,9 +33,12 @@ defmodule PhxplateWeb.PricingLive do
     subscriptions_enabled = Subscriptions.subscriptions_enabled?()
     single_purchases_enabled = Subscriptions.single_purchases_enabled?()
 
-    # Get subscription plans only if enabled
+    # Get subscription plans only if enabled - use proper structure for plan_selector
     plans = if subscriptions_enabled do
-      Subscriptions.list_all_plans()
+      # Get the structured plans that plan_selector expects (with monthly/yearly per tier)
+      all_plans = Subscriptions.list_all_plans()
+      # Remove single_purchase key if it exists to avoid confusion
+      Map.delete(all_plans, :single_purchase)
     else
       %{}
     end
@@ -187,9 +190,12 @@ defmodule PhxplateWeb.PricingLive do
     subscriptions_enabled = Subscriptions.subscriptions_enabled?()
     single_purchases_enabled = Subscriptions.single_purchases_enabled?()
 
-    # Get subscription plans only if enabled
+    # Get subscription plans only if enabled - use proper structure for plan_selector
     plans = if subscriptions_enabled do
-      Subscriptions.list_all_plans()
+      # Get the structured plans that plan_selector expects (with monthly/yearly per tier)
+      all_plans = Subscriptions.list_all_plans()
+      # Remove single_purchase key if it exists to avoid confusion
+      Map.delete(all_plans, :single_purchase)
     else
       %{}
     end
@@ -214,9 +220,12 @@ defmodule PhxplateWeb.PricingLive do
     subscriptions_enabled = socket.assigns.subscriptions_enabled
     single_purchases_enabled = socket.assigns.single_purchases_enabled
 
-    # Get subscription plans only if enabled
+    # Get subscription plans only if enabled - use proper structure for plan_selector
     plans = if subscriptions_enabled do
-      Subscriptions.list_all_plans()
+      # Get the structured plans that plan_selector expects (with monthly/yearly per tier)
+      all_plans = Subscriptions.list_all_plans()
+      # Remove single_purchase key if it exists to avoid confusion
+      Map.delete(all_plans, :single_purchase)
     else
       %{}
     end
@@ -239,9 +248,12 @@ defmodule PhxplateWeb.PricingLive do
     subscriptions_enabled = socket.assigns.subscriptions_enabled
     single_purchases_enabled = socket.assigns.single_purchases_enabled
 
-    # Get subscription plans only if enabled
+    # Get subscription plans only if enabled - use proper structure for plan_selector
     plans = if subscriptions_enabled do
-      Subscriptions.list_all_plans()
+      # Get the structured plans that plan_selector expects (with monthly/yearly per tier)
+      all_plans = Subscriptions.list_all_plans()
+      # Remove single_purchase key if it exists to avoid confusion
+      Map.delete(all_plans, :single_purchase)
     else
       %{}
     end
@@ -264,9 +276,12 @@ defmodule PhxplateWeb.PricingLive do
     subscriptions_enabled = socket.assigns.subscriptions_enabled
     single_purchases_enabled = socket.assigns.single_purchases_enabled
 
-    # Get subscription plans only if enabled
+    # Get subscription plans only if enabled - use proper structure for plan_selector
     plans = if subscriptions_enabled do
-      Subscriptions.list_all_plans()
+      # Get the structured plans that plan_selector expects (with monthly/yearly per tier)
+      all_plans = Subscriptions.list_all_plans()
+      # Remove single_purchase key if it exists to avoid confusion
+      Map.delete(all_plans, :single_purchase)
     else
       %{}
     end

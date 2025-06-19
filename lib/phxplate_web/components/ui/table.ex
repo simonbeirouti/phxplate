@@ -46,7 +46,6 @@ defmodule PhxplateWeb.Components.UI.Table do
   """
   attr :class, :string, default: nil
   attr :rest, :global
-  slot :inner_block, required: true
 
   # Add these new attributes
   attr :rows, :list, default: []

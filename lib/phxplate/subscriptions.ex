@@ -90,6 +90,19 @@ defmodule Phxplate.Subscriptions do
           {:created, %{type: :subscription, subscription: subscription}}
         )
 
+        # Track subscription creation
+        subscription_with_plan = subscription |> Repo.preload(:plan)
+        track_subscription_entity_change(
+          "subscription_created",
+          subscription_with_plan,
+          %{id: subscription.user_id},
+          %{
+            "plan_name" => subscription_with_plan.plan.name,
+            "plan_tier" => subscription.paid_tier,
+            "status" => subscription.subscription_status
+          }
+        )
+
         # Update user role based on the new subscription's plan
         try do
           user = Accounts.get_user!(subscription.user_id)
@@ -120,6 +133,20 @@ defmodule Phxplate.Subscriptions do
         )
         DataSync.broadcast("subscriptions", "all",
           {:updated, %{type: :subscription, subscription: updated_subscription}}
+        )
+
+        # Track subscription update
+        subscription_with_plan = updated_subscription |> Repo.preload(:plan)
+        track_subscription_entity_change(
+          "subscription_updated",
+          subscription_with_plan,
+          %{id: updated_subscription.user_id},
+          %{
+            "plan_name" => subscription_with_plan.plan.name,
+            "plan_tier" => updated_subscription.paid_tier,
+            "status" => updated_subscription.subscription_status,
+            "changes" => attrs
+          }
         )
 
         # Update user role based on the updated subscription's plan
@@ -191,16 +218,25 @@ defmodule Phxplate.Subscriptions do
       |> order_by([p], asc: p.unit_amount)
       |> Repo.all()
 
-    plans
-    |> Enum.group_by(& &1.metadata["tier"])
-    |> Enum.map(fn {tier, tier_plans} ->
-      {tier,
-       %{
-         monthly: Enum.find(tier_plans, &(&1.interval == "month")),
-         yearly: Enum.find(tier_plans, &(&1.interval == "year"))
-       }}
-    end)
-    |> Enum.into(%{})
+    # Separate subscription plans from single purchase products
+    {subscription_plans, single_purchase_plans} =
+      Enum.split_with(plans, &(&1.product_type == :subscription))
+
+    # Group subscription plans by tier
+    subscription_structure =
+      subscription_plans
+      |> Enum.group_by(& &1.metadata["tier"])
+      |> Enum.map(fn {tier, tier_plans} ->
+        {tier,
+         %{
+           monthly: Enum.find(tier_plans, &(&1.interval == "month")),
+           yearly: Enum.find(tier_plans, &(&1.interval == "year"))
+         }}
+      end)
+      |> Enum.into(%{})
+
+    # Add single purchase products as a separate category
+    Map.put(subscription_structure, :single_purchase, single_purchase_plans)
   end
 
   @doc """
@@ -209,6 +245,16 @@ defmodule Phxplate.Subscriptions do
   def list_plans_by_interval(interval) when interval in ["month", "year"] do
     Plan
     |> where([p], p.interval == ^interval)
+    |> order_by([p], asc: p.unit_amount)
+    |> Repo.all()
+  end
+
+  @doc """
+  Lists all single purchase products ordered by amount.
+  """
+  def list_single_purchase_products do
+    Plan
+    |> where([p], p.product_type == :single_purchase)
     |> order_by([p], asc: p.unit_amount)
     |> Repo.all()
   end
@@ -854,8 +900,6 @@ defmodule Phxplate.Subscriptions do
     |> Repo.one() || 0
   end
 
-
-
   @doc """
   Creates an admin subscription for a user (super admin only).
 
@@ -948,6 +992,18 @@ defmodule Phxplate.Subscriptions do
     tracking_actor = actor || user
     additional_data = if is_nil(additional_data), do: %{}, else: additional_data
     Phxplate.Tracking.track_user_activity(action, user, tracking_actor, additional_data)
+  end
+
+  # Helper function to track subscription entity changes
+  defp track_subscription_entity_change(action, subscription, actor, additional_data) do
+    tracking_actor = actor || %{id: subscription.user_id}
+    additional_data = if is_nil(additional_data), do: %{}, else: additional_data
+    Phxplate.Tracking.track_subscription_activity(action, subscription, tracking_actor, additional_data)
+  end
+
+  # Helper function to track plan changes
+  defp track_plan_activity(action, plan, actor, changes, metadata) do
+    Phxplate.Tracking.track_plan_activity(action, plan, actor, changes, metadata)
   end
 
   # Helper function to find plan by tier
@@ -1258,6 +1314,23 @@ defmodule Phxplate.Subscriptions do
               {:ok, plan} = result ->
                 # Broadcast plan creation
                 DataSync.broadcast("plans", "all", {:created, %{type: :plan, plan: plan}})
+
+                # Track plan creation
+                track_plan_activity(
+                  "plan_created",
+                  plan,
+                  actor,
+                  %{
+                    "name" => plan.name,
+                    "unit_amount" => plan.unit_amount,
+                    "currency" => plan.currency,
+                    "interval" => plan.interval,
+                    "product_type" => plan.product_type,
+                    "tier" => plan.metadata["tier"]
+                  },
+                  %{}
+                )
+
                 result
               error ->
                 # Clean up Stripe product if database insert fails
@@ -1306,6 +1379,23 @@ defmodule Phxplate.Subscriptions do
               {:ok, updated_plan} = result ->
                 # Broadcast plan update
                 DataSync.broadcast("plans", "all", {:updated, %{type: :plan, plan: updated_plan}})
+
+                # Track plan update with changes
+                changes = Map.take(plan_attrs, ["name", "description", "unit_amount", "features", "features_order"])
+                |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+                |> Enum.into(%{})
+
+                track_plan_activity(
+                  "plan_updated",
+                  updated_plan,
+                  actor,
+                  changes,
+                  %{
+                    "tier" => updated_plan.metadata["tier"],
+                    "product_type" => updated_plan.product_type
+                  }
+                )
+
                 result
               error -> error
             end
@@ -1339,6 +1429,21 @@ defmodule Phxplate.Subscriptions do
               {:ok, deleted_plan} = result ->
                 # Broadcast plan deletion
                 DataSync.broadcast("plans", "all", {:deleted, %{type: :plan, id: deleted_plan.id}})
+
+                # Track plan deletion
+                track_plan_activity(
+                  "plan_deleted",
+                  deleted_plan,
+                  actor,
+                  %{},
+                  %{
+                    "name" => deleted_plan.name,
+                    "tier" => deleted_plan.metadata["tier"],
+                    "product_type" => deleted_plan.product_type,
+                    "unit_amount" => deleted_plan.unit_amount
+                  }
+                )
+
                 result
               error -> error
             end

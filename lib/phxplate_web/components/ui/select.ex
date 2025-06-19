@@ -202,7 +202,7 @@ defmodule PhxplateWeb.Components.UI.Select do
         ])
       }
       {%{"data-disabled": @disabled}}
-      phx-click={select_value(@builder.id, @label)}
+      phx-click={select_value(@builder.id, @value)}
       {@rest}
     >
       <input
@@ -294,6 +294,20 @@ defmodule PhxplateWeb.Components.UI.Select do
   defp find_label_for_value(inner_block, target_value) when is_list(inner_block) do
     # This is a simplified approach - we'll create a mapping based on common patterns
     case target_value do
+      # Plan tier mappings
+      "small" -> "Small"
+      "medium" -> "Medium"
+      "large" -> "Large"
+
+      # Currency mappings
+      "usd" -> "USD"
+
+      # Billing interval mappings
+      "month" -> "Monthly"
+      "year" -> "Yearly"
+      "one_time" -> "One-time"
+
+      # Evaluation status mappings
       "partial" -> "Some Failed"
       "success" -> "All Passed"
       "failed" -> "Failed"

@@ -732,7 +732,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
       <div class="space-y-4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <.input field={f[:name]} label="Name" required />
+            <.input field={f[:name]} label="Name" placeholder="Enter evaluation name" required />
           </div>
           <div>
             <.label>Status</.label>
@@ -798,26 +798,24 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <.label>Test Input</.label>
-                    <.input
+                    <.textarea
                       name={"test_case_#{test_case.id}"}
                       value={test_case.test_case}
                       phx-blur="update_test_case"
                       phx-value-id={test_case.id}
                       phx-value-field="test_case"
-                      rows="3"
+                      label="Test Input"
                       placeholder="Enter the test input/question..."
                     />
                   </div>
                   <div>
-                    <.label>Expected Output</.label>
-                    <.input
+                    <.textarea
                       name={"expected_output_#{test_case.id}"}
                       value={test_case.expected_output}
                       phx-blur="update_test_case"
                       phx-value-id={test_case.id}
                       phx-value-field="expected_output"
-                      rows="3"
+                      label="Expected Output"
                       placeholder="Enter the expected response..."
                     />
                   </div>
@@ -828,11 +826,11 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
         </div>
 
         <div>
-          <.input
+          <.textarea
             field={f[:evaluation_criteria]}
-            type="textarea"
             label="Evaluation Criteria"
-            rows="4"
+            class="text-base"
+            placeholder="Enter evaluation criteria"
             required
           />
         </div>

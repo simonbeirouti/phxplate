@@ -17,8 +17,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
   alias Phxplate.Subscriptions.{Plan, Subscription}
   alias PhxplateWeb.PageMeta
   alias Phxplate.PubSub.DataSync
-  import PhxplateWeb.Components.UI.Drawer
   alias PhxplateWeb.Components.UI.TabsNew
+  alias PhxplateWeb.Components.ActivityTimelineComponent
 
   @impl true
   def mount(_params, _session, socket) do
@@ -34,6 +34,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
      socket
      |> assign(:plans, plans)
      |> assign(:subscriptions, subscriptions)
+     |> assign(:selected_plan_activities, [])
      |> assign(:active_tab, "monthly")
      |> assign(:current_interval, "monthly")
      |> assign(:show_plan_modal, false)
@@ -55,7 +56,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
      )}
   end
 
-  @impl true
+    @impl true
   def handle_params(params, url, socket) do
     uri = URI.parse(url)
     socket = Phoenix.Component.update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
@@ -67,7 +68,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
      |> assign(:current_interval, tab)}
   end
 
-  @impl true
+    @impl true
   def handle_event("change_tab", %{"tab" => tab}, socket) do
     {:noreply,
      socket
@@ -84,10 +85,14 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
     plan = get_plan_by_id(plan_id, socket.assigns.plans)
 
     if plan do
+      # Load activities for this specific plan
+      plan_activities = Phxplate.Tracking.get_plan_activities(plan.id, 20)
+
       {:noreply,
        socket
        |> assign(:selected_item, plan)
        |> assign(:selected_type, :plan)
+       |> assign(:selected_plan_activities, plan_activities)
        |> assign(:editing_mode, false)
        |> assign(:show_drawer, true)}
     else
@@ -116,6 +121,13 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
   end
 
   @impl true
+  def handle_event("change_plan_details_tab", %{"tab" => _tab}, socket) do
+    # This is handled by JavaScript in the TabsNew component
+    # We just need to acknowledge the event
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_event("start_editing", _params, socket) do
     if socket.assigns.selected_item do
       plan = socket.assigns.selected_item
@@ -128,12 +140,18 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
         Map.keys(plan.features || %{}) |> Enum.sort()
       end
 
+      # Convert interval for form display - single purchase products have nil interval but should show "one_time"
+      interval_for_form = case {plan.product_type, plan.interval} do
+        {:single_purchase, nil} -> "one_time"
+        {_, interval} -> interval
+      end
+
       plan_form = to_form(%{
         "name" => plan.name,
         "description" => plan.description || "",
         "unit_amount" => to_string(plan.unit_amount),
         "currency" => plan.currency,
-        "interval" => plan.interval,
+        "interval" => interval_for_form,
         "tier" => plan.metadata["tier"] || "",
         "features" => plan.features || %{}
       }, as: :plan)
@@ -153,7 +171,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
     {:noreply,
      socket
      |> assign(:editing_mode, false)
-     |> assign(:features_order, [])}
+     |> assign(:features_order, [])
+     |> push_event("switch-tab", %{tab: "details"})}
   end
 
         @impl true
@@ -170,20 +189,39 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
 
       IO.inspect(processed_params, label: "Processed params")
 
-      case Subscriptions.update_plan(plan, processed_params, socket.assigns.current_user) do
+      case Subscriptions.update_plan(plan, processed_params) do
         {:ok, updated_plan} ->
+          # Calculate what actually changed
+          changes = calculate_plan_changes(plan, updated_plan)
+
+          # Only track activity if there were actual changes
+          if map_size(changes) > 0 do
+            Phxplate.Tracking.track_plan_activity(
+              "plan_updated",
+              updated_plan,
+              socket.assigns.current_user,
+              changes,
+              %{"updated_from" => "super_admin_interface"}
+            )
+          end
+
           # Reload all plans to get the updated data structure
           plans = Subscriptions.list_all_plans()
 
           # Find the updated plan in the new structure
           updated_selected_item = find_plan_in_structure(updated_plan.id, plans)
 
+          # Reload activities for the updated plan
+          plan_activities = Phxplate.Tracking.get_plan_activities(updated_plan.id, 20)
+
           {:noreply,
            socket
            |> assign(:plans, plans)
            |> assign(:selected_item, updated_selected_item || updated_plan)
+           |> assign(:selected_plan_activities, plan_activities)
            |> assign(:editing_mode, false)
            |> assign(:features_order, [])
+           |> push_event("switch-tab", %{tab: "details"})
            |> put_flash(:info, "Plan updated successfully")}
 
         {:error, changeset} ->
@@ -483,7 +521,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
     end
   end
 
-  @impl true
+    @impl true
   def handle_info({:created, %{type: :plan}}, socket) do
     plans = Subscriptions.list_all_plans()
     {:noreply, assign(socket, :plans, plans)}
@@ -491,7 +529,16 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
 
   def handle_info({:updated, %{type: :plan}}, socket) do
     plans = Subscriptions.list_all_plans()
-    {:noreply, assign(socket, :plans, plans)}
+
+    # If we have a selected plan, refresh its activities
+    updated_socket = if socket.assigns.selected_item && socket.assigns.selected_type == :plan do
+      plan_activities = Phxplate.Tracking.get_plan_activities(socket.assigns.selected_item.id, 20)
+      assign(socket, :selected_plan_activities, plan_activities)
+    else
+      socket
+    end
+
+    {:noreply, assign(updated_socket, :plans, plans)}
   end
 
   def handle_info({:deleted, %{type: :plan}}, socket) do
@@ -501,6 +548,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
      |> assign(:plans, plans)
      |> assign(:selected_item, nil)
      |> assign(:selected_type, nil)
+     |> assign(:selected_plan_activities, [])
      |> assign(:show_drawer, false)}
   end
 
@@ -522,9 +570,22 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
   defp get_plan_by_id(plan_id, plans) do
     plan_id = String.to_integer(plan_id)
 
-    Enum.find_value(plans, fn {_tier, tier_plans} ->
-      Enum.find([tier_plans.monthly, tier_plans.yearly], &(&1 && &1.id == plan_id))
-    end)
+    # First check single purchase products
+    single_purchase_plans = Map.get(plans, :single_purchase, [])
+    single_purchase_match = Enum.find(single_purchase_plans, &(&1.id == plan_id))
+
+    if single_purchase_match do
+      single_purchase_match
+    else
+      # Then check subscription plans
+      Enum.find_value(plans, fn {tier, tier_plans} ->
+        if tier == :single_purchase do
+          nil
+        else
+          Enum.find([tier_plans.monthly, tier_plans.yearly], &(&1 && &1.id == plan_id))
+        end
+      end)
+    end
   end
 
   defp normalize_plan_params(params) do
@@ -568,17 +629,42 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
 
   # Helper function to get plans by interval
   defp get_plans_by_interval(plans, interval) do
-    plans
-    |> Enum.flat_map(fn {_tier, tier_plans} ->
-      case interval do
-        "monthly" -> if tier_plans.monthly, do: [tier_plans.monthly], else: []
-        "yearly" -> if tier_plans.yearly, do: [tier_plans.yearly], else: []
-        "one_time" -> [] # For future one-time purchases
-        # Handle Stripe interval names too
-        "month" -> if tier_plans.monthly, do: [tier_plans.monthly], else: []
-        "year" -> if tier_plans.yearly, do: [tier_plans.yearly], else: []
-      end
-    end)
+    case interval do
+      "one_time" ->
+        # Return single purchase products
+        Map.get(plans, :single_purchase, [])
+      _ ->
+        # Handle subscription plans - collect ALL plans matching the interval
+        # regardless of tier structure to ensure no plans are lost
+        target_interval = case interval do
+          "monthly" -> "month"
+          "yearly" -> "year"
+          "month" -> "month"
+          "year" -> "year"
+          _ -> interval
+        end
+
+        # Flatten all subscription plans and filter by interval
+        all_subscription_plans = plans
+        |> Enum.flat_map(fn {tier, tier_plans} ->
+          # Skip the :single_purchase key since it's not a tier
+          if tier == :single_purchase do
+            []
+          else
+            # Collect all non-nil plans from this tier
+            case tier_plans do
+              %{monthly: monthly, yearly: yearly} ->
+                [monthly, yearly] |> Enum.filter(& &1)
+              _ ->
+                []
+            end
+          end
+        end)
+        |> Enum.filter(&(&1.interval == target_interval)) # Filter by actual interval
+        |> Enum.sort_by(& &1.unit_amount) # Sort by unit_amount to maintain consistent ordering
+
+        all_subscription_plans
+    end
   end
 
     # Details rendering function
@@ -588,8 +674,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
 
     ~H"""
     <%= if @selected_type == :plan do %>
-      <div class="space-y-4">
-        <%= if @editing_mode do %>
+      <%= if @editing_mode do %>
+        <div class="space-y-4 p-2">
           <.form
             for={@plan_form}
             phx-change="validate_plan"
@@ -601,14 +687,14 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
                 field={@plan_form[:name]}
                 type="text"
                 label="Name"
+                placeholder="Enter plan name"
                 required
               />
 
-              <.input
+              <.textarea
                 field={@plan_form[:description]}
-                type="textarea"
                 label="Description"
-                rows="3"
+                placeholder="Enter plan description"
               />
 
               <div class="grid grid-cols-2 gap-4">
@@ -616,42 +702,72 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
                   field={@plan_form[:unit_amount]}
                   type="number"
                   label="Price (cents)"
+                  placeholder="Enter price in cents"
                   required
                 />
 
-                <.input
-                  field={@plan_form[:tier]}
-                  type="select"
-                  label="Tier"
-                  options={[
-                    {"Small", "small"},
-                    {"Medium", "medium"},
-                    {"Large", "large"}
-                  ]}
-                  required
-                />
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Tier *</label>
+                  <.select
+                    id={"plan-tier-select-#{@context}"}
+                    name="plan[tier]"
+                    value={@plan_form.params["tier"]}
+                    placeholder="Select tier..."
+                    class="w-full"
+                    :let={builder}
+                  >
+                    <.select_trigger builder={builder} class="w-full" />
+                    <.select_content builder={builder} class="w-full">
+                      <.select_group>
+                        <.select_item builder={builder} value="small" label="Small">Small</.select_item>
+                        <.select_item builder={builder} value="medium" label="Medium">Medium</.select_item>
+                        <.select_item builder={builder} value="large" label="Large">Large</.select_item>
+                      </.select_group>
+                    </.select_content>
+                  </.select>
+                </div>
               </div>
 
               <div class="grid grid-cols-2 gap-4">
-                <.input
-                  field={@plan_form[:currency]}
-                  type="select"
-                  label="Currency"
-                  options={[{"USD", "usd"}]}
-                  required
-                />
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Currency *</label>
+                  <.select
+                    id={"plan-currency-select-#{@context}"}
+                    name="plan[currency]"
+                    value={@plan_form.params["currency"]}
+                    placeholder="Select currency..."
+                    class="w-full"
+                    :let={builder}
+                  >
+                    <.select_trigger builder={builder} class="w-full" />
+                    <.select_content builder={builder} class="w-full">
+                      <.select_group>
+                        <.select_item builder={builder} value="usd" label="USD">USD</.select_item>
+                      </.select_group>
+                    </.select_content>
+                  </.select>
+                </div>
 
-                <.input
-                  field={@plan_form[:interval]}
-                  type="select"
-                  label="Billing Type"
-                  options={[
-                    {"Monthly", "month"},
-                    {"Yearly", "year"},
-                    {"One-time", "one_time"}
-                  ]}
-                  required
-                />
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Billing Type *</label>
+                  <.select
+                    id={"plan-interval-select-#{@context}"}
+                    name="plan[interval]"
+                    value={@plan_form.params["interval"]}
+                    placeholder="Select billing type..."
+                    class="w-full"
+                    :let={builder}
+                  >
+                    <.select_trigger builder={builder} class="w-full" />
+                    <.select_content builder={builder} class="w-full">
+                      <.select_group>
+                        <.select_item builder={builder} value="month" label="Monthly">Monthly</.select_item>
+                        <.select_item builder={builder} value="year" label="Yearly">Yearly</.select_item>
+                        <.select_item builder={builder} value="one_time" label="One-time">One-time</.select_item>
+                      </.select_group>
+                    </.select_content>
+                  </.select>
+                </div>
               </div>
 
               <div>
@@ -668,7 +784,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
                   </.button>
                 </div>
 
-                                <%= if @plan_form.params["features"] && map_size(@plan_form.params["features"]) > 0 do %>
+                <%= if @plan_form.params["features"] && map_size(@plan_form.params["features"]) > 0 do %>
                   <div
                     class="space-y-2"
                     id="features-container"
@@ -755,114 +871,401 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
               </div>
             </div>
           </.form>
-        <% else %>
-          <div class="grid grid-cols-1 gap-4">
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">Name</h4>
-              <p class="mt-1 text-lg font-semibold">{@selected_item.name}</p>
-            </div>
+        </div>
+      <% else %>
+        <TabsNew.tabs id={"plan-details-tabs-#{@selected_item.id}-#{@context}"} default="details" on_change="change_plan_details_tab" :let={builder}>
+          <TabsNew.tabs_list class="grid w-full grid-cols-3">
+            <TabsNew.tabs_trigger builder={builder} value="details">Details</TabsNew.tabs_trigger>
+            <TabsNew.tabs_trigger builder={builder} value="edit">Edit</TabsNew.tabs_trigger>
+            <TabsNew.tabs_trigger builder={builder} value="timeline">Timeline</TabsNew.tabs_trigger>
+          </TabsNew.tabs_list>
 
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">Description</h4>
-              <p class="mt-1">{@selected_item.description || "No description"}</p>
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
+          <TabsNew.tabs_content value="details">
+            <div class="grid grid-cols-1 gap-4 mt-2 p-2">
               <div>
-                <h4 class="text-sm font-medium text-gray-500">Price</h4>
-                <p class="mt-1 text-2xl font-bold text-gray-900">
-                  {format_currency(@selected_item.unit_amount)}
-                </p>
-                <p class="text-sm text-gray-500">
-                  <%= if @selected_item.interval == "one_time" do %>
-                    one-time purchase
-                  <% else %>
-                    per {@selected_item.interval}
-                  <% end %>
-                </p>
+                <h4 class="text-sm font-medium text-gray-500">Name</h4>
+                <p class="mt-1 text-lg font-semibold">{@selected_item.name}</p>
               </div>
 
               <div>
-                <h4 class="text-sm font-medium text-gray-500">Tier</h4>
-                <p class="mt-1 capitalize">{@selected_item.metadata["tier"] || "Unknown"}</p>
+                <h4 class="text-sm font-medium text-gray-500">Description</h4>
+                <p class="mt-1">{@selected_item.description || "No description"}</p>
+              </div>
+
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 class="text-sm font-medium text-gray-500">Price</h4>
+                  <p class="mt-1 text-2xl font-bold text-gray-900">
+                    {format_currency(@selected_item.unit_amount)}
+                  </p>
+                  <p class="text-sm text-gray-500">
+                    <%= if @selected_item.interval == "one_time" do %>
+                      one-time purchase
+                    <% else %>
+                      per {@selected_item.interval}
+                    <% end %>
+                  </p>
+                </div>
+
+                <div>
+                  <h4 class="text-sm font-medium text-gray-500">Tier</h4>
+                  <p class="mt-1 capitalize">{@selected_item.metadata["tier"] || "None"}</p>
+                </div>
+              </div>
+
+              <div>
+                <h4 class="text-sm font-medium text-gray-500">Currency</h4>
+                <p class="mt-1 uppercase">{@selected_item.currency}</p>
+              </div>
+
+              <%= if @selected_item.features && map_size(@selected_item.features) > 0 do %>
+                <div>
+                  <h4 class="text-sm font-medium text-gray-500">Features</h4>
+                  <div class="mt-1 space-y-1">
+                    <%= for key <- get_ordered_feature_keys(@selected_item) do %>
+                      <% value = Map.get(@selected_item.features, key, "") %>
+                      <div class="flex justify-between py-1 border-b border-gray-100">
+                        <span class="text-sm text-gray-600 capitalize">{key}:</span>
+                        <span class="text-sm font-medium">{value}</span>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+              <% else %>
+                <div>
+                  <h4 class="text-sm font-medium text-gray-500">Features</h4>
+                  <p class="mt-1 text-sm text-gray-500 italic">No features defined</p>
+                </div>
+              <% end %>
+
+              <div class="border-t pt-4">
+                <h4 class="text-sm font-medium text-gray-500">Stripe Information</h4>
+                <div class="mt-2 space-y-2">
+                  <div>
+                    <span class="text-xs text-gray-500">Product ID:</span>
+                    <p class="text-xs font-mono bg-gray-100 p-1 rounded">{@selected_item.stripe_product_id}</p>
+                  </div>
+                  <div>
+                    <span class="text-xs text-gray-500">Price ID:</span>
+                    <p class="text-xs font-mono bg-gray-100 p-1 rounded">{@selected_item.stripe_price_id}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="border-t pt-4">
+                <h4 class="text-sm font-medium text-gray-500">Timestamps</h4>
+                <div class="flex justify-between items-center mt-2 text-xs text-gray-500">
+                  <p>Created: {Calendar.strftime(@selected_item.inserted_at, "%B %d, %Y at %H:%M")}</p>
+                  <p>Updated: {Calendar.strftime(@selected_item.updated_at, "%B %d, %Y at %H:%M")}</p>
+                </div>
+              </div>
+
+              <div class="flex justify-center items-center w-full">
+                <.button
+                  variant="destructive"
+                  size="sm"
+                  class="w-full"
+                  phx-click="delete_plan"
+                  phx-value-id={@selected_item.id}
+                  data-confirm="Are you sure you want to delete this plan?"
+                >
+                  <Lucideicons.trash_2 class="h-3 w-3 mr-1" />
+                  Delete Plan
+                </.button>
               </div>
             </div>
+          </TabsNew.tabs_content>
 
-            <div>
-              <h4 class="text-sm font-medium text-gray-500">Currency</h4>
-              <p class="mt-1 uppercase">{@selected_item.currency}</p>
-            </div>
+          <TabsNew.tabs_content value="edit">
+            <div class="mt-2 relative p-2">
+              <%= if @editing_mode do %>
+                <div class="space-y-4">
+                  <.form
+                    for={@plan_form}
+                    phx-change="validate_plan"
+                    phx-submit="save_inline_edit"
+                    class="space-y-4"
+                  >
+                    <div class="grid grid-cols-1 gap-4">
+                      <.input
+                        field={@plan_form[:name]}
+                        type="text"
+                        label="Name"
+                        required
+                      />
 
-            <%= if @selected_item.features && map_size(@selected_item.features) > 0 do %>
-              <div>
-                <h4 class="text-sm font-medium text-gray-500">Features</h4>
-                <div class="mt-1 space-y-1">
-                  <%= for key <- get_ordered_feature_keys(@selected_item) do %>
-                    <% value = Map.get(@selected_item.features, key, "") %>
-                    <div class="flex justify-between py-1 border-b border-gray-100">
-                      <span class="text-sm text-gray-600 capitalize">{key}:</span>
-                      <span class="text-sm font-medium">{value}</span>
+                      <.textarea
+                        field={@plan_form[:description]}
+                        label="Description"
+                      />
+
+                      <div class="grid grid-cols-2 gap-4">
+                        <.input
+                          label="Price"
+                          field={@plan_form[:unit_amount]}
+                          type="number"
+                          required
+                        />
+
+                        <div>
+                          <label class="block text-sm font-medium text-gray-700 mb-1">Tier *</label>
+                          <.select
+                            id={"plan-tier-select-edit-#{@context}"}
+                            name="plan[tier]"
+                            value={@plan_form.params["tier"]}
+                            placeholder="Select tier..."
+                            class="w-full"
+                            :let={builder}
+                          >
+                            <.select_trigger builder={builder} class="w-full" />
+                            <.select_content builder={builder} class="w-full">
+                              <.select_group>
+                                <.select_item builder={builder} value="small" label="Small">Small</.select_item>
+                                <.select_item builder={builder} value="medium" label="Medium">Medium</.select_item>
+                                <.select_item builder={builder} value="large" label="Large">Large</.select_item>
+                              </.select_group>
+                            </.select_content>
+                          </.select>
+                        </div>
+                      </div>
+
+                      <div class="grid grid-cols-2 gap-4">
+                        <div>
+                          <label class="block text-sm font-medium text-gray-700 mb-1">Currency *</label>
+                          <.select
+                            id={"plan-currency-select-edit-#{@context}"}
+                            name="plan[currency]"
+                            value={@plan_form.params["currency"]}
+                            placeholder="Select currency..."
+                            class="w-full"
+                            :let={builder}
+                          >
+                            <.select_trigger builder={builder} class="w-full" />
+                            <.select_content builder={builder} class="w-full">
+                              <.select_group>
+                                <.select_item builder={builder} value="usd" label="USD">USD</.select_item>
+                              </.select_group>
+                            </.select_content>
+                          </.select>
+                        </div>
+
+                        <div>
+                          <label class="block text-sm font-medium text-gray-700 mb-1">Billing Type *</label>
+                          <.select
+                            id={"plan-interval-select-edit-#{@context}"}
+                            name="plan[interval]"
+                            value={@plan_form.params["interval"]}
+                            placeholder="Select billing type..."
+                            class="w-full"
+                            :let={builder}
+                          >
+                            <.select_trigger builder={builder} class="w-full" />
+                            <.select_content builder={builder} class="w-full">
+                              <.select_group>
+                                <.select_item builder={builder} value="month" label="Monthly">Monthly</.select_item>
+                                <.select_item builder={builder} value="year" label="Yearly">Yearly</.select_item>
+                                <.select_item builder={builder} value="one_time" label="One-time">One-time</.select_item>
+                              </.select_group>
+                            </.select_content>
+                          </.select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div class="flex justify-between items-center mb-2">
+                          <label class="text-sm font-medium text-gray-700">Features</label>
+                          <.button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            phx-click="add_feature"
+                          >
+                            <Lucideicons.plus class="h-3 w-3 mr-1" />
+                            Add Feature
+                          </.button>
+                        </div>
+
+                        <%= if @plan_form.params["features"] && map_size(@plan_form.params["features"]) > 0 do %>
+                          <div
+                            class="space-y-2"
+                            id={"features-container-#{@context}"}
+                            phx-hook="Sortable"
+                            data-group="features"
+                          >
+                            <%= for {key, index} <- Enum.with_index(@features_order) do %>
+                              <% value = @plan_form.params["features"][key] || "" %>
+                              <div
+                                class="flex gap-2 items-center bg-gray-50 p-2 rounded border"
+                                id={"feature-#{index}-#{@context}"}
+                                data-feature-key={key}
+                                data-feature-value={value}
+                                data-index={index}
+                              >
+                                <div class="drag-handle cursor-move text-gray-400 hover:text-gray-600 flex-shrink-0">
+                                  <Lucideicons.grip_vertical class="h-4 w-4" />
+                                </div>
+
+                                <input
+                                  type="hidden"
+                                  name={"plan[features_to_remove][]"}
+                                  value={key}
+                                  disabled
+                                />
+                                <input
+                                  type="text"
+                                  name={"plan[feature_keys][]"}
+                                  value={key}
+                                  placeholder="Feature name"
+                                  class="flex-1 text-sm border border-gray-300 rounded px-2 py-1"
+                                  phx-debounce="300"
+                                  phx-blur="update_feature"
+                                  phx-value-index={index}
+                                  phx-value-type="key"
+                                />
+                                <input
+                                  type="text"
+                                  name={"plan[feature_values][]"}
+                                  value={value}
+                                  placeholder="Feature value"
+                                  class="flex-1 text-sm border border-gray-300 rounded px-2 py-1"
+                                  phx-debounce="300"
+                                  phx-blur="update_feature"
+                                  phx-value-index={index}
+                                  phx-value-type="value"
+                                />
+                                <.button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  phx-click="remove_feature"
+                                  phx-value-key={key}
+                                >
+                                  <Lucideicons.x class="h-3 w-3" />
+                                </.button>
+                              </div>
+                            <% end %>
+                          </div>
+                        <% else %>
+                          <p class="text-sm text-gray-500 italic">No features added yet</p>
+                        <% end %>
+                      </div>
                     </div>
-                  <% end %>
-                </div>
-              </div>
-            <% else %>
-              <div>
-                <h4 class="text-sm font-medium text-gray-500">Features</h4>
-                <p class="mt-1 text-sm text-gray-500 italic">No features defined</p>
-              </div>
-            <% end %>
 
-            <div class="border-t pt-4">
-              <h4 class="text-sm font-medium text-gray-500">Stripe Information</h4>
-              <div class="mt-2 space-y-2">
-                <div>
-                  <span class="text-xs text-gray-500">Product ID:</span>
-                  <p class="text-xs font-mono bg-gray-100 p-1 rounded">{@selected_item.stripe_product_id}</p>
+                    <div class="border-t pt-4">
+                      <div class="flex gap-2">
+                        <.button
+                          type="submit"
+                          class="flex-1"
+                        >
+                          <Lucideicons.check class="h-3 w-3 mr-1" />
+                          Save Changes
+                        </.button>
+                        <.button
+                          type="button"
+                          variant="outline"
+                          class="flex-1"
+                          phx-click="cancel_editing"
+                        >
+                          <Lucideicons.x class="h-3 w-3 mr-1" />
+                          Cancel
+                        </.button>
+                      </div>
+                    </div>
+                  </.form>
                 </div>
-                <div>
-                  <span class="text-xs text-gray-500">Price ID:</span>
-                  <p class="text-xs font-mono bg-gray-100 p-1 rounded">{@selected_item.stripe_price_id}</p>
-                </div>
-              </div>
-            </div>
+              <% else %>
+                <!-- Edit Overlay -->
+                <div class="relative">
+                  <!-- Background content (read-only view) -->
+                  <div class="opacity-50 pointer-events-none">
+                    <div class="grid grid-cols-1 gap-4">
+                      <div>
+                        <h4 class="text-sm font-medium text-gray-500">Name</h4>
+                        <p class="mt-1 text-lg font-semibold">{@selected_item.name}</p>
+                      </div>
 
-            <div class="border-t pt-4">
-              <h4 class="text-sm font-medium text-gray-500">Timestamps</h4>
-              <div class="flex justify-between items-center mt-2 text-xs text-gray-500">
-                <p>Created: {Calendar.strftime(@selected_item.inserted_at, "%B %d, %Y at %H:%M")}</p>
-                <p>Updated: {Calendar.strftime(@selected_item.updated_at, "%B %d, %Y at %H:%M")}</p>
-              </div>
-            </div>
-            <%= if not @editing_mode do %>
-              <div class="flex justify-between items-center w-full">
-                <div class="flex gap-2 w-full">
-                  <.button
-                    variant="outline"
-                    size="sm"
-                    class="w-full"
-                    phx-click="start_editing"
-                  >
-                    <Lucideicons.pencil class="h-3 w-3 mr-1" />
-                    Edit
-                  </.button>
-                  <.button
-                    variant="destructive"
-                    size="sm"
-                    class="w-full"
-                    phx-click="delete_plan"
-                    phx-value-id={@selected_item.id}
-                    data-confirm="Are you sure you want to delete this plan?"
-                  >
-                    <Lucideicons.trash_2 class="h-3 w-3 mr-1" />
-                    Delete
-                  </.button>
+                      <div>
+                        <h4 class="text-sm font-medium text-gray-500">Description</h4>
+                        <p class="mt-1">{@selected_item.description || "No description"}</p>
+                      </div>
+
+                      <div class="grid grid-cols-2 gap-4">
+                        <div>
+                          <h4 class="text-sm font-medium text-gray-500">Price</h4>
+                          <p class="mt-1 text-2xl font-bold text-gray-900">
+                            {format_currency(@selected_item.unit_amount)}
+                          </p>
+                        </div>
+
+                        <div>
+                          <h4 class="text-sm font-medium text-gray-500">Tier</h4>
+                          <p class="mt-1 capitalize">{@selected_item.metadata["tier"] || "No"}</p>
+                        </div>
+                      </div>
+
+                      <%= if @selected_item.features && map_size(@selected_item.features) > 0 do %>
+                        <div>
+                          <h4 class="text-sm font-medium text-gray-500">Features</h4>
+                          <div class="mt-1 space-y-1">
+                            <%= for key <- get_ordered_feature_keys(@selected_item) do %>
+                              <% value = Map.get(@selected_item.features, key, "") %>
+                              <div class="flex justify-between py-1 border-b border-gray-100">
+                                <span class="text-sm text-gray-600 capitalize">{key}:</span>
+                                <span class="text-sm font-medium">{value}</span>
+                              </div>
+                            <% end %>
+                          </div>
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
+
+                  <!-- Centered Edit Button Overlay -->
+                  <div class="absolute inset-0 flex items-center justify-center">
+                    <div class="bg-white bg-opacity-95 backdrop-blur-sm rounded-lg border-2 border-dashed border-gray-300 p-8 text-center shadow-lg">
+                      <Lucideicons.pencil class="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <h3 class="text-lg font-medium text-gray-900 mb-2">Edit Plan</h3>
+                      <p class="text-sm text-gray-500 mb-4">Click to unlock editing mode and modify plan details</p>
+                      <.button
+                        phx-click="start_editing"
+                        class="w-full"
+                      >
+                        <Lucideicons.pencil class="h-4 w-4 mr-2" />
+                        Start Editing
+                      </.button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            <% end %>
-          </div>
-        <% end %>
-      </div>
+              <% end %>
+            </div>
+          </TabsNew.tabs_content>
+
+          <TabsNew.tabs_content value="timeline">
+            <div class="mt-4">
+              <%= if length(@selected_plan_activities) > 0 do %>
+                <div class="space-y-4">
+                  <div class="text-sm text-gray-500">
+                    <p>Track changes made to this plan including creation, updates, and modifications.</p>
+                  </div>
+                  <.live_component
+                    module={ActivityTimelineComponent}
+                    id={"sa-subscriptions-plan-timeline-#{@selected_item.id}-#{@context}"}
+                    activities={@selected_plan_activities}
+                    user_id={@current_user.id}
+                    show_timestamps={true}
+                  />
+                </div>
+              <% else %>
+                <div class="text-center py-8">
+                  <Lucideicons.activity class="h-8 w-8 mx-auto text-gray-400 mb-2" />
+                  <h4 class="text-sm font-medium text-gray-900 mb-1">No activity yet</h4>
+                  <p class="text-xs text-gray-500">Changes to this plan will appear here.</p>
+                </div>
+              <% end %>
+            </div>
+          </TabsNew.tabs_content>
+        </TabsNew.tabs>
+      <% end %>
     <% else %>
       <p class="text-gray-500">No details available</p>
     <% end %>
@@ -909,7 +1312,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
             >
               <div class="flex justify-between items-center mb-4">
                 <h4 class="text-lg font-semibold text-gray-900">{plan.name}</h4>
-                <p class="text-sm text-gray-500 capitalize">{plan.metadata["tier"] || "Unknown"} Tier</p>
+                <p class="text-sm text-gray-500 capitalize">{plan.metadata["tier"] || "No"} Tier</p>
               </div>
 
               <div class="space-y-3">
@@ -1011,6 +1414,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
               editing_mode={@editing_mode}
               plan_form={@plan_form}
               features_order={@features_order}
+              selected_plan_activities={@selected_plan_activities}
+              current_user={@current_user}
               context="desktop"
             />
           <% else %>
@@ -1049,6 +1454,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
                 editing_mode={@editing_mode}
                 plan_form={@plan_form}
                 features_order={@features_order}
+                selected_plan_activities={@selected_plan_activities}
+                current_user={@current_user}
                 context="mobile"
               />
             <% end %>
@@ -1154,7 +1561,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
     end
 
     # Convert unit_amount to integer if it's a string
-    if processed_params["unit_amount"] && is_binary(processed_params["unit_amount"]) do
+    processed_params = if processed_params["unit_amount"] && is_binary(processed_params["unit_amount"]) do
       case Integer.parse(processed_params["unit_amount"]) do
         {amount, ""} -> Map.put(processed_params, "unit_amount", amount)
         _ -> processed_params
@@ -1162,16 +1569,40 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
     else
       processed_params
     end
+
+    # Handle interval conversion for single purchase products
+    processed_params = if processed_params["interval"] == "one_time" do
+      processed_params
+      |> Map.put("interval", nil)
+      |> Map.put("product_type", :single_purchase)
+    else
+      Map.put(processed_params, "product_type", :subscription)
+    end
+
+    processed_params
   end
 
   # Helper function to find a plan in the structured plans data
   defp find_plan_in_structure(plan_id, plans) do
-    plans
-    |> Enum.flat_map(fn {_tier, tier_plans} ->
-      [tier_plans.monthly, tier_plans.yearly]
-      |> Enum.filter(& &1)
-    end)
-    |> Enum.find(&(&1.id == plan_id))
+    # First check single purchase products
+    single_purchase_plans = Map.get(plans, :single_purchase, [])
+    single_purchase_match = Enum.find(single_purchase_plans, &(&1.id == plan_id))
+
+    if single_purchase_match do
+      single_purchase_match
+    else
+      # Then check subscription plans
+      plans
+      |> Enum.flat_map(fn {tier, tier_plans} ->
+        if tier == :single_purchase do
+          []
+        else
+          [tier_plans.monthly, tier_plans.yearly]
+          |> Enum.filter(& &1)
+        end
+      end)
+      |> Enum.find(&(&1.id == plan_id))
+    end
   end
 
   # Helper function to get ordered feature keys for display
@@ -1184,6 +1615,131 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
       # Fallback to sorted keys if no order is defined
       Map.keys(plan.features || %{}) |> Enum.sort()
     end
+  end
+
+  # Helper function to calculate what changed between two plans
+  defp calculate_plan_changes(old_plan, new_plan) do
+    changes = %{}
+
+    # Check each field for changes
+    changes = if old_plan.name != new_plan.name do
+      Map.put(changes, "name", %{"from" => old_plan.name, "to" => new_plan.name})
+    else
+      changes
+    end
+
+    changes = if old_plan.description != new_plan.description do
+      Map.put(changes, "description", %{"from" => old_plan.description, "to" => new_plan.description})
+    else
+      changes
+    end
+
+    changes = if old_plan.unit_amount != new_plan.unit_amount do
+      Map.put(changes, "unit_amount", %{
+        "from" => old_plan.unit_amount,
+        "to" => new_plan.unit_amount,
+        "from_formatted" => "$#{Float.round(old_plan.unit_amount / 100, 2)}",
+        "to_formatted" => "$#{Float.round(new_plan.unit_amount / 100, 2)}"
+      })
+    else
+      changes
+    end
+
+    changes = if old_plan.currency != new_plan.currency do
+      Map.put(changes, "currency", %{"from" => old_plan.currency, "to" => new_plan.currency})
+    else
+      changes
+    end
+
+    changes = if old_plan.interval != new_plan.interval do
+      Map.put(changes, "interval", %{
+        "from" => old_plan.interval || "one_time",
+        "to" => new_plan.interval || "one_time"
+      })
+    else
+      changes
+    end
+
+    changes = if old_plan.product_type != new_plan.product_type do
+      Map.put(changes, "product_type", %{"from" => old_plan.product_type, "to" => new_plan.product_type})
+    else
+      changes
+    end
+
+    # Check metadata changes (tier)
+    old_tier = get_in(old_plan.metadata, ["tier"])
+    new_tier = get_in(new_plan.metadata, ["tier"])
+    changes = if old_tier != new_tier do
+      Map.put(changes, "tier", %{"from" => old_tier, "to" => new_tier})
+    else
+      changes
+    end
+
+    # Check features changes
+    changes = if old_plan.features != new_plan.features do
+      features_changes = calculate_features_changes(old_plan.features || %{}, new_plan.features || %{})
+      if map_size(features_changes) > 0 do
+        Map.put(changes, "features", features_changes)
+      else
+        changes
+      end
+    else
+      changes
+    end
+
+    # Check features_order changes
+    changes = if old_plan.features_order != new_plan.features_order do
+      Map.put(changes, "features_order", %{
+        "from" => old_plan.features_order || [],
+        "to" => new_plan.features_order || []
+      })
+    else
+      changes
+    end
+
+    changes
+  end
+
+  # Helper function to calculate features changes
+  defp calculate_features_changes(old_features, new_features) do
+    old_keys = MapSet.new(Map.keys(old_features))
+    new_keys = MapSet.new(Map.keys(new_features))
+
+    added = MapSet.difference(new_keys, old_keys) |> MapSet.to_list()
+    removed = MapSet.difference(old_keys, new_keys) |> MapSet.to_list()
+    common = MapSet.intersection(old_keys, new_keys) |> MapSet.to_list()
+
+    # Check for modified features
+    modified = Enum.filter(common, fn key ->
+      old_features[key] != new_features[key]
+    end)
+
+    changes = %{}
+
+    changes = if length(added) > 0 do
+      added_features = Enum.into(added, %{}, fn key -> {key, new_features[key]} end)
+      Map.put(changes, "added", added_features)
+    else
+      changes
+    end
+
+    changes = if length(removed) > 0 do
+      removed_features = Enum.into(removed, %{}, fn key -> {key, old_features[key]} end)
+      Map.put(changes, "removed", removed_features)
+    else
+      changes
+    end
+
+    changes = if length(modified) > 0 do
+      modified_features = Enum.into(modified, %{}, fn key ->
+        {key, %{"from" => old_features[key], "to" => new_features[key]}}
+      end)
+      Map.put(changes, "modified", modified_features)
+    else
+      changes
+    end
+
+    changes
   end
 
   # Helper function to format changeset errors

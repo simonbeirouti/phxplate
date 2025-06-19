@@ -632,28 +632,22 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
             >
               <div class="grid grid-cols-2 gap-4">
                 <div class="col-span-2 sm:col-span-1 space-y-2">
-                  <.label for="company_name">Name</.label>
-                  <.input class="text-base" field={@form[:name]} type="text" />
+                  <.input class="text-base" field={@form[:name]} type="text" placeholder="Enter company name" label="Name" />
                 </div>
                 <div class="col-span-2 sm:col-span-1 space-y-2">
-                  <.label for="company_email">Email</.label>
-                  <.input class="text-base" field={@form[:email]} type="email" />
+                  <.input class="text-base" field={@form[:email]} type="email" placeholder="your@company.com" label="Email" />
                 </div>
                 <div class="col-span-2 sm:col-span-1 space-y-2">
-                  <.label for="company_phone">Phone</.label>
-                  <.input class="text-base" field={@form[:phone]} type="tel" />
+                  <.input class="text-base" field={@form[:phone]} type="tel" placeholder="123-456-7890" label="Phone" />
                 </div>
                 <div class="col-span-2 sm:col-span-1 space-y-2">
-                  <.label for="company_website">Website</.label>
-                  <.input class="text-base" field={@form[:website]} type="url" />
+                  <.input class="text-base" field={@form[:website]} type="url" placeholder="https://www.company.com" label="Website" />
                 </div>
                 <div class="col-span-2 sm:col-span-1 space-y-2">
-                  <.label for="company_address">Address</.label>
-                  <.input class="text-base" field={@form[:address]} type="text" />
+                  <.input class="text-base" field={@form[:address]} type="text" placeholder="123 Main St, Anytown, USA" label="Address" />
                 </div>
                 <div class="col-span-2 space-y-2">
-                  <.label for="company_description">Description</.label>
-                  <.input class="text-base" field={@form[:description]} type="textarea" />
+                  <.textarea class="text-base" field={@form[:description]} label="Description" placeholder="Enter company description" />
                 </div>
               </div>
               <div class="flex flex-col gap-4 lg:flex-row lg:justify-between w-full">
@@ -754,7 +748,7 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
         <Lucideicons.plus class="w-4 h-4 mr-2" /> Invite User
       </.button>
 
-      <PhxplateWeb.Components.UI.DialogDrawerWrapper.dialog_drawer_wrapper
+      <.dialog_drawer_wrapper
         id={assigns.dialog_id}
         show={@show_dialog}
         mode={@mode}
@@ -792,94 +786,107 @@ defmodule PhxplateWeb.Dashboard.Admin.CompanyShowLive do
             </div>
           </form>
         </div>
-      </PhxplateWeb.Components.UI.DialogDrawerWrapper.dialog_drawer_wrapper>
+      </.dialog_drawer_wrapper>
     </div>
     """
   end
 
   defp render_employees_tab(assigns) do
+    # Combine employees and pending invitations into a single rows list
+    all_rows = assigns.employees ++ Enum.map(assigns.pending_invitations, fn invitation ->
+      %{
+        type: :invitation,
+        id: invitation.id,
+        email: invitation.email,
+        invitation: invitation
+      }
+    end)
+
+    assigns = assign(assigns, :all_rows, all_rows)
+
     ~H"""
     <div class="space-y-4">
       <div class="hidden lg:block overflow-x-auto">
-        <.table>
-          <.table_header>
-            <.table_row>
-              <.table_head>Photo</.table_head>
-              <.table_head>Name</.table_head>
-              <.table_head>Email</.table_head>
-              <.table_head>Phone</.table_head>
-              <.table_head>Position</.table_head>
-              <.table_head>Department</.table_head>
-              <.table_head class="text-right">Actions</.table_head>
-            </.table_row>
-          </.table_header>
-          <.table_body>
-            <%= for employee <- @employees do %>
-              <.table_row>
-                <.table_cell>
-                  <div class="flex items-center gap-2">
-                    <img
-                      src={
-                        if employee.profile,
-                          do: employee.profile.avatar_url || "/images/default-avatar.svg",
-                          else: "/images/default-avatar.svg"
-                      }
-                      alt="Employee avatar"
-                      class="w-12 h-12 rounded-full bg-gray-200"
-                    />
-                  </div>
-                </.table_cell>
-                <.table_cell class="font-medium">
-                  <%= if employee.profile do
-                    "#{employee.profile.first_name} #{employee.profile.last_name}"
-                  else
-                    "Profile Deleted"
-                  end %>
-                </.table_cell>
-                <.table_cell>{employee.email}</.table_cell>
-                <.table_cell>
-                  <%= if employee.profile, do: employee.profile.phone || "N/A", else: "N/A" %>
-                </.table_cell>
-                <.table_cell>{employee.position || "N/A"}</.table_cell>
-                <.table_cell>{employee.department || "N/A"}</.table_cell>
-                <.table_cell class="text-right">
-                  <.button
-                    variant="destructive"
-                    phx-click="delete_employee"
-                    phx-value-id={employee.id}
-                  >
-                    <%= if MapSet.member?(@confirming_delete, employee.id) do %>
-                      <Lucideicons.check class="h-4 w-4" />
-                    <% else %>
-                      <Lucideicons.trash class="h-4 w-4" />
-                    <% end %>
-                  </.button>
-                </.table_cell>
-              </.table_row>
+        <.table rows={@all_rows} id="employees-table">
+          <:col :let={row} label="Photo">
+            <div class="flex items-center gap-2">
+              <%= if Map.get(row, :type) == :invitation do %>
+                <span class="text-sm text-gray-700">Pending Invite</span>
+              <% else %>
+                <img
+                  src={
+                    if row.profile,
+                      do: row.profile.avatar_url || "/images/default-avatar.svg",
+                      else: "/images/default-avatar.svg"
+                  }
+                  alt="Employee avatar"
+                  class="w-12 h-12 rounded-full bg-gray-200"
+                />
+              <% end %>
+            </div>
+          </:col>
+          <:col :let={row} label="Name" class="font-medium">
+            <%= if Map.get(row, :type) == :invitation do %>
+              {row.email}
+            <% else %>
+              <%= if row.profile do
+                "#{row.profile.first_name} #{row.profile.last_name}"
+              else
+                "Profile Deleted"
+              end %>
             <% end %>
-            <%= for invitation <- @pending_invitations do %>
-              <.table_row class="bg-black/10">
-                <.table_cell class="font-medium">
-                  <div class="flex items-center gap-2">
-                    <span class="text-sm text-gray-700">Pending Invite</span>
-                  </div>
-                </.table_cell>
-                <.table_cell>{invitation.email}</.table_cell>
-                <.table_cell>N/A</.table_cell>
-                <.table_cell>N/A</.table_cell>
-                <.table_cell>N/A</.table_cell>
-                <.table_cell class="text-right">
-                  <.button
-                    variant="destructive"
-                    phx-click="cancel_invitation"
-                    phx-value-id={invitation.id}
-                  >
-                    Cancel Invitation
-                  </.button>
-                </.table_cell>
-              </.table_row>
+          </:col>
+          <:col :let={row} label="Email">
+            <%= if Map.get(row, :type) == :invitation do %>
+              N/A
+            <% else %>
+              {row.email}
             <% end %>
-          </.table_body>
+          </:col>
+          <:col :let={row} label="Phone">
+            <%= if Map.get(row, :type) == :invitation do %>
+              N/A
+            <% else %>
+              <%= if row.profile, do: row.profile.phone || "N/A", else: "N/A" %>
+            <% end %>
+          </:col>
+          <:col :let={row} label="Position">
+            <%= if Map.get(row, :type) == :invitation do %>
+              N/A
+            <% else %>
+              {row.position || "N/A"}
+            <% end %>
+          </:col>
+          <:col :let={row} label="Department">
+            <%= if Map.get(row, :type) == :invitation do %>
+              N/A
+            <% else %>
+              {row.department || "N/A"}
+            <% end %>
+          </:col>
+          <:col :let={row} label="Actions" align="right">
+            <%= if Map.get(row, :type) == :invitation do %>
+              <.button
+                variant="destructive"
+                phx-click="cancel_invitation"
+                phx-value-id={row.id}
+              >
+                Cancel Invitation
+              </.button>
+            <% else %>
+              <.button
+                variant="destructive"
+                phx-click="delete_employee"
+                phx-value-id={row.id}
+              >
+                <%= if MapSet.member?(@confirming_delete, row.id) do %>
+                  <Lucideicons.check class="h-4 w-4" />
+                <% else %>
+                  <Lucideicons.trash class="h-4 w-4" />
+                <% end %>
+              </.button>
+            <% end %>
+          </:col>
         </.table>
         <.invite_dialog
           container_id="invite-user-container"

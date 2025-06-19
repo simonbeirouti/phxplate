@@ -2,12 +2,6 @@ defmodule PhxplateWeb.Components.DashboardLayout do
   @moduledoc false
   use PhxplateWeb, :live_component
 
-  import PhxplateWeb.Components.UI.Sidebar
-  import PhxplateWeb.Components.UI.DropdownMenu
-  import PhxplateWeb.Components.UI.Menu
-  import PhxplateWeb.Components.UI.Breadcrumb
-  import PhxplateWeb.Components.UI.DialogDrawerWrapper
-
   def render(assigns) do
     assigns =
       assigns
@@ -135,6 +129,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
   attr :data, :map, required: true
   attr :myself, :any, required: true
   attr :current_sidebar_state, :string, required: true
+  slot :inner_block
 
   def sidebar_main(assigns) do
     # Create a user-specific sidebar ID for persisting state
@@ -311,7 +306,6 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             class="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
             side="bottom"
             align="start"
-            high_z_index={true}
           >
             <.menu>
               <%= if @user.role == :basic do %>

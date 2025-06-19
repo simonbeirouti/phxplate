@@ -34,7 +34,8 @@ created_data = %{
   ai_evals: [],
   feature_requests: [],
   blog_posts: [],
-  chat_sessions: []
+  chat_sessions: [],
+  activities: []
 }
 
 # Clear existing data
@@ -142,6 +143,10 @@ created_plans =
         stripe_product_id: product.id
       })
 
+    # Track plan creation activity - we'll add this after users are created
+    # For now, store the plan data and we'll track activities later (only store ID, not struct)
+    monthly_plan_data = %{plan_id: monthly_db_plan.id, tier: plan.tier, interval: "month", stripe_price_id: monthly_price.id, stripe_product_id: product.id}
+
     # Store yearly plan in our database
     {:ok, yearly_db_plan} =
       Repo.insert(%Phxplate.Subscriptions.Plan{
@@ -158,10 +163,14 @@ created_plans =
         stripe_product_id: product.id
       })
 
+    # Track yearly plan creation activity - store data for later (only store ID, not struct)
+    yearly_plan_data = %{plan_id: yearly_db_plan.id, tier: plan.tier, interval: "year", stripe_price_id: yearly_price.id, stripe_product_id: product.id}
+
     %{
       monthly: %{stripe: monthly_price, db: monthly_db_plan},
       yearly: %{stripe: yearly_price, db: yearly_db_plan},
-      product: product
+      product: product,
+      plan_data: [monthly_plan_data, yearly_plan_data]
     }
   end)
 
@@ -205,7 +214,12 @@ all_plans = created_plans |> Enum.map(fn %{monthly: %{db: monthly}, yearly: %{db
   ]
 end) |> List.flatten()
 
-created_data = Map.put(created_data, :plans, all_plans)
+# Store plan data for later activity tracking
+plan_data_for_activities = created_plans |> Enum.flat_map(fn %{plan_data: plan_data} -> plan_data end)
+
+created_data = created_data
+|> Map.put(:plans, all_plans)
+|> Map.put(:plan_data_for_activities, plan_data_for_activities)
 
 # Create single purchase products
 single_purchase_data = [
@@ -313,6 +327,9 @@ created_single_purchase_plans = Enum.map(single_purchase_data, fn product ->
     stripe_product_id: stripe_product.id
   })
 
+  # Store single purchase plan data for later activity tracking (only store ID, not struct)
+  single_purchase_plan_data = %{plan_id: db_plan.id, product_type: "single_purchase", stripe_price_id: stripe_price.id, stripe_product_id: stripe_product.id}
+
   %{
     id: db_plan.id,
     name: db_plan.name,
@@ -325,11 +342,17 @@ created_single_purchase_plans = Enum.map(single_purchase_data, fn product ->
     features: db_plan.features,
     features_order: db_plan.features_order,
     stripe_price_id: db_plan.stripe_price_id,
-    stripe_product_id: db_plan.stripe_product_id
+    stripe_product_id: db_plan.stripe_product_id,
+    plan_data: single_purchase_plan_data
   }
 end)
 
-created_data = Map.put(created_data, :single_purchase_plans, created_single_purchase_plans)
+# Collect single purchase plan data for later activity tracking
+single_purchase_plan_data_for_activities = created_single_purchase_plans |> Enum.map(fn plan -> plan.plan_data end)
+
+created_data = created_data
+|> Map.put(:single_purchase_plans, created_single_purchase_plans)
+|> Map.update(:single_purchase_plan_data_for_activities, [], &(single_purchase_plan_data_for_activities ++ &1))
 
 # Create super admins (without subscriptions)
 created_data = Enum.reduce(1..1, created_data, fn _, acc ->
@@ -342,7 +365,8 @@ created_data = Enum.reduce(1..1, created_data, fn _, acc ->
   })
   |> Repo.insert()
 
-  Phxplate.Tracking.track_user_activity("registration", user, user)
+  # Track registration activity
+  {:ok, activity} = Phxplate.Tracking.track_user_activity("registration", user, user)
 
   # Create profile for super admin
   profile = Repo.insert!(%Profile{
@@ -364,6 +388,7 @@ created_data = Enum.reduce(1..1, created_data, fn _, acc ->
   acc
   |> Map.update!(:super_admins, &[%{id: user.id, email: user.email, role: user.role, profile: profile, onboarding_completed: user.onboarding_completed} | &1])
   |> Map.update!(:profiles, &[profile | &1])
+  |> Map.update!(:activities, &[activity | &1])
 end)
 
 # Create admins with varied subscriptions (large, medium, small)
@@ -377,7 +402,8 @@ created_data = Enum.reduce(1..3, created_data, fn index, acc ->
   })
   |> Repo.insert()
 
-  Phxplate.Tracking.track_user_activity("registration", user, user)
+  # Track registration activity
+  {:ok, registration_activity} = Phxplate.Tracking.track_user_activity("registration", user, user)
 
   # Create Stripe customer
   {:ok, stripe_customer} = Stripe.Customer.create(%{
@@ -421,17 +447,26 @@ created_data = Enum.reduce(1..3, created_data, fn index, acc ->
   })
 
   # Track subscription creation
-  Phxplate.Tracking.track_user_activity(
+  {:ok, tier_activity} = Phxplate.Tracking.track_user_activity(
     "subscription_tier_update",
     %{id: user.id},
     user,
     %{"tier" => tier}
   )
-  Phxplate.Tracking.track_user_activity(
+  {:ok, status_activity} = Phxplate.Tracking.track_user_activity(
     "subscription_status_update",
     %{id: user.id},
     user,
     %{"status" => String.to_atom(stripe_subscription.status)}
+  )
+
+  # Track subscription entity activity
+  {:ok, subscription_created_activity} = Phxplate.Tracking.track_subscription_activity(
+    "subscription_created",
+    db_subscription,
+    user,
+    %{"tier" => tier, "status" => String.to_atom(stripe_subscription.status)},
+    %{"stripe_subscription_id" => stripe_subscription.id}
   )
 
   # Create profile for admin
@@ -455,6 +490,7 @@ created_data = Enum.reduce(1..3, created_data, fn index, acc ->
   |> Map.update!(:admins, &[%{id: user.id, email: user.email, role: user.role, profile: profile, subscription: Repo.preload(db_subscription, :plan), onboarding_completed: user.onboarding_completed} | &1])
   |> Map.update!(:profiles, &[profile | &1])
   |> Map.update!(:subscriptions, &[Repo.preload(db_subscription, :plan) | &1])
+  |> Map.update!(:activities, &[registration_activity, tier_activity, status_activity, subscription_created_activity | &1])
 end)
 
 # Create basic users (some with small subscriptions, some without)
@@ -468,10 +504,11 @@ created_data = Enum.reduce(1..10, created_data, fn index, acc ->
   })
   |> Repo.insert()
 
-  Phxplate.Tracking.track_user_activity("registration", user, user)
+  # Track registration activity
+  {:ok, basic_registration_activity} = Phxplate.Tracking.track_user_activity("registration", user, user)
 
   # Only create subscriptions for some basic users
-  {db_subscription, stripe_customer_id} = if rem(index, 2) == 0 do
+  {db_subscription, stripe_customer_id, subscription_activities} = if rem(index, 2) == 0 do
     # Create subscription based on index (large, medium, small)
     plan =
       case rem(index, 3) do
@@ -531,22 +568,31 @@ created_data = Enum.reduce(1..10, created_data, fn index, acc ->
       })
 
     # Track subscription creation
-    Phxplate.Tracking.track_user_activity(
+    {:ok, basic_tier_activity} = Phxplate.Tracking.track_user_activity(
       "subscription_tier_update",
       %{id: user.id},
       user,
       %{"tier" => String.to_atom(plan.product.metadata["tier"])}
     )
-    Phxplate.Tracking.track_user_activity(
+    {:ok, basic_status_activity} = Phxplate.Tracking.track_user_activity(
       "subscription_status_update",
       %{id: user.id},
       user,
       %{"status" => String.to_atom(subscription.status)}
     )
 
-    {db_subscription, customer.id}
+    # Track subscription entity activity
+    {:ok, basic_subscription_created_activity} = Phxplate.Tracking.track_subscription_activity(
+      "subscription_created",
+      db_subscription,
+      user,
+      %{"tier" => String.to_atom(plan.product.metadata["tier"]), "status" => String.to_atom(subscription.status)},
+      %{"stripe_subscription_id" => subscription.id}
+    )
+
+    {db_subscription, customer.id, [basic_tier_activity, basic_status_activity, basic_subscription_created_activity]}
   else
-    {nil, nil}
+    {nil, nil, []}
   end
 
   # Create profile for basic user
@@ -577,6 +623,7 @@ created_data = Enum.reduce(1..10, created_data, fn index, acc ->
     onboarding_completed: user.onboarding_completed
   } | &1])
   |> Map.update!(:profiles, &[profile | &1])
+  |> Map.update!(:activities, &([basic_registration_activity] ++ subscription_activities ++ &1))
 
   if db_subscription do
     Map.update!(acc, :subscriptions, &[Repo.preload(db_subscription, :plan) | &1])
@@ -600,7 +647,8 @@ created_data = Enum.reduce(Enum.with_index(created_data.admins), created_data, f
     owner_id: admin.id
   })
 
-  Phxplate.Tracking.track_company_activity("company_creation", company, admin)
+  # Track company creation activity
+  {:ok, company_activity} = Phxplate.Tracking.track_company_activity("company_creation", company, admin)
 
   company_data = %{
     id: company.id,
@@ -678,7 +726,9 @@ created_data = Enum.reduce(Enum.with_index(created_data.admins), created_data, f
     {[employee_data | employees], acc}
   end)
 
-    Map.update!(acc, :companies, &[Map.put(company_data, :employees, employees) | &1])
+    acc
+    |> Map.update!(:companies, &[Map.put(company_data, :employees, employees) | &1])
+    |> Map.update!(:activities, &[company_activity | &1])
   else
     acc
   end
@@ -868,6 +918,106 @@ created_evals = Enum.map(eval_data, fn eval ->
 end)
 
 created_data = Map.put(created_data, :ai_evals, created_evals)
+
+# Create AI usage logs to simulate AI activity
+# Generate some AI usage logs for different users and scenarios
+users_with_ai_activity = created_data.super_admins ++ created_data.admins ++ Enum.take(created_data.basic_users, 3)
+
+ai_usage_logs = Enum.reduce(users_with_ai_activity, [], fn user, acc ->
+  # Generate 3-8 usage logs per user over the past 30 days
+  num_logs = Enum.random(3..8)
+
+  user_logs = Enum.map(1..num_logs, fn _ ->
+    # Random timestamp within last 30 days
+    days_ago = Enum.random(1..30)
+    hours_ago = Enum.random(0..23)
+    minutes_ago = Enum.random(0..59)
+
+    timestamp = DateTime.utc_now()
+    |> DateTime.add(-days_ago * 24 * 60 * 60, :second)
+    |> DateTime.add(-hours_ago * 60 * 60, :second)
+    |> DateTime.add(-minutes_ago * 60, :second)
+    |> DateTime.truncate(:second)
+
+    # Random model and action
+    models = ["Haiku 3", "Sonnet 3", "Opus 3", "Haiku 3.5", "Sonnet 3.5", "Sonnet 3.7", "Sonnet 4", "Opus 4"]
+    actions = ["chat", "stream_chat", "evaluation", "title_generation", "content_generation"]
+    statuses = ["success", "success", "success", "success", "error"]
+
+    model = Enum.random(models)
+    action = Enum.random(actions)
+    status = Enum.random(statuses)
+
+    # Generate realistic token counts and response times
+    {prompt_tokens, completion_tokens, response_time} = case status do
+      "success" ->
+        prompt_tokens = Enum.random(50..2000)
+        completion_tokens = Enum.random(100..1500)
+        response_time = Enum.random(500..5000)
+        {prompt_tokens, completion_tokens, response_time}
+      "error" ->
+        {Enum.random(50..500), 0, Enum.random(1000..3000)}
+      "timeout" ->
+        {Enum.random(100..1000), 0, 30000}
+    end
+
+    total_tokens = prompt_tokens + completion_tokens
+
+    error_message = case status do
+      "error" -> "Rate limit exceeded"
+      "timeout" -> "Request timeout"
+      _ -> nil
+    end
+
+    metadata = %{
+      "user_agent" => "PhxPlate/1.0",
+      "session_id" => "sess_#{:rand.uniform(1000)}",
+      "feature" => action
+    }
+
+    {:ok, usage_log} = Phxplate.AI.Usage.log_usage(%{
+      model: model,
+      action: action,
+      status: status,
+      prompt_tokens: prompt_tokens,
+      completion_tokens: completion_tokens,
+      total_tokens: total_tokens,
+      response_time: response_time,
+      error_message: error_message,
+      metadata: metadata,
+      user_id: user.id,
+      conversation_id: nil,
+      message_id: nil
+    })
+
+    # Update the timestamps to match our desired time
+    {:ok, updated_usage_log} = Phxplate.Repo.update(
+      Ecto.Changeset.change(usage_log, %{
+        inserted_at: timestamp,
+        updated_at: timestamp
+      })
+    )
+
+    %{
+      id: updated_usage_log.id,
+      model: updated_usage_log.model,
+      action: updated_usage_log.action,
+      status: updated_usage_log.status,
+      prompt_tokens: updated_usage_log.prompt_tokens,
+      completion_tokens: updated_usage_log.completion_tokens,
+      total_tokens: updated_usage_log.total_tokens,
+      response_time: updated_usage_log.response_time,
+      error_message: updated_usage_log.error_message,
+      metadata: updated_usage_log.metadata,
+      user_id: updated_usage_log.user_id,
+      inserted_at: updated_usage_log.inserted_at
+    }
+  end)
+
+  acc ++ user_logs
+end)
+
+created_data = Map.put(created_data, :ai_usage_logs, ai_usage_logs)
 
 # Create feature requests and feedback
 feature_request_data = [
@@ -1177,6 +1327,9 @@ created_blog_posts = Enum.map(blog_post_data, fn post_data ->
   })
   |> Repo.insert()
 
+  # Store blog post data for later activity tracking (only store the ID, not the full struct)
+  blog_data_for_activity = %{post_id: blog_post.id, published: post_data.published, author: post_data.meta["author"], tags: post_data.meta["tags"]}
+
   %{
     id: blog_post.id,
     title: blog_post.title,
@@ -1186,11 +1339,17 @@ created_blog_posts = Enum.map(blog_post_data, fn post_data ->
     published: blog_post.published,
     meta: blog_post.meta,
     inserted_at: blog_post.inserted_at,
-    updated_at: blog_post.updated_at
+    updated_at: blog_post.updated_at,
+    blog_data: blog_data_for_activity
   }
 end)
 
-created_data = Map.put(created_data, :blog_posts, created_blog_posts)
+# Collect blog post data for later activity tracking
+blog_data_for_activities = created_blog_posts |> Enum.map(fn post -> post.blog_data end)
+
+created_data = created_data
+|> Map.put(:blog_posts, created_blog_posts)
+|> Map.put(:blog_data_for_activities, blog_data_for_activities)
 
 # Create chat sessions with messages
 chat_scenarios = [
@@ -1451,7 +1610,63 @@ end)
 
 created_data = Map.put(created_data, :purchases, created_purchases)
 
-# Get all activities
+# Now that all users are created, track the activities for plans and blog posts
+# Get the first super admin to use as the creator for system activities
+first_super_admin = List.first(created_data.super_admins)
+
+if first_super_admin do
+  # Track plan creation activities
+  all_plan_data = (created_data.plan_data_for_activities || []) ++ (created_data.single_purchase_plan_data_for_activities || [])
+
+  Enum.each(all_plan_data, fn plan_data ->
+    case plan_data do
+      %{plan_id: plan_id, tier: tier, interval: interval, stripe_price_id: stripe_price_id, stripe_product_id: stripe_product_id} ->
+        # Regular subscription plan - fetch by ID
+        plan = Phxplate.Repo.get(Phxplate.Subscriptions.Plan, plan_id)
+        if plan do
+          Phxplate.Tracking.track_plan_activity(
+            "plan_created",
+            plan,
+            %{id: first_super_admin.id},
+            %{"tier" => tier, "interval" => interval},
+            %{"stripe_price_id" => stripe_price_id, "stripe_product_id" => stripe_product_id}
+          )
+        end
+      %{plan_id: plan_id, product_type: product_type, stripe_price_id: stripe_price_id, stripe_product_id: stripe_product_id} ->
+        # Single purchase plan - fetch by ID
+        plan = Phxplate.Repo.get(Phxplate.Subscriptions.Plan, plan_id)
+        if plan do
+          Phxplate.Tracking.track_plan_activity(
+            "plan_created",
+            plan,
+            %{id: first_super_admin.id},
+            %{"product_type" => product_type},
+            %{"stripe_price_id" => stripe_price_id, "stripe_product_id" => stripe_product_id}
+          )
+        end
+    end
+  end)
+
+  # Track blog post creation activities
+  Enum.each(created_data.blog_data_for_activities || [], fn blog_data ->
+    # Fetch the blog post by ID
+    blog_post = Phxplate.Repo.get(Phxplate.Blog.Post, blog_data.post_id)
+    if blog_post do
+      Phxplate.Tracking.track_blog_activity(
+        "post_created",
+        blog_post,
+        %{id: first_super_admin.id},
+        %{"published" => blog_data.published},
+        %{"author" => blog_data.author, "tags" => blog_data.tags}
+      )
+    end
+  end)
+end
+
+# Get all activities from database (this includes all the activities we've been tracking)
+all_activities = Phxplate.Repo.all(Phxplate.Tracking.Activity) |> Phxplate.Repo.preload(:actor)
+
+# Get specific activity categories for legacy compatibility
 user_activities = Enum.flat_map(created_data.basic_users ++ created_data.admins ++ created_data.super_admins, fn user ->
   Phxplate.Tracking.get_user_activities(user.id, 100)
 end)
@@ -1460,9 +1675,31 @@ company_activities = Enum.flat_map(created_data.companies, fn company ->
   Phxplate.Tracking.get_company_activities(company.id, 100)
 end)
 
+# Remove temporary data and activities from created_data since we handle it separately
+created_data_clean = created_data
+|> Map.delete(:activities)
+|> Map.delete(:plan_data_for_activities)
+|> Map.delete(:single_purchase_plan_data_for_activities)
+|> Map.delete(:blog_data_for_activities)
+
 # Combine seed data with activities
-full_data = Map.merge(created_data, %{
+full_data = Map.merge(created_data_clean, %{
   activities: %{
+    # All activities from database (includes our seeded ones)
+    all: Enum.map(all_activities, fn activity ->
+      %{
+        id: activity.id,
+        action: activity.action,
+        entity_type: activity.entity_type,
+        entity_id: activity.entity_id,
+        changes: activity.changes,
+        metadata: activity.metadata,
+        actor: if(activity.actor, do: %{id: activity.actor.id, email: activity.actor.email}),
+        company_id: activity.company_id,
+        inserted_at: activity.inserted_at
+      }
+    end),
+    # Legacy format for backward compatibility
     users: Enum.map(user_activities, fn activity ->
       %{
         id: activity.id,
@@ -1494,21 +1731,23 @@ File.write!("priv/repo/seeds.json", Jason.encode!(full_data, pretty: true))
 # Print summary
 IO.puts("🌱 Seed data created successfully!")
 IO.puts("📊 Summary:")
-IO.puts("  - Super Admins: #{length(created_data.super_admins)}")
-IO.puts("  - Admins: #{length(created_data.admins)}")
-IO.puts("  - Basic Users: #{length(created_data.basic_users)}")
-IO.puts("  - Companies: #{length(created_data.companies)}")
-IO.puts("  - Subscription Plans: #{length(created_data.plans)}")
-IO.puts("  - Single Purchase Products: #{length(created_data.single_purchase_plans)}")
-IO.puts("  - Subscriptions: #{length(created_data.subscriptions)}")
-IO.puts("  - Purchases: #{length(created_data.purchases)}")
-IO.puts("  - Feature Requests: #{length(created_data.feature_requests)}")
-IO.puts("  - Blog Posts: #{length(created_data.blog_posts)}")
-IO.puts("  - Chat Sessions: #{length(created_data.chat_sessions)}")
-IO.puts("  - AI Prompts: #{length(created_data.ai_prompts)}")
-IO.puts("  - AI Evals: #{length(created_data.ai_evals)}")
+IO.puts("  - Super Admins: #{length(created_data_clean.super_admins)}")
+IO.puts("  - Admins: #{length(created_data_clean.admins)}")
+IO.puts("  - Basic Users: #{length(created_data_clean.basic_users)}")
+IO.puts("  - Companies: #{length(created_data_clean.companies)}")
+IO.puts("  - Subscription Plans: #{length(created_data_clean.plans)}")
+IO.puts("  - Single Purchase Products: #{length(created_data_clean.single_purchase_plans)}")
+IO.puts("  - Subscriptions: #{length(created_data_clean.subscriptions)}")
+IO.puts("  - Purchases: #{length(created_data_clean.purchases)}")
+IO.puts("  - Feature Requests: #{length(created_data_clean.feature_requests)}")
+IO.puts("  - Blog Posts: #{length(created_data_clean.blog_posts)}")
+IO.puts("  - Chat Sessions: #{length(created_data_clean.chat_sessions)}")
+IO.puts("  - AI Prompts: #{length(created_data_clean.ai_prompts)}")
+IO.puts("  - AI Evals: #{length(created_data_clean.ai_evals)}")
+IO.puts("  - AI Usage Logs: #{length(created_data_clean.ai_usage_logs)}")
+IO.puts("  - Activities: #{length(full_data.activities.all)}")
 IO.puts("📝 Seed data written to priv/repo/seeds.json")
 
-IO.puts("🔑 Super Admin Credentials: #{List.first(created_data.super_admins).email}")
-IO.puts("🔑 Basic User Credentials: #{List.first(created_data.basic_users).email}")
-IO.puts("🔑 Admin User Credentials: #{List.first(created_data.admins).email}")
+IO.puts("🔑 Super Admin Credentials: #{List.first(created_data_clean.super_admins).email}")
+IO.puts("🔑 Basic User Credentials: #{List.first(created_data_clean.basic_users).email}")
+IO.puts("🔑 Admin User Credentials: #{List.first(created_data_clean.admins).email}")

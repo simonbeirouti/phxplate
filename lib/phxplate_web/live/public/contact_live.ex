@@ -28,8 +28,8 @@ defmodule PhxplateWeb.ContactLive do
             <.input class="text-base" field={@form[:email]} type="email" label="Email" value={@current_user_email} placeholder="your@email.com" required />
           </div>
 
-          <.input class="text-base" field={@form[:subject]} type="text" label="Subject" placeholder="What is this regarding?" required />
-          <.input class="text-base" field={@form[:message]} type="textarea" label="Message" placeholder="How can we help you?" required rows={6} />
+          <.input class="text-base" field={@form[:subject]} label="Subject" placeholder="What is this regarding?" required />
+          <.textarea class="text-base" field={@form[:message]} label="Message" placeholder="How can we help you?" required />
 
           <input type="hidden" name="user_id" value={@current_user_id} />
         </div>
