@@ -30,6 +30,11 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
       DataSync.subscribe("subscriptions", "all")
       DataSync.subscribe("profiles", "all")
       DataSync.subscribe("feature_requests", "all")
+
+      # Subscribe to AI-related events for realtime statistics
+      Phoenix.PubSub.subscribe(Phxplate.PubSub, "ai_usage")
+      Phoenix.PubSub.subscribe(Phxplate.PubSub, "ai_evals")
+      Phoenix.PubSub.subscribe(Phxplate.PubSub, "eval_runs")
     end
 
     stats = %{
@@ -184,6 +189,45 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
      end)}
   end
 
+  # Handle AI-related events for realtime statistics updates
+  def handle_info({:usage_logged, _usage_log}, socket) do
+    # AI usage was logged - no direct counter impact but could trigger timeline updates
+    {:noreply, socket}
+  end
+
+  def handle_info({:eval_created, _eval}, socket) do
+    {:noreply,
+     update(socket, :stats, fn stats ->
+       %{stats | total_evaluations: stats.total_evaluations + 1}
+     end)}
+  end
+
+  def handle_info({:eval_updated, _eval}, socket) do
+    # No counter changes for updates
+    {:noreply, socket}
+  end
+
+  def handle_info({:eval_deleted, _eval}, socket) do
+    {:noreply,
+     update(socket, :stats, fn stats ->
+       %{stats | total_evaluations: stats.total_evaluations - 1}
+     end)}
+  end
+
+  def handle_info({:eval_run_updated, _eval_run}, socket) do
+    # Recalculate eval run counts by status for accurate stats
+    {:noreply,
+     update(socket, :stats, fn stats ->
+       %{
+         stats
+         | pending_eval_runs: AI.count_eval_runs(status: "pending"),
+           running_eval_runs: AI.count_eval_runs(status: "running"),
+           completed_eval_runs: AI.count_eval_runs(status: "completed"),
+           failed_eval_runs: AI.count_eval_runs(status: "failed")
+       }
+     end)}
+  end
+
   # Catch-all for any other events
   def handle_info(_message, socket), do: {:noreply, socket}
 
@@ -334,6 +378,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
             value: stats.total_eval_runs,
             icon: "chart_bar",
             link: ~p"/dashboard/super_admin/ai-results"
+          },
+          %{
+            title: "AI Usage Timeline",
+            value: "View",
+            icon: "clock",
+            link: ~p"/dashboard/super_admin/ai-timeline"
           }
         ]
       },

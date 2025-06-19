@@ -15,6 +15,11 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
 
   @impl true
   def mount(_params, _session, socket) do
+    # Subscribe to eval updates for realtime functionality
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(Phxplate.PubSub, "ai_evals")
+    end
+
     {:ok,
      socket
      |> assign(:show_drawer, false)
@@ -383,6 +388,31 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
       end)
 
     {:noreply, assign(socket, :test_cases, updated_test_cases)}
+  end
+
+  # Handle realtime updates from PubSub
+  @impl true
+  def handle_info({:eval_created, _eval}, socket) do
+    # Reload evals when a new eval is created
+    {:noreply, load_evals(socket)}
+  end
+
+  @impl true
+  def handle_info({:eval_updated, _eval}, socket) do
+    # Reload evals when an eval is updated
+    {:noreply, load_evals(socket)}
+  end
+
+  @impl true
+  def handle_info({:eval_deleted, _eval}, socket) do
+    # Reload evals when an eval is deleted
+    {:noreply, load_evals(socket)}
+  end
+
+  # Ignore other messages
+  @impl true
+  def handle_info(_msg, socket) do
+    {:noreply, socket}
   end
 
   defp load_evals(socket) do

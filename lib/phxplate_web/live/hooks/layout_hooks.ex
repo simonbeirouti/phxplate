@@ -242,6 +242,10 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
           %{
             title: "AI Results",
             url: "/dashboard/super_admin/ai-results"
+          },
+          %{
+            title: "AI Timeline",
+            url: "/dashboard/super_admin/ai-timeline"
           }
         ]
       }

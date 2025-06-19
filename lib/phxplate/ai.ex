@@ -5,7 +5,7 @@ defmodule Phxplate.AI do
 
   import Ecto.Query
   alias Phxplate.Repo
-  alias Phxplate.AI.{Conversation, Message, Prompt, Eval, EvalRun, Models}
+  alias Phxplate.AI.{Conversation, Message, Prompt, Eval, EvalRun, Models, Usage}
 
   @default_system_prompt """
   You are a helpful AI assistant integrated into a Phoenix application.
@@ -335,11 +335,32 @@ defmodule Phxplate.AI do
                                        anthropix_messages ++ [%{role: "user", content: user_message}],
                                        opts)
 
+        # Track start time for usage monitoring
+        start_time = System.monotonic_time(:millisecond)
+
         # Stream AI response using the specified model
         case Anthropix.chat(client(), chat_params) do
           {:ok, stream} ->
-            {:ok, stream, conversation, model_api_id, opts}
+            # Include tracking context in the options for complete_streaming_conversation
+            tracking_opts = Map.merge(opts, %{
+              start_time: start_time,
+              user_id: user_id,
+              conversation_id: conversation_id,
+              action: "stream_chat_conversation"
+            })
+            {:ok, stream, conversation, model_api_id, tracking_opts}
           {:error, reason} ->
+            # Track failed streaming request
+            track_chat_completion(
+              model_api_id,
+              "stream_chat_conversation",
+              user_id,
+              conversation_id,
+              nil,
+              start_time,
+              {:error, reason},
+              opts
+            )
             {:error, reason}
         end
     end
@@ -362,22 +383,47 @@ defmodule Phxplate.AI do
 
         # Use the conversation's model
         model = conversation.model || Models.default_model_api_id()
+        start_time = System.monotonic_time(:millisecond)
 
-                 # Get AI response using the conversation's model
-         case Anthropix.chat(client(),
-               model: model,
-               max_tokens: 4000,
-               system: conversation.system_prompt,
-               messages: anthropix_messages ++ [%{role: "user", content: user_message}]
-             ) do
+        # Get AI response using the conversation's model
+        result = Anthropix.chat(client(),
+          model: model,
+          max_tokens: 4000,
+          system: conversation.system_prompt,
+          messages: anthropix_messages ++ [%{role: "user", content: user_message}]
+        )
+
+        case result do
           {:ok, %{content: [%{text: ai_response}]}} ->
             # Save AI response
-            case add_message(conversation_id, "assistant", ai_response) do
-              {:ok, _ai_msg} -> {:ok, ai_response, conversation}
+            case add_message(conversation_id, "assistant", ai_response, model) do
+              {:ok, ai_msg} ->
+                # Track usage
+                track_chat_completion(
+                  model,
+                  "chat_conversation",
+                  user_id,
+                  conversation_id,
+                  ai_msg.id,
+                  start_time,
+                  result
+                )
+                {:ok, ai_response, conversation}
               error -> error
             end
 
-          error -> error
+          error ->
+            # Track failed usage
+            track_chat_completion(
+              model,
+              "chat_conversation",
+              user_id,
+              conversation_id,
+              nil,
+              start_time,
+              error
+            )
+            error
         end
     end
   end
@@ -401,6 +447,23 @@ defmodule Phxplate.AI do
     metadata = Map.take(opts, [:max_tokens, :temperature, :top_k, :top_p])
 
     {:ok, ai_message} = add_message(conversation_id, :assistant, ai_response, model_api_id, metadata, message_params)
+
+    # Track usage if we have tracking context from streaming
+    if opts[:start_time] && opts[:user_id] && opts[:action] do
+      # Create a mock successful response for tracking
+      mock_response = {:ok, %{content: [%{text: ai_response}]}}
+
+      track_chat_completion(
+        model_api_id,
+        opts[:action],
+        opts[:user_id],
+        conversation_id,
+        ai_message.id,
+        opts[:start_time],
+        mock_response,
+        opts
+      )
+    end
 
     # Update conversation timestamp (truncate to seconds for Ecto compatibility)
     conversation = Repo.get!(Conversation, conversation_id)
@@ -450,14 +513,31 @@ defmodule Phxplate.AI do
   Send a single message to the AI and get a response (non-streaming).
   This is used for evaluations and other non-interactive use cases.
   """
-  def chat(message, system_prompt \\ @default_system_prompt, model \\ nil) do
+  def chat(message, system_prompt \\ @default_system_prompt, model \\ nil, opts \\ %{}) do
     model_api_id = if model, do: model, else: Models.default_model_api_id()
+    start_time = System.monotonic_time(:millisecond)
 
-    case Anthropix.chat(client(),
+    result = Anthropix.chat(client(),
       model: model_api_id,
       system: system_prompt,
       messages: [%{role: "user", content: message}]
-    ) do
+    )
+
+    # Track usage if user_id is provided
+    if opts[:user_id] do
+      track_chat_completion(
+        model_api_id,
+        "chat",
+        opts[:user_id],
+        opts[:conversation_id],
+        opts[:message_id],
+        start_time,
+        result,
+        opts
+      )
+    end
+
+    case result do
       {:ok, %{content: [%{text: text}]}} -> {:ok, text}
       {:ok, %{"content" => [%{"text" => text}]}} -> {:ok, text}
       {:error, error} -> {:error, error}
@@ -470,6 +550,7 @@ defmodule Phxplate.AI do
   """
   def chat_with_params(message, system_prompt \\ @default_system_prompt, model \\ nil, advanced_params \\ %{}) do
     model_api_id = if model, do: model, else: Models.default_model_api_id()
+    start_time = System.monotonic_time(:millisecond)
 
     base_params = [
       model: model_api_id,
@@ -484,7 +565,24 @@ defmodule Phxplate.AI do
     |> maybe_add_param_to_keyword(:top_k, advanced_params[:top_k], advanced_params[:top_k_active])
     |> maybe_add_param_to_keyword(:top_p, advanced_params[:top_p], advanced_params[:top_p_active])
 
-    case Anthropix.chat(client(), params) do
+    result = Anthropix.chat(client(), params)
+
+    # Track usage if user_id or eval_run_id is provided
+    if advanced_params[:user_id] or advanced_params[:eval_run_id] do
+      action = if advanced_params[:eval_run_id], do: "evaluation", else: "chat_with_params"
+      track_chat_completion(
+        model_api_id,
+        action,
+        advanced_params[:user_id],
+        advanced_params[:conversation_id],
+        advanced_params[:message_id],
+        start_time,
+        result,
+        advanced_params
+      )
+    end
+
+    case result do
       {:ok, %{content: [%{text: text}]}} -> {:ok, text}
       {:ok, %{"content" => [%{"text" => text}]}} -> {:ok, text}
       {:error, error} -> {:error, error}
@@ -784,9 +882,21 @@ defmodule Phxplate.AI do
   Create a new AI evaluation.
   """
   def create_eval(attrs) do
-    %Eval{}
-    |> Eval.changeset(attrs)
-    |> Repo.insert()
+    case %Eval{}
+         |> Eval.changeset(attrs)
+         |> Repo.insert() do
+      {:ok, eval} ->
+        # Broadcast to PubSub for realtime updates
+        Phoenix.PubSub.broadcast(
+          Phxplate.PubSub,
+          "ai_evals",
+          {:eval_created, eval}
+        )
+        {:ok, eval}
+
+      error ->
+        error
+    end
   end
 
   @doc """
@@ -897,16 +1007,40 @@ defmodule Phxplate.AI do
   Update an evaluation.
   """
   def update_eval(eval, attrs) do
-    eval
-    |> Eval.changeset(attrs)
-    |> Repo.update()
+    case eval
+         |> Eval.changeset(attrs)
+         |> Repo.update() do
+      {:ok, updated_eval} ->
+        # Broadcast to PubSub for realtime updates
+        Phoenix.PubSub.broadcast(
+          Phxplate.PubSub,
+          "ai_evals",
+          {:eval_updated, updated_eval}
+        )
+        {:ok, updated_eval}
+
+      error ->
+        error
+    end
   end
 
   @doc """
   Delete an evaluation.
   """
   def delete_eval(eval) do
-    Repo.delete(eval)
+    case Repo.delete(eval) do
+      {:ok, deleted_eval} ->
+        # Broadcast to PubSub for realtime updates
+        Phoenix.PubSub.broadcast(
+          Phxplate.PubSub,
+          "ai_evals",
+          {:eval_deleted, deleted_eval}
+        )
+        {:ok, deleted_eval}
+
+      error ->
+        error
+    end
   end
 
   # ============================================================================
@@ -1087,6 +1221,158 @@ defmodule Phxplate.AI do
       nil -> {:error, :eval_not_found}
       eval -> {:ok, eval}
     end
+  end
+
+  # ============================================================================
+  # Usage Tracking Functions
+  # ============================================================================
+
+  @doc """
+  Logs AI usage with tracking information.
+  """
+  def log_usage(attrs) do
+    Usage.log_usage(attrs)
+  end
+
+  @doc """
+  Tracks a chat completion with performance metrics.
+  """
+  def track_chat_completion(model, action, user_id, conversation_id, message_id, start_time, result, opts \\ %{}) do
+    end_time = System.monotonic_time(:millisecond)
+    response_time = end_time - start_time
+
+    {status, error_message, tokens} = case result do
+      {:ok, response} ->
+        # Extract token usage from response if available
+        tokens = extract_token_usage(response)
+        {"success", nil, tokens}
+
+      {:error, error} ->
+        {"error", format_error_message(error), %{}}
+    end
+
+    # Ensure we store the display name instead of API ID for consistency
+    model_display_name = Models.get_display_name(model)
+
+    attrs = %{
+      model: model_display_name,
+      action: action,
+      status: status,
+      user_id: user_id,
+      conversation_id: conversation_id,
+      message_id: message_id,
+      response_time: response_time,
+      error_message: error_message,
+      prompt_tokens: tokens[:prompt_tokens],
+      completion_tokens: tokens[:completion_tokens],
+      total_tokens: tokens[:total_tokens],
+      metadata: Map.merge(opts, %{
+        advanced_params: extract_advanced_params(opts)
+      })
+    }
+
+    log_usage(attrs)
+  end
+
+  @doc """
+  Gets usage statistics for all models.
+  """
+  def get_usage_stats(opts \\ []) do
+    Usage.get_all_models_stats(opts)
+  end
+
+  @doc """
+  Gets usage statistics for a specific model.
+  """
+  def get_model_usage_stats(model, opts \\ []) do
+    Usage.get_model_stats(model, opts)
+  end
+
+  @doc """
+  Gets usage timeline data for visualization.
+  """
+  def get_usage_timeline(opts \\ []) do
+    Usage.get_usage_timeline(opts)
+  end
+
+  @doc """
+  Gets recent error logs for debugging.
+  """
+  def get_recent_errors(limit \\ 50) do
+    Usage.get_recent_errors(limit)
+  end
+
+  @doc """
+  Gets paginated and filtered error logs for debugging.
+
+  ## Options
+    * `:page` - Page number (default: 1)
+    * `:per_page` - Items per page (default: 20)
+    * `:model` - Filter by model (default: nil for all models)
+    * `:status` - Filter by status (default: "error", can be "error", "timeout", or "all" for all statuses)
+    * `:days` - Filter by time range in days (default: 30)
+
+  ## Returns
+    Map with keys: :errors, :page, :per_page, :total_count, :total_pages
+  """
+  def get_errors_paginated(opts \\ []) do
+    Usage.get_errors_paginated(opts)
+  end
+
+  @doc """
+  Gets usage statistics for all models with optional filtering.
+
+  ## Options
+    * `:days` - Filter by time range in days (default: 30)
+    * `:status` - Filter by status (default: "all", can be "success", "error", "timeout", or "all")
+    * `:model` - Filter by specific model (default: nil for all models)
+  """
+  def get_usage_stats_filtered(opts \\ []) do
+    Usage.get_all_models_stats_filtered(opts)
+  end
+
+  @doc """
+  Gets user-specific usage statistics.
+  """
+  def get_user_usage_stats(user_id, opts \\ []) do
+    Usage.get_user_stats(user_id, opts)
+  end
+
+  # Private helper functions for usage tracking
+
+  defp extract_token_usage(response) do
+    case response do
+      %{usage: %{input_tokens: prompt, output_tokens: completion}} ->
+        %{
+          prompt_tokens: prompt,
+          completion_tokens: completion,
+          total_tokens: prompt + completion
+        }
+      %{"usage" => %{"input_tokens" => prompt, "output_tokens" => completion}} ->
+        %{
+          prompt_tokens: prompt,
+          completion_tokens: completion,
+          total_tokens: prompt + completion
+        }
+      _ ->
+        %{prompt_tokens: nil, completion_tokens: nil, total_tokens: nil}
+    end
+  end
+
+  defp format_error_message(error) do
+    case error do
+      %{message: message} -> message
+      %{"message" => message} -> message
+      binary when is_binary(binary) -> binary
+      _ -> inspect(error)
+    end
+  end
+
+  defp extract_advanced_params(opts) do
+    opts
+    |> Map.take([:max_tokens, :temperature, :top_k, :top_p, :max_tokens_active, :temperature_active, :top_k_active, :top_p_active])
+    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+    |> Enum.into(%{})
   end
 
 end

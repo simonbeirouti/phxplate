@@ -202,7 +202,10 @@ defmodule Phxplate.Evaluations do
       top_k: if(eval_run.top_k_active, do: eval_run.top_k, else: nil),
       top_k_active: eval_run.top_k_active,
       top_p: if(eval_run.top_p_active, do: eval_run.top_p, else: nil),
-      top_p_active: eval_run.top_p_active
+      top_p_active: eval_run.top_p_active,
+      # Add tracking parameters for usage logging
+      user_id: eval_run.run_by,
+      eval_run_id: eval_run.id
     }
 
     # Get the AI's response to the test input with timeout handling
@@ -224,7 +227,7 @@ defmodule Phxplate.Evaluations do
 
         # Use judge model to evaluate the response with timeout handling
         judge_result = try do
-          task = Task.async(fn -> judge_response(test_input, model_response, expected_output, eval.evaluation_criteria) end)
+          task = Task.async(fn -> judge_response(test_input, model_response, expected_output, eval.evaluation_criteria, eval_run) end)
           case Task.yield(task, 45_000) || Task.shutdown(task) do  # 45 second timeout for judge
             {:ok, result} -> result
             nil -> {:error, :judge_timeout}
@@ -277,7 +280,7 @@ defmodule Phxplate.Evaluations do
     end
   end
 
-  defp judge_response(user_prompt, model_response, expected_output, evaluation_criteria) do
+  defp judge_response(user_prompt, model_response, expected_output, evaluation_criteria, eval_run) do
     judge_prompt = build_judge_prompt(user_prompt, model_response, expected_output, evaluation_criteria)
 
     # Add detailed logging to debug judge model issues
@@ -285,7 +288,12 @@ defmodule Phxplate.Evaluations do
     IO.puts("📝 Judge prompt length: #{String.length(judge_prompt)} characters")
 
     # Fix: Pass empty string instead of nil for system prompt
-    case AI.chat(judge_prompt, "", Models.judge_model_api_id()) do
+    # Add tracking for judge evaluations using eval_run context
+    case AI.chat(judge_prompt, "", Models.judge_model_api_id(), %{
+      action: "judge_evaluation",
+      user_id: eval_run.run_by,
+      eval_run_id: eval_run.id
+    }) do
       {:ok, response} ->
         IO.puts("✅ Judge model responded successfully")
         IO.puts("📄 Raw judge response: #{String.slice(response, 0, 200)}...")
