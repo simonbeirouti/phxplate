@@ -167,7 +167,7 @@ defmodule PhxplateWeb.Components.UI.Sidebar do
       >
         <div
           data-sidebar="sidebar"
-          class="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow"
+          class="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow group-data-[collapsible=icon]:overflow-visible"
         >
           {render_slot(@inner_block)}
         </div>
@@ -384,9 +384,10 @@ defmodule PhxplateWeb.Components.UI.Sidebar do
         classes([
           "salad-scroll-area",
           "flex min-h-0 flex-1 flex-col gap-2 overflow-auto",
-          # "flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
-          # Auto-hide overflow on smaller screens
-          "max-lg:overflow-hidden",
+          # Allow overflow when collapsed to icon mode so dropdowns can show
+          "group-data-[collapsible=icon]:overflow-visible",
+          # Auto-hide overflow on smaller screens, but allow visible when collapsed
+          "max-lg:group-data-[collapsible=icon]:overflow-visible max-lg:overflow-hidden",
           @class
         ])
       }
@@ -402,7 +403,7 @@ defmodule PhxplateWeb.Components.UI.Sidebar do
   """
   attr(:class, :string, default: nil)
   attr(:rest, :global)
-  slot(:inner_block, required: true)
+  slot :inner_block, required: true
 
   def sidebar_group(assigns) do
     ~H"""
@@ -541,7 +542,7 @@ defmodule PhxplateWeb.Components.UI.Sidebar do
       data-sidebar="menu-item"
       class={
         classes([
-          "group/menu-item relative",
+          "group/menu-item relative group-data-[collapsible=icon]:overflow-visible",
           @class
         ])
       }

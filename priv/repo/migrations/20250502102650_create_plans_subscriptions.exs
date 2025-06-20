@@ -38,6 +38,7 @@ defmodule Phxplate.Repo.Migrations.CreateSubscriptions do
       add :subscription_period_end, :utc_datetime
       add :user_id, references(:users, on_delete: :delete_all), null: false
       add :plan_id, references(:plans, on_delete: :restrict)
+      add :metadata, :map, default: %{}
 
       timestamps()
     end

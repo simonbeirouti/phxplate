@@ -240,12 +240,12 @@ defmodule PhxplateWeb.Live.Hooks.LayoutHooks do
             url: "/dashboard/super_admin/ai-evals"
           },
           %{
-            title: "AI Results",
-            url: "/dashboard/super_admin/ai-results"
+            title: "AI Eval Results",
+            url: "/dashboard/super_admin/ai-eval-results"
           },
           %{
-            title: "AI Timeline",
-            url: "/dashboard/super_admin/ai-timeline"
+            title: "AI Results",
+            url: "/dashboard/super_admin/ai-results"
           }
         ]
       }

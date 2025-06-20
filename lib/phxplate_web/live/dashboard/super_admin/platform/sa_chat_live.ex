@@ -36,12 +36,22 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
        support_status: current_status,
        session_activities: []
      )
+     |> assign(:page_title, "Support Chat")
      |> PageMeta.assign_metadata(
        title: "Chat Management",
        description: "Manage customer support chat sessions",
        url: "/dashboard/super_admin/chat"
      )
      |> load_sessions(1)}
+  end
+
+  @impl true
+  def handle_params(_params, url, socket) do
+    # Update current path for breadcrumbs
+    uri = URI.parse(url)
+    socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
+
+    {:noreply, socket}
   end
 
   defp load_sessions(socket, page) do

@@ -11,12 +11,14 @@ defmodule Phxplate.Repo.Migrations.CreateUsersAuthTables do
       add :confirmed_at, :utc_datetime
       add :onboarding_completed, :boolean, default: false, null: false
       add :role, :user_role, null: false, default: "basic"
+      add :sidebar_state, :string, default: "expanded", null: false
 
       timestamps(type: :utc_datetime)
     end
 
     create unique_index(:users, [:email])
     create index(:users, [:role])
+    create index(:users, [:sidebar_state])
 
     create table(:users_tokens) do
       add :user_id, references(:users, on_delete: :delete_all), null: false

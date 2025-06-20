@@ -29,6 +29,15 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.FeedbackRequestsLive do
     {:ok, load_requests(socket, 1)}
   end
 
+  @impl true
+  def handle_params(_params, url, socket) do
+    # Update current path for breadcrumbs
+    uri = URI.parse(url)
+    socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
+
+    {:noreply, socket}
+  end
+
   defp load_requests(socket, page) do
     per_page = 10
     request_type = socket.assigns[:request_type] || "All"
@@ -58,6 +67,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.FeedbackRequestsLive do
     |> assign(:total_pages, total_pages)
     |> assign(:per_page, per_page)
     |> assign(:total_requests, total_requests)
+    |> assign(:page_title, "Feature & Feedback Requests")
     |> PageMeta.assign_metadata(
       title: "Feature & Feedback Requests",
       description: "Manage feature and feedback requests",

@@ -53,7 +53,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
     activities = Phxplate.Tracking.get_user_activities(user.id, 20)
 
     # Get initial tab titles
-    %{title: initial_title, subtitle: initial_subtitle} = get_tab_titles("profile")
+    %{subtitle: initial_subtitle} = get_tab_titles("profile")
 
     # Get the existing profile or create a new one
     profile = user.profile || %Accounts.Profile{user_id: user.id}
@@ -65,10 +65,11 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
     socket =
       socket
       |> PageMeta.assign_metadata(
-        title: initial_title,
-        description: initial_subtitle,
+        title: "User Account",
+        description: "Manage your user profile, billing, settings and account activity",
         url: "/dashboard/account"
-      )
+        )
+      |> assign(:page_title, "User Account")
       |> assign(:user, user)
       |> assign(:activities, activities)
       |> assign(:page_subtitle, initial_subtitle)
@@ -85,7 +86,7 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
   @doc """
   Handles URL parameters to determine the active tab.
 
-  Updates the page metadata and subtitle based on the selected tab.
+  Updates the header subtitle based on the selected tab.
   """
   @impl true
   def handle_params(%{"token" => token}, _url, socket) do
@@ -104,7 +105,11 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
     end
   end
 
-  def handle_params(params, _url, socket) do
+  def handle_params(params, url, socket) do
+    # Update current path for breadcrumbs
+    uri = URI.parse(url)
+    socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
+
     # Get the tab from params or default to "profile"
     tab = Map.get(params, "tab", "profile")
 
@@ -112,11 +117,10 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
     tab =
       if tab in ["profile", "subscription", "settings", "activities"], do: tab, else: "profile"
 
-    %{title: title, subtitle: subtitle} = get_tab_titles(tab)
+    %{subtitle: subtitle} = get_tab_titles(tab)
 
     {:noreply,
      socket
-     |> PageMeta.assign_metadata(title: title, description: subtitle)
      |> assign(:page_subtitle, subtitle)
      |> assign(:selected_tab, tab)}
   end
@@ -128,11 +132,10 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
 
   @impl true
   def handle_event("tab_changed", %{"tab" => tab}, socket) do
-    %{title: title, subtitle: subtitle} = get_tab_titles(tab)
+    %{subtitle: subtitle} = get_tab_titles(tab)
 
     {:noreply,
      socket
-     |> PageMeta.assign_metadata(title: title, description: subtitle)
      |> assign(:page_subtitle, subtitle)
      |> assign(:selected_tab, tab)
      |> push_patch(to: ~p"/dashboard/account?tab=#{tab}", replace: true)}

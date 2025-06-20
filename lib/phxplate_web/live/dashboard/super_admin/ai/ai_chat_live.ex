@@ -51,6 +51,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
      |> assign(:top_p, 0.9)
      |> assign(:top_p_active, false)
      |> assign(:is_new_conversation, false)
+     |> assign(:page_title, "AI Chat")
      |> PageMeta.assign_metadata(
        title: "AI Chat",
        description: "Chat with AI and manage conversations",

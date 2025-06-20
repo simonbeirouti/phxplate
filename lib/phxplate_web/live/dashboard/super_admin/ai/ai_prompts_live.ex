@@ -26,6 +26,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiPromptsLive do
      |> assign(:total_count, 0)
      |> assign(:screen_mode, "dialog")
      |> assign(:delete_prompt_id, nil)
+     |> assign(:page_title, "AI Prompts")
      |> load_prompts()
      |> PageMeta.assign_metadata(
        title: "AI Prompts",

@@ -1,4 +1,4 @@
-defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
+defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalResultsLive do
   @moduledoc """
   LiveView for viewing AI evaluation results.
 
@@ -42,11 +42,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
      |> assign(:available_prompts, load_available_prompts())
      |> assign(:filter_reset_key, 0)
      |> assign(:queue_status, get_queue_status())
+     |> assign(:page_title, "AI Results")
      |> load_eval_runs()
      |> PageMeta.assign_metadata(
-       title: "AI Results",
+       title: "AI Eval Results",
        description: "View AI evaluation results",
-       url: "/dashboard/super_admin/ai-results"
+       url: "/dashboard/super_admin/ai-eval-results"
      )}
   end
 
@@ -510,7 +511,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]" phx-hook="TimezoneDetector" id="timezone-detector">
       <.header>
-        AI Results
+        AI Eval Results
         <:subtitle>View and analyze AI evaluation results</:subtitle>
       </.header>
 

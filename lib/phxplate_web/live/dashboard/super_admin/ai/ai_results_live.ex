@@ -1,4 +1,4 @@
-defmodule PhxplateWeb.Dashboard.SuperAdmin.AiTimelineLive do
+defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
   @moduledoc """
   LiveView for viewing AI usage timeline and statistics.
 
@@ -52,11 +52,12 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiTimelineLive do
      |> assign(:status_options, @status_options)
      |> assign(:errors_result, %{errors: [], total_count: 0, total_pages: 1, page: 1, per_page: 10})
      |> assign(:screen_mode, "dialog")
+     |> assign(:page_title, "AI Results")
      |> load_usage_data()
      |> PageMeta.assign_metadata(
-       title: "AI Timeline & Usage",
+       title: "AI Results",
        description: "View AI model usage statistics and timeline",
-       url: "/dashboard/super_admin/ai-timeline"
+       url: "/dashboard/super_admin/ai-results"
      )}
   end
 
@@ -213,8 +214,8 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiTimelineLive do
     ~H"""
     <div class="flex-1 h-[calc(100vh-100px)]">
       <.header>
-        AI Timeline & Usage
-        <:subtitle>Monitor AI model usage, performance, and error tracking</:subtitle>
+        AI Results
+        <:subtitle>View AI model usage statistics and timeline</:subtitle>
         <:actions>
           <.button variant="outline" size="lg" phx-click="reset_filters" class="w-auto">
             <Lucideicons.refresh_ccw class="w-4 h-4 md:mr-2" />
