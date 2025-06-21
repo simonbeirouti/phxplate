@@ -80,6 +80,16 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
             # Load advanced parameters from conversation
             socket = load_advanced_params_from_conversation(socket, conversation)
 
+            # Get the last used model from the conversation messages
+            last_used_model = get_last_used_model_from_messages(conversation.messages)
+
+            # Set the selected model to the last used model if available
+            socket = if last_used_model do
+              assign(socket, :selected_model, last_used_model)
+            else
+              socket
+            end
+
             {:noreply,
              socket
              |> assign(:current_conversation, conversation)
@@ -128,7 +138,19 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
 
   @impl true
   def handle_event("select_model", %{"model" => short_name}, socket) do
-    # Just update the selected model for future messages
+    # Get the API ID for the selected model
+    api_id = Models.get_api_id(short_name)
+
+    # If switching to an OpenAI model and top_k is currently active, disable it
+    socket = if top_k_disabled_for_model?(api_id) && socket.assigns.top_k_active do
+      socket
+      |> assign(:top_k_active, false)
+      |> put_flash(:info, "Top K parameter disabled - not supported by OpenAI models. Use Temperature or Top P instead.")
+    else
+      socket
+    end
+
+    # Update the selected model for future messages
     {:noreply, assign(socket, :selected_model, short_name)}
   end
 
@@ -207,6 +229,16 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     top_k = String.to_integer(params["top_k"] || "5")
     top_k_active = params["top_k_active"] == "true"
     top_p_active = params["top_p_active"] == "true"
+
+    # Get the API ID for the current selected model to check provider
+    selected_model_api_id = Models.get_api_id(socket.assigns.selected_model)
+
+    # Prevent enabling top_k for OpenAI models
+    top_k_active = if top_k_disabled_for_model?(selected_model_api_id) do
+      false
+    else
+      top_k_active
+    end
 
     socket =
       socket
@@ -429,6 +461,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                     stream
                     |> Stream.map(&AI.extract_text_from_stream/1)
                     |> Enum.reduce("", fn chunk, acc ->
+                      IO.puts("📝 Stream chunk (new conversation): #{inspect(chunk)}")
                       new_acc = acc <> chunk
                       send(pid, {:stream_chunk, chunk})
                       new_acc
@@ -499,15 +532,18 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                  advanced_opts
                ) do
             {:ok, stream, _conversation, model_api_id, opts} ->
+              IO.puts("🚀 Starting stream processing for model: #{model_api_id}")
               accumulated_response =
                 stream
                 |> Stream.map(&AI.extract_text_from_stream/1)
                 |> Enum.reduce("", fn chunk, acc ->
+                  IO.puts("📝 Stream chunk: #{inspect(chunk)}")
                   new_acc = acc <> chunk
                   send(pid, {:stream_chunk, chunk})
                   new_acc
                 end)
 
+              IO.puts("✅ Stream complete. Total response length: #{String.length(accumulated_response)}")
               send(
                 pid,
                 {:stream_complete, accumulated_response, conversation.id, model_api_id, opts}
@@ -721,6 +757,20 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     end)
   end
 
+  # Helper function to get the last used model from conversation messages
+  defp get_last_used_model_from_messages(messages) do
+    messages
+    |> Enum.reverse()  # Start from the most recent message
+    |> Enum.find_value(fn msg ->
+      # Look for assistant messages with a model
+      if msg.role == :assistant && msg.model do
+        get_model_short_name(msg.model)
+      else
+        nil
+      end
+    end)
+  end
+
   defp format_timestamp(timestamp) do
     timestamp
     |> DateTime.to_time()
@@ -734,6 +784,58 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
     else
       title
     end
+  end
+
+  # Helper function to determine if top_k should be disabled based on the selected model
+  defp top_k_disabled_for_model?(model_api_id) do
+    # top_k is not supported by OpenAI models, only by Anthropic
+    Models.get_provider(model_api_id) == :openai
+  end
+
+  # Helper function to determine if a parameter is supported by the selected model
+  defp parameter_supported_for_model?(parameter, model_api_id) do
+    provider = Models.get_provider(model_api_id)
+
+    case {parameter, provider} do
+      # Anthropic supports all parameters
+      {_, :anthropic} -> true
+
+      # OpenAI supports these parameters
+      {:max_tokens, :openai} -> true
+      {:temperature, :openai} -> true
+      {:top_p, :openai} -> true
+
+      # OpenAI does NOT support top_k
+      {:top_k, :openai} -> false
+
+      # Unknown providers - be conservative
+      {_, :unknown} -> false
+    end
+  end
+
+  # Helper function to get parameter compatibility warnings
+  defp get_parameter_warnings(assigns) do
+    model_api_id = Models.get_api_id(assigns.selected_model)
+    provider = Models.get_provider(model_api_id)
+    warnings = []
+
+    # OpenAI-specific warnings
+    warnings = if provider == :openai do
+      cond do
+        assigns.temperature_active && assigns.top_p_active ->
+          ["⚠️ OpenAI recommends using either Temperature OR Top P, not both simultaneously." | warnings]
+
+        assigns.top_k_active ->
+          ["❌ Top K is not supported by OpenAI models." | warnings]
+
+        true ->
+          warnings
+      end
+    else
+      warnings
+    end
+
+    warnings
   end
 
     # Helper function to check if a message has active advanced parameters
@@ -811,182 +913,259 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
 
   # Component for advanced AI settings
   defp advanced_settings_content(assigns) do
+    # Get model info and warnings
+    model_api_id = Models.get_api_id(assigns.selected_model)
+    provider = Models.get_provider(model_api_id)
+    warnings = get_parameter_warnings(assigns)
+
+    assigns = assign(assigns, :model_api_id, model_api_id)
+    assigns = assign(assigns, :provider, provider)
+    assigns = assign(assigns, :warnings, warnings)
+
     ~H"""
     <div class="space-y-6">
-      <.form
-        for={%{}}
-        as={:advanced_settings}
-        phx-change="update_advanced_settings"
-        class="grid grid-cols-2 gap-6"
-      >
-        <!-- Max Tokens -->
-        <div class="space-y-3">
-          <div class="flex items-center justify-between">
-            <label class="text-sm font-medium text-gray-900">Max Tokens</label>
-            <div class="flex items-center gap-2">
-              <span class={[
-                "text-xs px-2 py-1 rounded-full",
-                if(@max_tokens_active,
-                  do: "bg-green-100 text-green-800",
-                  else: "bg-gray-100 text-gray-600"
-                )
-              ]}>
-                {if @max_tokens_active, do: "Active", else: "Inactive"}
-              </span>
-              <.switch
-                id="max_tokens_active_switch"
-                name="max_tokens_active"
-                value={@max_tokens_active}
-              />
-            </div>
-          </div>
-          <div class="space-y-2">
-            <.slider
-              id="max_tokens_slider"
-              name="max_tokens"
-              value={@max_tokens}
-              min={1}
-              max={4096}
-              step={1}
-              class={[
-                "w-full",
-                if(!@max_tokens_active, do: "opacity-50 pointer-events-none", else: "")
-              ]}
-            />
-            <div class="flex justify-between text-xs text-gray-500">
-              <span>1</span>
-              <span class="font-medium">{@max_tokens}</span>
-              <span>4096</span>
-            </div>
-          </div>
-          <p class="text-xs text-gray-500">
-            Maximum number of tokens to generate in the response.
-          </p>
+      <!-- Model Information -->
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div class="flex items-center gap-2 mb-2">
+          <Lucideicons.info class="h-4 w-4 text-blue-600" />
+          <span class="text-sm font-medium text-blue-900">Selected Model: {@selected_model}</span>
         </div>
+        <p class="text-xs text-blue-700">
+          Provider: <span class="font-medium capitalize">{@provider}</span>
+          <%= case @provider do %>
+            <% :anthropic -> %>
+              • Supports all parameters
+            <% :openai -> %>
+              • Supports: Max Tokens, Temperature, Top P
+            <% :unknown -> %>
+              • Parameter support unknown
+          <% end %>
+        </p>
+      </div>
+
+      <!-- Compatibility Warnings -->
+      <%= if length(@warnings) > 0 do %>
+        <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+          <div class="flex items-start gap-2">
+            <Lucideicons.triangle_alert class="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
+            <div class="space-y-1">
+              <%= for warning <- @warnings do %>
+                <p class="text-xs text-orange-800">{warning}</p>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <!-- Parameters Form -->
+      <%= if @provider != :unknown do %>
+        <.form
+          for={%{}}
+          as={:advanced_settings}
+          phx-change="update_advanced_settings"
+          class="grid grid-cols-2 gap-6"
+        >
+        <!-- Max Tokens -->
+        <%= if parameter_supported_for_model?(:max_tokens, @model_api_id) do %>
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="text-sm font-medium text-gray-900">Max Tokens</label>
+              <div class="flex items-center gap-2">
+                <span class={[
+                  "text-xs px-2 py-1 rounded-full",
+                  if(@max_tokens_active,
+                    do: "bg-green-100 text-green-800",
+                    else: "bg-gray-100 text-gray-600"
+                  )
+                ]}>
+                  {if @max_tokens_active, do: "Active", else: "Inactive"}
+                </span>
+                <.switch
+                  id="max_tokens_active_switch"
+                  name="max_tokens_active"
+                  value={@max_tokens_active}
+                />
+              </div>
+            </div>
+            <div class="space-y-2">
+              <.slider
+                id="max_tokens_slider"
+                name="max_tokens"
+                value={@max_tokens}
+                min={1}
+                max={4096}
+                step={1}
+                class={[
+                  "w-full",
+                  if(!@max_tokens_active, do: "opacity-50 pointer-events-none", else: "")
+                ]}
+              />
+              <div class="flex justify-between text-xs text-gray-500">
+                <span>1</span>
+                <span class="font-medium">{@max_tokens}</span>
+                <span>4096</span>
+              </div>
+            </div>
+            <p class="text-xs text-gray-500">
+              Maximum number of tokens to generate in the response.
+            </p>
+          </div>
+        <% end %>
 
     <!-- Temperature -->
-        <div class="space-y-3">
-          <div class="flex items-center justify-between">
-            <label class="text-sm font-medium text-gray-900">Temperature</label>
-            <div class="flex items-center gap-2">
-              <span class={[
-                "text-xs px-2 py-1 rounded-full",
-                if(@temperature_active,
-                  do: "bg-green-100 text-green-800",
-                  else: "bg-gray-100 text-gray-600"
-                )
-              ]}>
-                {if @temperature_active, do: "Active", else: "Inactive"}
-              </span>
-              <.switch
-                id="temperature_active_switch"
-                name="temperature_active"
-                value={@temperature_active}
+        <%= if parameter_supported_for_model?(:temperature, @model_api_id) do %>
+          <div class={[
+            "space-y-3",
+            if(@provider == :openai && @top_p_active, do: "opacity-75", else: "")
+          ]}>
+            <div class="flex items-center justify-between">
+              <label class="text-sm font-medium text-gray-900">Temperature</label>
+              <div class="flex items-center gap-2">
+                <span class={[
+                  "text-xs px-2 py-1 rounded-full",
+                  if(@temperature_active,
+                    do: "bg-green-100 text-green-800",
+                    else: "bg-gray-100 text-gray-600"
+                  )
+                ]}>
+                  {if @temperature_active, do: "Active", else: "Inactive"}
+                </span>
+                <.switch
+                  id="temperature_active_switch"
+                  name="temperature_active"
+                  value={@temperature_active}
+                />
+              </div>
+            </div>
+            <div class="space-y-2">
+              <.slider
+                id="temperature_slider"
+                name="temperature"
+                value={round(@temperature * 100)}
+                min={0}
+                max={200}
+                step={1}
+                class={[
+                  "w-full",
+                  if(!@temperature_active, do: "opacity-50 pointer-events-none", else: "")
+                ]}
               />
+              <div class="flex justify-between text-xs text-gray-500">
+                <span>0.00</span>
+                <span class="font-medium">{Float.round(@temperature, 2)}</span>
+                <span>2.00</span>
+              </div>
             </div>
+            <p class="text-xs text-gray-500">
+              Controls randomness. Lower values make responses more focused and deterministic.
+              <%= if @provider == :openai do %>
+                <br /><span class="text-orange-600">OpenAI range: 0.0-2.0</span>
+              <% end %>
+            </p>
           </div>
-          <div class="space-y-2">
-            <.slider
-              id="temperature_slider"
-              name="temperature"
-              value={round(@temperature * 100)}
-              min={0}
-              max={100}
-              step={1}
-              class={[
-                "w-full",
-                if(!@temperature_active, do: "opacity-50 pointer-events-none", else: "")
-              ]}
-            />
-            <div class="flex justify-between text-xs text-gray-500">
-              <span>0.00</span>
-              <span class="font-medium">{Float.round(@temperature, 2)}</span>
-              <span>1.00</span>
-            </div>
-          </div>
-          <p class="text-xs text-gray-500">
-            Controls randomness. Lower values make responses more focused and deterministic.
-          </p>
-        </div>
+        <% end %>
 
-    <!-- Top K -->
-        <div class="space-y-3">
-          <div class="flex items-center justify-between">
-            <label class="text-sm font-medium text-gray-900">Top K</label>
-            <div class="flex items-center gap-2">
-              <span class={[
-                "text-xs px-2 py-1 rounded-full",
-                if(@top_k_active,
-                  do: "bg-green-100 text-green-800",
-                  else: "bg-gray-100 text-gray-600"
-                )
-              ]}>
-                {if @top_k_active, do: "Active", else: "Inactive"}
-              </span>
-              <.switch id="top_k_active_switch" name="top_k_active" value={@top_k_active} />
+        <!-- Top K -->
+        <%= if parameter_supported_for_model?(:top_k, @model_api_id) do %>
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="text-sm font-medium text-gray-900">Top K</label>
+              <div class="flex items-center gap-2">
+                <span class={[
+                  "text-xs px-2 py-1 rounded-full",
+                  if(@top_k_active,
+                    do: "bg-green-100 text-green-800",
+                    else: "bg-gray-100 text-gray-600"
+                  )
+                ]}>
+                  {if @top_k_active, do: "Active", else: "Inactive"}
+                </span>
+                <.switch
+                  id="top_k_active_switch"
+                  name="top_k_active"
+                  value={@top_k_active}
+                />
+              </div>
             </div>
-          </div>
-          <div class="space-y-2">
-            <.slider
-              id="top_k_slider"
-              name="top_k"
-              value={@top_k}
-              min={1}
-              max={5}
-              step={1}
-              class={["w-full", if(!@top_k_active, do: "opacity-50 pointer-events-none", else: "")]}
-            />
-            <div class="flex justify-between text-xs text-gray-500">
-              <span>1</span>
-              <span class="font-medium">{@top_k}</span>
-              <span>5</span>
+            <div class="space-y-2">
+              <.slider
+                id="top_k_slider"
+                name="top_k"
+                value={@top_k}
+                min={1}
+                max={40}
+                step={1}
+                class={[
+                  "w-full",
+                  if(!@top_k_active, do: "opacity-50 pointer-events-none", else: "")
+                ]}
+              />
+              <div class="flex justify-between text-xs text-gray-500">
+                <span>1</span>
+                <span class="font-medium">{@top_k}</span>
+                <span>40</span>
+              </div>
             </div>
+            <p class="text-xs text-gray-500">
+              Limits the number of highest probability tokens to consider. Only available for Anthropic models.
+            </p>
           </div>
-          <p class="text-xs text-gray-500">
-            Limits the number of highest probability tokens to consider.
-          </p>
-        </div>
+        <% end %>
 
     <!-- Top P -->
-        <div class="space-y-3">
-          <div class="flex items-center justify-between">
-            <label class="text-sm font-medium text-gray-900">Top P</label>
-            <div class="flex items-center gap-2">
-              <span class={[
-                "text-xs px-2 py-1 rounded-full",
-                if(@top_p_active,
-                  do: "bg-green-100 text-green-800",
-                  else: "bg-gray-100 text-gray-600"
-                )
-              ]}>
-                {if @top_p_active, do: "Active", else: "Inactive"}
-              </span>
-              <.switch id="top_p_active_switch" name="top_p_active" value={@top_p_active} />
+        <%= if parameter_supported_for_model?(:top_p, @model_api_id) do %>
+          <div class={[
+            "space-y-3",
+            if(@provider == :openai && @temperature_active, do: "opacity-75", else: "")
+          ]}>
+            <div class="flex items-center justify-between">
+              <label class="text-sm font-medium text-gray-900">Top P</label>
+              <div class="flex items-center gap-2">
+                <span class={[
+                  "text-xs px-2 py-1 rounded-full",
+                  if(@top_p_active,
+                    do: "bg-green-100 text-green-800",
+                    else: "bg-gray-100 text-gray-600"
+                  )
+                ]}>
+                  {if @top_p_active, do: "Active", else: "Inactive"}
+                </span>
+                <.switch id="top_p_active_switch" name="top_p_active" value={@top_p_active} />
+              </div>
             </div>
-          </div>
-          <div class="space-y-2">
-            <.slider
-              id="top_p_slider"
-              name="top_p"
-              value={round(@top_p * 100)}
-              min={1}
-              max={100}
-              step={1}
-              class={["w-full", if(!@top_p_active, do: "opacity-50 pointer-events-none", else: "")]}
-            />
-            <div class="flex justify-between text-xs text-gray-500">
-              <span>0.01</span>
-              <span class="font-medium">{Float.round(@top_p, 2)}</span>
-              <span>1.00</span>
+            <div class="space-y-2">
+              <.slider
+                id="top_p_slider"
+                name="top_p"
+                value={round(@top_p * 100)}
+                min={1}
+                max={100}
+                step={1}
+                class={["w-full", if(!@top_p_active, do: "opacity-50 pointer-events-none", else: "")]}
+              />
+              <div class="flex justify-between text-xs text-gray-500">
+                <span>0.01</span>
+                <span class="font-medium">{Float.round(@top_p, 2)}</span>
+                <span>1.00</span>
+              </div>
             </div>
+            <p class="text-xs text-gray-500">
+              Cumulative probability cutoff for token selection (nucleus sampling).
+              <%= if @provider == :openai do %>
+                <br /><span class="text-orange-600">OpenAI recommends using either Temperature OR Top P, not both.</span>
+              <% end %>
+            </p>
           </div>
-          <p class="text-xs text-gray-500">
-            Cumulative probability cutoff for token selection.
-          </p>
+        <% end %>
+        </.form>
+      <% else %>
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+          <Lucideicons.help_circle class="h-8 w-8 mx-auto mb-2 text-gray-400" />
+          <p class="text-sm text-gray-600">No advanced parameters available for this model.</p>
         </div>
-      </.form>
+      <% end %>
 
-      <div class="col-span-2 flex justify-end pt-4 border-t border-gray-200">
+      <div class="flex justify-end pt-4 border-t border-gray-200">
         <.button variant="outline" phx-click="close_advanced_settings" class="w-full">
           Close
         </.button>
@@ -1188,7 +1367,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                   <%= if @current_conversation do %>
                     Start chatting in this conversation!
                   <% else %>
-                    Create a new conversation to start chatting with Claude!
+                    Create a new conversation to start chatting with an AI!
                   <% end %>
                 </p>
                 <p class="text-sm mt-2">
@@ -1228,7 +1407,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                           <span class="text-sm font-medium">You</span>
                         <% "assistant" -> %>
                           <Lucideicons.bot class="h-4 w-4" />
-                          <span class="text-sm font-medium">Claude</span>
+                          <span class="text-sm font-medium">AI</span>
                           <%= if message.model do %>
                             <span class="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">
                               {message.model}
@@ -1272,7 +1451,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                 <div class="bg-gray-100 rounded-lg px-4 py-2 max-w-[70%]">
                   <div class="flex items-center gap-2 mb-1">
                     <Lucideicons.bot class="h-4 w-4" />
-                    <span class="text-sm font-medium">Claude</span>
+                    <span class="text-sm font-medium">AI</span>
                     <span class="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">
                       {@selected_model}
                     </span>
@@ -1327,7 +1506,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
                   type="text"
                   name="message"
                   value={@input_message}
-                  placeholder="Type your message to Claude..."
+                  placeholder="Type your message to your AI..."
                   phx-change="update_input"
                   disabled={@loading}
                   autofocus
@@ -1365,6 +1544,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
         top_k_active={@top_k_active}
         top_p={@top_p}
         top_p_active={@top_p_active}
+        selected_model={@selected_model}
       />
     </.dialog_drawer_wrapper>
 

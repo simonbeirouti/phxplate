@@ -38,7 +38,7 @@ defmodule PhxplateWeb.Components.AI.ModelSelector do
     <form phx-change={@on_change}>
       <.select :let={select} id={@id} name="model" value={@selected_model} side={@side}>
         <.select_trigger builder={select} class={@class} />
-        <.select_content class={@class} builder={select}>
+        <.select_content class={[@class, "max-h-60 overflow-y-auto"]} builder={select}>
           <%= if @include_all_option do %>
             <.select_item builder={select} value="All Models" label="All Models">
               All Models

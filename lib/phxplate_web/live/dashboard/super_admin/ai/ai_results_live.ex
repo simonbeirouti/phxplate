@@ -142,7 +142,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
      |> assign(:errors_page, 1)
      |> assign(:filter_reset_key, socket.assigns.filter_reset_key + 1)
      |> load_usage_data()
-     |> push_patch(to: ~p"/dashboard/super_admin/ai-timeline")}
+     |> push_patch(to: ~p"/dashboard/super_admin/ai-results")}
   end
 
   @impl true

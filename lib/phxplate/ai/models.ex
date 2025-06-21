@@ -7,6 +7,7 @@ defmodule Phxplate.AI.Models do
   """
 
   @available_models [
+    # Anthropic Claude models
     {"Haiku 3", "claude-3-haiku-20240307"},
     {"Sonnet 3", "claude-3-sonnet-20240229"},
     {"Opus 3", "claude-3-opus-20240229"},
@@ -14,7 +15,14 @@ defmodule Phxplate.AI.Models do
     {"Sonnet 3.5", "claude-3-5-sonnet-20241022"},
     {"Sonnet 3.7", "claude-3-7-sonnet-20250219"},
     {"Sonnet 4", "claude-sonnet-4-20250514"},
-    {"Opus 4", "claude-opus-4-20250514"}
+    {"Opus 4", "claude-opus-4-20250514"},
+
+    # OpenAI models
+    {"GPT-4o", "gpt-4o"},
+    {"GPT-4o mini", "gpt-4o-mini"},
+    {"GPT-4 Turbo", "gpt-4-turbo"},
+    {"GPT-4", "gpt-4"},
+    {"GPT-3.5 Turbo", "gpt-3.5-turbo"}
   ]
 
   @doc """
@@ -90,5 +98,31 @@ defmodule Phxplate.AI.Models do
   """
   def valid_display_name?(display_name) do
     display_name in Enum.map(@available_models, fn {display, _} -> display end)
+  end
+
+  @doc """
+  Determines if a model API ID is an Anthropic Claude model.
+  """
+  def anthropic_model?(api_id) do
+    String.starts_with?(api_id, "claude-")
+  end
+
+  @doc """
+  Determines if a model API ID is an OpenAI model.
+  """
+  def openai_model?(api_id) do
+    String.starts_with?(api_id, "gpt-")
+  end
+
+  @doc """
+  Gets the provider name for a given API ID.
+  Returns :anthropic, :openai, or :unknown.
+  """
+  def get_provider(api_id) do
+    cond do
+      anthropic_model?(api_id) -> :anthropic
+      openai_model?(api_id) -> :openai
+      true -> :unknown
+    end
   end
 end

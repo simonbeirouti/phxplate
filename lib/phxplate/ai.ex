@@ -1,6 +1,34 @@
 defmodule Phxplate.AI do
   @moduledoc """
-  AI module for interacting with Anthropic Claude using the Anthropix library.
+  AI module for interacting with both Anthropic Claude and OpenAI models.
+
+  This module provides a unified interface for AI chat functionality,
+  automatically routing requests to the appropriate provider based on the model.
+
+  ## Supported Providers
+
+  - **Anthropic**: Claude models (claude-*)
+  - **OpenAI**: GPT models (gpt-*)
+
+  ## Configuration
+
+  ### Development
+  - Set `ANTHROPIC_API_KEY` environment variable for Claude models
+  - Set `OPENAI_API_KEY` environment variable for GPT models
+
+  ### Production
+  Both API keys are required in production and validated at runtime.
+
+  ## Examples
+
+      # Using default Anthropic model
+      {:ok, response} = Phxplate.AI.chat("Hello, how are you?")
+
+      # Using specific OpenAI model
+      {:ok, response} = Phxplate.AI.chat("Hello!", "You are helpful.", "gpt-4o")
+
+      # Using specific Anthropic model
+      {:ok, response} = Phxplate.AI.chat("Hello!", "You are helpful.", "claude-3-5-sonnet-20241022")
   """
 
   import Ecto.Query
@@ -24,6 +52,20 @@ defmodule Phxplate.AI do
         Anthropix.init(api_key)
       _ ->
         raise "Invalid ANTHROPIC_API_KEY. Please check your environment variable."
+    end
+  end
+
+  @doc """
+  Initialize an OpenaiEx client using the OPENAI_API_KEY environment variable.
+  """
+  def openai_client do
+    case System.get_env("OPENAI_API_KEY") do
+      nil ->
+        raise "OPENAI_API_KEY environment variable is not set. Please set it in your environment."
+      api_key when is_binary(api_key) and api_key != "" ->
+        OpenaiEx.new(api_key)
+      _ ->
+        raise "Invalid OPENAI_API_KEY. Please check your environment variable."
     end
   end
 
@@ -312,6 +354,50 @@ defmodule Phxplate.AI do
   end
 
   # ============================================================================
+  # Helper Functions for Multi-Provider Support
+  # ============================================================================
+
+  defp openai_chat_request(model, system_prompt, user_message, opts \\ %{}) do
+    messages = [
+      %{role: "system", content: system_prompt},
+      %{role: "user", content: user_message}
+    ]
+
+    request_params = %{
+      model: model,
+      messages: messages,
+      max_tokens: Map.get(opts, :max_tokens, 4000),
+      temperature: Map.get(opts, :temperature, 0.7)
+    }
+
+    # Create the request struct
+    chat_request = OpenaiEx.Chat.Completions.new(request_params)
+
+    # Make the API call
+    openai_client()
+    |> OpenaiEx.Chat.Completions.create(chat_request)
+  end
+
+  defp openai_chat_request_with_history(model, system_prompt, messages, opts \\ %{}) do
+    # Convert messages to OpenAI format and prepend system message
+    openai_messages = [%{role: "system", content: system_prompt} | messages]
+
+    request_params = %{
+      model: model,
+      messages: openai_messages,
+      max_tokens: Map.get(opts, :max_tokens, 4000),
+      temperature: Map.get(opts, :temperature, 0.7)
+    }
+
+    # Create the request struct
+    chat_request = OpenaiEx.Chat.Completions.new(request_params)
+
+    # Make the API call
+    openai_client()
+    |> OpenaiEx.Chat.Completions.create(chat_request)
+  end
+
+  # ============================================================================
   # AI Chat Functions (with persistence)
   # ============================================================================
 
@@ -328,41 +414,165 @@ defmodule Phxplate.AI do
 
         # Get all messages for context
         messages = get_conversation_messages(conversation_id)
-        anthropix_messages = messages_to_anthropix_format(messages)
-
-        # Build chat parameters with defaults
-        chat_params = build_chat_params(model_api_id, conversation.system_prompt,
-                                       anthropix_messages ++ [%{role: "user", content: user_message}],
-                                       opts)
 
         # Track start time for usage monitoring
         start_time = System.monotonic_time(:millisecond)
 
-        # Stream AI response using the specified model
-        case Anthropix.chat(client(), chat_params) do
-          {:ok, stream} ->
-            # Include tracking context in the options for complete_streaming_conversation
-            tracking_opts = Map.merge(opts, %{
-              start_time: start_time,
-              user_id: user_id,
-              conversation_id: conversation_id,
-              action: "stream_chat_conversation"
-            })
-            {:ok, stream, conversation, model_api_id, tracking_opts}
-          {:error, reason} ->
-            # Track failed streaming request
-            track_chat_completion(
-              model_api_id,
-              "stream_chat_conversation",
-              user_id,
-              conversation_id,
-              nil,
-              start_time,
-              {:error, reason},
-              opts
-            )
-            {:error, reason}
+        # Route to appropriate provider based on model
+        case Models.get_provider(model_api_id) do
+          :anthropic ->
+            stream_anthropic_conversation(conversation, messages, user_message, model_api_id, opts, start_time, user_id, conversation_id)
+
+          :openai ->
+            stream_openai_conversation(conversation, messages, user_message, model_api_id, opts, start_time, user_id, conversation_id)
+
+          :unknown ->
+            {:error, "Unsupported model: #{model_api_id}"}
         end
+    end
+  end
+
+  # Private function to handle Anthropic streaming
+  defp stream_anthropic_conversation(conversation, messages, user_message, model_api_id, opts, start_time, user_id, conversation_id) do
+    anthropix_messages = messages_to_anthropix_format(messages)
+
+    # Build chat parameters with defaults
+    chat_params = build_anthropic_chat_params(model_api_id, conversation.system_prompt,
+                                             anthropix_messages ++ [%{role: "user", content: user_message}],
+                                             opts)
+
+    # Stream AI response using Anthropic
+    case Anthropix.chat(client(), chat_params) do
+      {:ok, stream} ->
+        # Include tracking context in the options for complete_streaming_conversation
+        tracking_opts = Map.merge(opts, %{
+          start_time: start_time,
+          user_id: user_id,
+          conversation_id: conversation_id,
+          action: "stream_chat_conversation"
+        })
+        {:ok, stream, conversation, model_api_id, tracking_opts}
+      {:error, reason} ->
+        # Track failed streaming request
+        track_chat_completion(
+          model_api_id,
+          "stream_chat_conversation",
+          user_id,
+          conversation_id,
+          nil,
+          start_time,
+          {:error, reason},
+          opts
+        )
+        {:error, reason}
+    end
+  end
+
+  # Private function to handle OpenAI streaming
+  defp stream_openai_conversation(conversation, messages, user_message, model_api_id, opts, start_time, user_id, conversation_id) do
+    # Convert messages to OpenAI format
+    openai_messages = messages_to_openai_format(messages) ++ [%{role: "user", content: user_message}]
+
+    # Build OpenAI chat parameters
+    chat_params = build_openai_chat_params(model_api_id, conversation.system_prompt, openai_messages, opts)
+
+    # Create the request struct
+    chat_request = OpenaiEx.Chat.Completions.new(chat_params)
+
+    # Stream AI response using OpenAI
+    case OpenaiEx.Chat.Completions.create(openai_client(), chat_request, stream: true) do
+      {:ok, response} ->
+        # OpenaiEx returns a response with a body_stream field for streaming
+        # We need to extract the actual stream from the response
+        stream = response.body_stream |> Stream.flat_map(& &1)
+
+        # Include tracking context in the options for complete_streaming_conversation
+        tracking_opts = Map.merge(opts, %{
+          start_time: start_time,
+          user_id: user_id,
+          conversation_id: conversation_id,
+          action: "stream_chat_conversation"
+        })
+        {:ok, stream, conversation, model_api_id, tracking_opts}
+      {:error, reason} ->
+        # Track failed streaming request
+        track_chat_completion(
+          model_api_id,
+          "stream_chat_conversation",
+          user_id,
+          conversation_id,
+          nil,
+          start_time,
+          {:error, reason},
+          opts
+        )
+        {:error, reason}
+    end
+  end
+
+  # Helper function to convert messages to OpenAI format
+  defp messages_to_openai_format(messages) do
+    messages
+    |> Enum.filter(&(&1.role in [:user, :assistant]))
+    |> Enum.map(&%{role: Atom.to_string(&1.role), content: &1.content})
+  end
+
+  # Helper function to build Anthropic chat parameters
+  defp build_anthropic_chat_params(model_api_id, system_prompt, messages, opts) do
+    base_params = %{
+      model: model_api_id,
+      system: system_prompt,
+      messages: messages,
+      stream: true
+    }
+
+    # Add advanced parameters if they are provided and active
+    base_params
+    |> maybe_add_param(:max_tokens, opts[:max_tokens], opts[:max_tokens_active])
+    |> maybe_add_param(:temperature, opts[:temperature], opts[:temperature_active])
+    |> maybe_add_param(:top_k, opts[:top_k], opts[:top_k_active])
+    |> maybe_add_param(:top_p, opts[:top_p], opts[:top_p_active])
+  end
+
+  # Helper function to build OpenAI chat parameters
+  defp build_openai_chat_params(model_api_id, system_prompt, messages, opts) do
+    # Prepend system message to OpenAI messages
+    openai_messages = [%{role: "system", content: system_prompt} | messages]
+
+    base_params = %{
+      model: model_api_id,
+      messages: openai_messages,
+      stream: true
+    }
+
+    # Add advanced parameters if they are provided and active
+    # Note: OpenAI supports max_tokens, temperature, and top_p, but NOT top_k
+    base_params
+    |> maybe_add_param(:max_tokens, opts[:max_tokens], opts[:max_tokens_active])
+    |> maybe_add_param(:temperature, opts[:temperature], opts[:temperature_active])
+    |> maybe_add_param(:top_p, opts[:top_p], opts[:top_p_active])
+    # top_k is not supported by OpenAI API (only Anthropic/Claude)
+  end
+
+  defp build_chat_params(model_api_id, system_prompt, messages, opts) do
+    # This function is kept for backward compatibility but should use the new provider-specific functions
+    case Models.get_provider(model_api_id) do
+      :anthropic ->
+        build_anthropic_chat_params(model_api_id, system_prompt, messages, opts)
+      :openai ->
+        # For OpenAI, we need to handle the messages differently
+        openai_messages = if is_list(messages) and length(messages) > 0 do
+          # Convert from Anthropic format to OpenAI format if needed
+          case List.first(messages) do
+            %{role: role} when is_binary(role) -> messages  # Already in OpenAI format
+            _ -> messages_to_openai_format(messages)  # Convert from DB format
+          end
+        else
+          []
+        end
+        build_openai_chat_params(model_api_id, system_prompt, openai_messages, opts)
+      :unknown ->
+        %{error: "Unsupported model: #{model_api_id}"}
     end
   end
 
@@ -432,67 +642,60 @@ defmodule Phxplate.AI do
   Completes a streaming conversation by saving the final AI response with the model used.
   """
   def complete_streaming_conversation(conversation_id, ai_response, model_api_id, opts \\ %{}) do
-    # Extract active advanced parameters for the message
-    active_params = extract_active_advanced_params(opts)
+    # Debug logging
+    IO.puts("💾 Completing streaming conversation with response: #{inspect(ai_response)}")
+    IO.puts("📏 Response length: #{String.length(ai_response || "")}")
 
-    # Include prompt information
-    prompt_params = %{
-      prompt_id: opts[:prompt_id]
-    }
+    # Check if response is empty or nil
+    if is_nil(ai_response) or String.trim(ai_response) == "" do
+      IO.puts("⚠️  Empty AI response detected, skipping database save")
+      {:error, :empty_response}
+    else
+      # Extract active advanced parameters for the message
+      active_params = extract_active_advanced_params(opts)
 
-    # Merge all message parameters
-    message_params = Map.merge(active_params, prompt_params)
+      # Include prompt information
+      prompt_params = %{
+        prompt_id: opts[:prompt_id]
+      }
 
-    # Include advanced parameters in metadata for backward compatibility
-    metadata = Map.take(opts, [:max_tokens, :temperature, :top_k, :top_p])
+      # Merge all message parameters
+      message_params = Map.merge(active_params, prompt_params)
 
-    {:ok, ai_message} = add_message(conversation_id, :assistant, ai_response, model_api_id, metadata, message_params)
+      # Include advanced parameters in metadata for backward compatibility
+      metadata = Map.take(opts, [:max_tokens, :temperature, :top_k, :top_p])
 
-    # Track usage if we have tracking context from streaming
-    if opts[:start_time] && opts[:user_id] && opts[:action] do
-      # Create a mock successful response for tracking
-      mock_response = {:ok, %{content: [%{text: ai_response}]}}
+      case add_message(conversation_id, :assistant, ai_response, model_api_id, metadata, message_params) do
+        {:ok, ai_message} ->
+          # Track usage if we have tracking context from streaming
+          if opts[:start_time] && opts[:user_id] && opts[:action] do
+            # Create a mock successful response for tracking
+            mock_response = {:ok, %{content: [%{text: ai_response}]}}
 
-      track_chat_completion(
-        model_api_id,
-        opts[:action],
-        opts[:user_id],
-        conversation_id,
-        ai_message.id,
-        opts[:start_time],
-        mock_response,
-        opts
-      )
+            track_chat_completion(
+              model_api_id,
+              opts[:action],
+              opts[:user_id],
+              conversation_id,
+              ai_message.id,
+              opts[:start_time],
+              mock_response,
+              opts
+            )
+          end
+
+          # Update conversation timestamp (truncate to seconds for Ecto compatibility)
+          conversation = Repo.get!(Conversation, conversation_id)
+          Repo.update!(Ecto.Changeset.change(conversation, updated_at: DateTime.utc_now() |> DateTime.truncate(:second)))
+
+          {:ok, ai_message}
+        {:error, changeset} ->
+          IO.puts("❌ Failed to save AI message: #{inspect(changeset.errors)}")
+          {:error, changeset}
+      end
     end
-
-    # Update conversation timestamp (truncate to seconds for Ecto compatibility)
-    conversation = Repo.get!(Conversation, conversation_id)
-    Repo.update!(Ecto.Changeset.change(conversation, updated_at: DateTime.utc_now() |> DateTime.truncate(:second)))
-
-    {:ok, ai_message}
   end
 
-  defp build_chat_params(model_api_id, system_prompt, messages, opts) do
-    base_params = %{
-      model: model_api_id,
-      system: system_prompt,
-      messages: messages,
-      stream: true
-    }
-
-    # Add advanced parameters if they are provided and active
-    base_params
-    |> maybe_add_param(:max_tokens, opts[:max_tokens], opts[:max_tokens_active])
-    |> maybe_add_param(:temperature, opts[:temperature], opts[:temperature_active])
-    |> maybe_add_param(:top_k, opts[:top_k], opts[:top_k_active])
-    |> maybe_add_param(:top_p, opts[:top_p], opts[:top_p_active])
-  end
-
-  defp maybe_add_param(params, _key, _value, false), do: params
-  defp maybe_add_param(params, _key, nil, _active), do: params
-  defp maybe_add_param(params, key, value, true), do: Map.put(params, key, value)
-
-  # Helper function to extract only active advanced parameters
   defp extract_active_advanced_params(opts) do
     %{}
     |> maybe_add_active_param(:max_tokens, opts[:max_tokens], opts[:max_tokens_active])
@@ -512,16 +715,27 @@ defmodule Phxplate.AI do
   @doc """
   Send a single message to the AI and get a response (non-streaming).
   This is used for evaluations and other non-interactive use cases.
+  Supports both Anthropic and OpenAI models.
   """
   def chat(message, system_prompt \\ @default_system_prompt, model \\ nil, opts \\ %{}) do
     model_api_id = if model, do: model, else: Models.default_model_api_id()
     start_time = System.monotonic_time(:millisecond)
 
-    result = Anthropix.chat(client(),
-      model: model_api_id,
-      system: system_prompt,
-      messages: [%{role: "user", content: message}]
-    )
+    # Route to appropriate provider based on model
+    result = case Models.get_provider(model_api_id) do
+      :anthropic ->
+        Anthropix.chat(client(),
+          model: model_api_id,
+          system: system_prompt,
+          messages: [%{role: "user", content: message}]
+        )
+
+      :openai ->
+        openai_chat_request(model_api_id, system_prompt, message)
+
+      :unknown ->
+        {:error, "Unsupported model: #{model_api_id}"}
+    end
 
     # Track usage if user_id is provided
     if opts[:user_id] do
@@ -540,6 +754,7 @@ defmodule Phxplate.AI do
     case result do
       {:ok, %{content: [%{text: text}]}} -> {:ok, text}
       {:ok, %{"content" => [%{"text" => text}]}} -> {:ok, text}
+      {:ok, %{"choices" => [%{"message" => %{"content" => text}} | _]}} -> {:ok, text}
       {:error, error} -> {:error, error}
     end
   end
@@ -592,6 +807,11 @@ defmodule Phxplate.AI do
   defp maybe_add_param_to_keyword(params, _key, _value, false), do: params
   defp maybe_add_param_to_keyword(params, _key, nil, _active), do: params
   defp maybe_add_param_to_keyword(params, key, value, true), do: Keyword.put(params, key, value)
+
+  # Helper function for adding parameters to maps (used in build_*_chat_params functions)
+  defp maybe_add_param(params, _key, _value, false), do: params
+  defp maybe_add_param(params, _key, nil, _active), do: params
+  defp maybe_add_param(params, key, value, true), do: Map.put(params, key, value)
 
   @doc """
   Send a conversation (list of messages) to Claude.
@@ -668,14 +888,37 @@ defmodule Phxplate.AI do
     end
   end
 
-  # Helper function to extract text from stream chunks
+  # Helper function to extract text from stream chunks - supports both Anthropic and OpenAI
   def extract_text_from_stream(%{"type" => "content_block_delta", "delta" => %{"text" => text}}) do
+    # Anthropic format
     text
   end
   def extract_text_from_stream(%{"type" => "message_delta", "delta" => %{"content" => [%{"text" => text}]}}) do
+    # Anthropic format
     text
   end
-  def extract_text_from_stream(_), do: ""
+  def extract_text_from_stream(%{"choices" => [%{"delta" => %{"content" => content}} | _]}) when is_binary(content) do
+    # OpenAI format
+    content
+  end
+  def extract_text_from_stream(%{"choices" => [%{"delta" => delta} | _]}) do
+    # OpenAI format - sometimes content is nil
+    Map.get(delta, "content", "")
+  end
+  # Handle OpenaiEx stream format - the library returns parsed JSON objects
+  def extract_text_from_stream(%{data: %{"choices" => [%{"delta" => %{"content" => content}} | _]}}) when is_binary(content) do
+    # OpenaiEx parsed format
+    content
+  end
+  def extract_text_from_stream(%{data: %{"choices" => [%{"delta" => delta} | _]}}) do
+    # OpenaiEx parsed format - sometimes content is nil
+    Map.get(delta, "content", "")
+  end
+  def extract_text_from_stream(chunk) do
+    # Debug logging for unmatched chunks
+    IO.puts("🔍 Unmatched stream chunk: #{inspect(chunk)}")
+    ""
+  end
 
   # Private helper function to extract text from various response formats
   defp extract_text_from_response(%{"content" => content}) when is_list(content) do
