@@ -221,7 +221,7 @@ defmodule PhxplateWeb.Components.UI.Sidebar do
   end
 
   @doc """
-  Render
+  Enables the sidebar border to be clickable, to trigger the sidebar to open
   """
   attr(:class, :string, default: nil)
   attr :target, :any, default: nil, doc: "The LiveView target for state change events"

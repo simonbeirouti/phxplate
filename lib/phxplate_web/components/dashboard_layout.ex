@@ -75,12 +75,12 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             <Lucideicons.x class="h-6 w-6 hidden" id="close-icon" />
           </button>
 
-          <.sidebar_trigger target={@myself} class="pl-2 hidden md:block">
+          <.sidebar_trigger target={@myself} class="pl-2 hidden lg:block">
             <Lucideicons.panel_left class="w-4 h-4" />
           </.sidebar_trigger>
 
-          <.separator orientation="vertical" class="mr-2 h-4" />
-          <div class="overflow-x-auto flex-1 min-w-0 scrollbar-hide" style="width: 1px;">
+          <.separator orientation="vertical" class="mr-2 h-4 hidden lg:block" />
+          <div class="overflow-x-auto flex-1 min-w-0 ml-2 lg:ml-0 scrollbar-hide" style="width: 1px;">
             <.breadcrumb>
               <.breadcrumb_list class="flex-nowrap min-w-max">
                 <%= for {item, idx} <- Enum.with_index(dashboard_breadcrumbs(@layout_data.current_path)) do %>
@@ -164,7 +164,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
           state={@current_state}
         />
       </.sidebar_content>
-      <.sidebar_rail target={@myself} />
+      <%!-- <.sidebar_rail target={@myself} /> --%>
     </.sidebar>
     """
   end
