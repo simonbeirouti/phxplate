@@ -69,7 +69,6 @@ defmodule PhxplateWeb.Dashboard.User.UserAccountLive do
         description: "Manage your user profile, billing, settings and account activity",
         url: "/dashboard/account"
         )
-      |> assign(:page_title, "User Account")
       |> assign(:user, user)
       |> assign(:activities, activities)
       |> assign(:page_subtitle, initial_subtitle)

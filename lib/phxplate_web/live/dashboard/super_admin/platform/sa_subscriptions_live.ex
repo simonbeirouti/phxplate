@@ -48,7 +48,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SubscriptionsLive do
      |> assign(:plan_form, to_form(%{}, as: :plan))
      |> assign(:features_order, [])
      |> assign(:loading, false)
-     |> assign(:page_title, "Subscription Management")
      |> PageMeta.assign_metadata(
        title: "Subscription Management",
        description: "Manage subscription plans and user subscriptions",

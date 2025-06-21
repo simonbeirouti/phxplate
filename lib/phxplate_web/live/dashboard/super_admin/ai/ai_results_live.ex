@@ -52,7 +52,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiResultsLive do
      |> assign(:status_options, @status_options)
      |> assign(:errors_result, %{errors: [], total_count: 0, total_pages: 1, page: 1, per_page: 10})
      |> assign(:screen_mode, "dialog")
-     |> assign(:page_title, "AI Results")
      |> load_usage_data()
      |> PageMeta.assign_metadata(
        title: "AI Results",

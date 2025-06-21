@@ -48,7 +48,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalsLive do
      |> assign(:top_k_active, false)
      |> assign(:top_p, 0.9)
      |> assign(:top_p_active, false)
-     |> assign(:page_title, "AI Evaluations")
      |> load_evals()
      |> PageMeta.assign_metadata(
        title: "AI Evaluations",

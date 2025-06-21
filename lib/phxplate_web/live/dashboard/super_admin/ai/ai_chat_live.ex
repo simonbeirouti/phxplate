@@ -40,7 +40,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
      |> assign(:selected_system_prompt, get_default_system_prompt_name(all_prompts))
      |> assign(:current_system_prompt, default_system_prompt)
      |> assign(:screen_mode, "dialog")
-     |> assign(:page_title, "AI Chat")
      |> assign(:show_advanced_settings, false)
      |> assign(:max_tokens, 4000)
      |> assign(:max_tokens_active, false)
@@ -51,7 +50,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiChatLive do
      |> assign(:top_p, 0.9)
      |> assign(:top_p_active, false)
      |> assign(:is_new_conversation, false)
-     |> assign(:page_title, "AI Chat")
      |> PageMeta.assign_metadata(
        title: "AI Chat",
        description: "Chat with AI and manage conversations",

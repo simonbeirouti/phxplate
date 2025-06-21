@@ -67,7 +67,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.FeedbackRequestsLive do
     |> assign(:total_pages, total_pages)
     |> assign(:per_page, per_page)
     |> assign(:total_requests, total_requests)
-    |> assign(:page_title, "Feature & Feedback Requests")
     |> PageMeta.assign_metadata(
       title: "Feature & Feedback Requests",
       description: "Manage feature and feedback requests",

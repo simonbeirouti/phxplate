@@ -36,7 +36,6 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
        support_status: current_status,
        session_activities: []
      )
-     |> assign(:page_title, "Support Chat")
      |> PageMeta.assign_metadata(
        title: "Chat Management",
        description: "Manage customer support chat sessions",

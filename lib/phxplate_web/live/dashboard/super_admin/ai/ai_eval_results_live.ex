@@ -42,7 +42,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.AiEvalResultsLive do
      |> assign(:available_prompts, load_available_prompts())
      |> assign(:filter_reset_key, 0)
      |> assign(:queue_status, get_queue_status())
-     |> assign(:page_title, "AI Results")
      |> load_eval_runs()
      |> PageMeta.assign_metadata(
        title: "AI Eval Results",
