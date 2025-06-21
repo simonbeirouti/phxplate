@@ -63,7 +63,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
           />
         <% end %>
 
-        <header class="flex h-16 shrink-0 items-center border-b gap-2 pl-2">
+        <header class="flex h-16 shrink-0 items-center border-b gap-2 pl-2 overflow-hidden">
           <button
             type="button"
             id="mobile-menu-button"
@@ -75,32 +75,33 @@ defmodule PhxplateWeb.Components.DashboardLayout do
             <Lucideicons.x class="h-6 w-6 hidden" id="close-icon" />
           </button>
 
-          <.sidebar_trigger target={@myself} class="pl-2 hidden md:block">
+          <.sidebar_trigger target={@myself} class="pl-2 hidden lg:block">
             <Lucideicons.panel_left class="w-4 h-4" />
           </.sidebar_trigger>
 
-          <.separator orientation="vertical" class="mr-2 h-4" />
-          <.breadcrumb>
-            <.breadcrumb_list>
-              <%= for {item, idx} <- Enum.with_index(dashboard_breadcrumbs(@layout_data.current_path)) do %>
-                <.breadcrumb_item>
-                  <.breadcrumb_link href={item.href}>
-                    {item.label}
-                  </.breadcrumb_link>
-                </.breadcrumb_item>
-                <.breadcrumb_separator
-                  :if={idx < length(dashboard_breadcrumbs(@layout_data.current_path)) - 1}
-                  class="block"
-                />
-              <% end %>
-            </.breadcrumb_list>
-          </.breadcrumb>
+          <.separator orientation="vertical" class="mr-2 h-4 hidden lg:block" />
+          <div class="overflow-x-auto flex-1 min-w-0 ml-2 lg:ml-0 scrollbar-hide" style="width: 1px;">
+            <.breadcrumb>
+              <.breadcrumb_list class="flex-nowrap min-w-max">
+                <%= for {item, idx} <- Enum.with_index(dashboard_breadcrumbs(@layout_data.current_path)) do %>
+                  <.breadcrumb_item class="whitespace-nowrap">
+                    <.breadcrumb_link href={item.href}>
+                      {item.label}
+                    </.breadcrumb_link>
+                  </.breadcrumb_item>
+                  <.breadcrumb_separator
+                    :if={idx < length(dashboard_breadcrumbs(@layout_data.current_path)) - 1}
+                    class="block"
+                  />
+                <% end %>
+              </.breadcrumb_list>
+            </.breadcrumb>
+          </div>
 
-          <div class="flex-grow" />
-          <button class="mr-2 p-3 border border-gray-50 shadow-sm rounded-md hover:bg-gray-100" phx-click="toggle_support" phx-target={@myself}>
+          <.button class="mr-2" size="sm" variant="outline" phx-click="toggle_support" phx-target={@myself}>
             <Lucideicons.bell_plus class="w-4 h-4" />
             <span class="sr-only">Support & Feature Requests</span>
-          </button>
+          </.button>
         </header>
 
         <div
@@ -163,7 +164,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
           state={@current_state}
         />
       </.sidebar_content>
-      <.sidebar_rail target={@myself} />
+      <%!-- <.sidebar_rail target={@myself} /> --%>
     </.sidebar>
     """
   end
@@ -180,7 +181,8 @@ defmodule PhxplateWeb.Components.DashboardLayout do
         </.sidebar_group_label>
         <.sidebar_menu :for={item <- group.items}>
           <.sidebar_menu_item>
-            <div :if={@state == "collapsed"}>
+            <!-- Dropdown menu for collapsed state - only visible when collapsed -->
+            <div class="group-data-[collapsible=icon]:block hidden">
               <.dropdown_menu class="block">
                 <.as_child
                   tag={&dropdown_menu_trigger/1}
@@ -209,10 +211,11 @@ defmodule PhxplateWeb.Components.DashboardLayout do
               </.dropdown_menu>
             </div>
 
-            <div :if={@state != "collapsed"}>
+            <!-- Collapsible menu for expanded state - always present, but hidden when collapsed -->
+            <div class="group-data-[collapsible=icon]:hidden block">
               <.as_child tag={&collapsible_trigger/1} child={&sidebar_menu_button/1} state={@state}>
                 <.dynamic :if={not is_nil(item.icon)} tag={item.icon} />
-                <span>
+                <span class="group-data-[collapsible=icon]:hidden">
                   {item.title}
                 </span>
               </.as_child>
@@ -262,7 +265,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
                   {String.slice(project.name, 0, 2)}
                 </.avatar_fallback>
               </.avatar>
-              <span class="max-lg:hidden">{project.name}</span>
+              <span class="group-data-[collapsible=icon]:hidden max-lg:hidden">{project.name}</span>
             </.sidebar_menu_button>
           </a>
         </.sidebar_menu_item>
@@ -292,7 +295,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
                 {String.slice(@user.name, 0, 2)}
               </.avatar_fallback>
             </.avatar>
-            <div class="grid flex-1 text-left text-sm leading-tight ml-2 max-lg:hidden">
+            <div class="grid flex-1 text-left text-sm leading-tight ml-2 max-lg:hidden group-data-[collapsible=icon]:hidden">
               <span class="truncate font-semibold">
                 {@user.name}
               </span>
@@ -300,7 +303,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
                 {@user.email}
               </span>
             </div>
-            <Lucideicons.chevrons_up_down class="ml-auto size-4 max-lg:hidden" />
+            <Lucideicons.chevrons_up_down class="ml-auto size-4 max-lg:hidden group-data-[collapsible=icon]:hidden" />
           </.as_child>
           <.dropdown_menu_content
             class="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
@@ -485,7 +488,8 @@ defmodule PhxplateWeb.Components.DashboardLayout do
   def dashboard_breadcrumbs(_), do: [%{label: "Dashboard", href: "/dashboard"}]
 
   def handle_event("toggle_support", _params, socket) do
-    {:noreply, assign(socket, :show_support, !socket.assigns.show_support)}
+    current_show_support = Map.get(socket.assigns, :show_support, false)
+    {:noreply, assign(socket, :show_support, !current_show_support)}
   end
 
     def handle_event("toggle_sidebar_state", _params, socket) do
@@ -500,7 +504,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
 
     case Phxplate.Accounts.update_user_sidebar_state(user, new_state) do
       {:ok, _updated_user} ->
-        # Update the local state as well
+        # Update the local state - the key will force a re-render
         {:noreply, assign(socket, :current_sidebar_state, new_state)}
       {:error, _changeset} ->
         # Log error but don't fail the request
@@ -517,7 +521,7 @@ defmodule PhxplateWeb.Components.DashboardLayout do
 
     case Phxplate.Accounts.update_user_sidebar_state(user, state) do
       {:ok, _updated_user} ->
-        # Update the local state as well
+        # Update the local state - the key will force a re-render
         {:noreply, assign(socket, :current_sidebar_state, state)}
       {:error, _changeset} ->
         # Log error but don't fail the request
@@ -550,15 +554,20 @@ defmodule PhxplateWeb.Components.DashboardLayout do
     {:noreply, socket}
   end
 
-    def update(assigns, socket) do
+  def update(assigns, socket) do
     # Preserve current_sidebar_state if it exists, otherwise let render_dashboard_layout handle it
     filtered_assigns = Map.drop(assigns, [:flash])
 
+    socket =
+      socket
+      |> assign(filtered_assigns)
+      |> assign_new(:show_support, fn -> false end)
+      |> assign_new(:support_mode, fn -> "dialog" end)
+
     if Map.has_key?(socket.assigns, :current_sidebar_state) do
-      filtered_assigns = Map.drop(filtered_assigns, [:current_sidebar_state])
-      {:ok, assign(socket, filtered_assigns)}
+      {:ok, socket}
     else
-      {:ok, assign(socket, filtered_assigns)}
+      {:ok, socket}
     end
   end
 

@@ -72,7 +72,8 @@ defmodule Phxplate.MixProject do
       {:premailex, "~> 0.3.20"},
       {:mdex, "~> 0.7.0"},
       {:tidewave, "~> 0.1", only: :dev},
-      {:anthropix, "~> 0.6.1"}
+      {:anthropix, "~> 0.6.1"},
+      {:openai_ex, "~> 0.9.12"}
     ]
   end
 

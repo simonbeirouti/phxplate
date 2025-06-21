@@ -44,6 +44,15 @@ defmodule PhxplateWeb.Admin.ChatDashboardLive do
      |> load_sessions(1)}
   end
 
+  @impl true
+  def handle_params(_params, url, socket) do
+    # Update current path for breadcrumbs
+    uri = URI.parse(url)
+    socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
+
+    {:noreply, socket}
+  end
+
   defp load_sessions(socket, page) do
     per_page = 10
     filter = socket.assigns.filter

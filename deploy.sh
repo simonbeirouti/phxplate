@@ -29,8 +29,29 @@ check_first_deployment() {
   return 0
 }
 
+# Parse command line arguments
+ENVIRONMENT="dev"
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    prod)
+      ENVIRONMENT="prod"
+      shift
+      ;;
+    *)
+      if [ "$1" != "dev" ]; then
+        echo "Unknown option: $1"
+        echo "Usage: $0 [prod]"
+        echo "  prod: Deploy to production environment"
+        exit 1
+      fi
+      shift
+      ;;
+  esac
+done
+
 # Check if environment is specified
-if [ "$1" = "prod" ]; then
+if [ "$ENVIRONMENT" = "prod" ]; then
   echo "Loading production environment..."
   load_env "exports.sh"
 else
@@ -48,6 +69,7 @@ required_vars=(
   "AWS_SECRET_ACCESS_KEY"
   "AWS_REGION"
   "ANTHROPIC_API_KEY"
+  "OPENAI_API_KEY"
 )
 
 # Check required variables
@@ -78,24 +100,16 @@ fly secrets set AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"
 fly secrets set AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
 fly secrets set AWS_REGION="$AWS_REGION"
 fly secrets set ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
-
-# Set a flag to indicate if seeding is needed for first deployment
-if [ "$IS_FIRST_DEPLOYMENT" = true ]; then
-  fly secrets set SEED_DATABASE="true"
-  echo "Set SEED_DATABASE flag for first run initialization"
-fi
+fly secrets set OPENAI_API_KEY="$OPENAI_API_KEY"
 
 # Deploy the application
 echo "Deploying application..."
 fly deploy
 
-echo "Deployment completed successfully!"
-
-# Run migrations only (not seeds) for first deployment
+# Run migrations for first deployment
 if [ "$IS_FIRST_DEPLOYMENT" = true ]; then
+  echo ""
   echo "Running initial database migrations..."
   fly ssh console -C "/app/bin/phxplate eval Phxplate.Release.migrate"
-  echo "Migrations completed. The app will handle seeding on startup."
-fi
-
-echo "Please check the logs for any issues: fly logs" 
+  echo "✅ Migrations completed."
+fi 

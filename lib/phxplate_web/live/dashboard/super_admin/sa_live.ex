@@ -68,7 +68,6 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
     {:ok,
      socket
      |> assign(:stats, stats)
-     |> assign(:page_title, "Super Admin Dashboard")
      |> PageMeta.assign_metadata(
        title: "Super Admin Dashboard",
        description: "Super Admin Dashboard",
@@ -377,13 +376,13 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.SuperAdminLive do
             title: "Total Eval Runs",
             value: stats.total_eval_runs,
             icon: "chart_bar",
-            link: ~p"/dashboard/super_admin/ai-results"
+            link: ~p"/dashboard/super_admin/ai-eval-results"
           },
           %{
             title: "AI Usage Timeline",
             value: "View",
             icon: "clock",
-            link: ~p"/dashboard/super_admin/ai-timeline"
+            link: ~p"/dashboard/super_admin/ai-results"
           }
         ]
       },

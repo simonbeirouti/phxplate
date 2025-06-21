@@ -51,6 +51,15 @@ defmodule PhxplateWeb.Dashboard.Company.CompanyViewLive do
   end
 
   @impl true
+  def handle_params(_params, url, socket) do
+    # Update current path for breadcrumbs
+    uri = URI.parse(url)
+    socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
+
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_info({:updated, %{type: :company, company: company}}, socket) do
     # Only update if user still has access
     case get_company_data(company.id, socket.assigns.current_user) do

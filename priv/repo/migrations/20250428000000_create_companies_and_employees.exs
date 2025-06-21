@@ -21,11 +21,13 @@ defmodule Phxplate.Repo.Migrations.CreateCompaniesAndEmployees do
       add :department, :string
       add :salary, :decimal
       add :company_id, references(:companies, on_delete: :delete_all), null: false
+      add :profile_id, references(:profiles, on_delete: :nilify_all)
 
       timestamps()
     end
 
     create index(:employees, [:company_id])
     create index(:companies, [:owner_id])
+    create index(:employees, [:profile_id])
   end
 end

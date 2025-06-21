@@ -225,8 +225,8 @@ defmodule PhxplateWeb.Router do
       live "/super_admin/ai-chat/:conversation_id", Dashboard.SuperAdmin.AiChatLive, :show
       live "/super_admin/ai-prompts", Dashboard.SuperAdmin.AiPromptsLive, :index
       live "/super_admin/ai-evals", Dashboard.SuperAdmin.AiEvalsLive, :index
+      live "/super_admin/ai-eval-results", Dashboard.SuperAdmin.AiEvalResultsLive, :index
       live "/super_admin/ai-results", Dashboard.SuperAdmin.AiResultsLive, :index
-      live "/super_admin/ai-timeline", Dashboard.SuperAdmin.AiTimelineLive, :index
     end
   end
 end

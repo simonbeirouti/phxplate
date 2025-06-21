@@ -29,6 +29,15 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.FeedbackRequestsLive do
     {:ok, load_requests(socket, 1)}
   end
 
+  @impl true
+  def handle_params(_params, url, socket) do
+    # Update current path for breadcrumbs
+    uri = URI.parse(url)
+    socket = update(socket, :layout_data, &Map.put(&1, :current_path, uri.path))
+
+    {:noreply, socket}
+  end
+
   defp load_requests(socket, page) do
     per_page = 10
     request_type = socket.assigns[:request_type] || "All"

@@ -16,5 +16,8 @@ export AWS_REGION="xxxx"
 # Anthropic Claude API Key
 export ANTHROPIC_API_KEY="sk-ant-your-key-here"
 
+# OpenAI API Key
+export OPENAI_API_KEY="sk-proj-1234567890"
+
 echo "Environment variables exported successfully!"
 echo "You can now run Phoenix with these environment variables."

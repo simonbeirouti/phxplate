@@ -9,6 +9,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.PlatformSettingsLive do
   alias Phxplate.Subscriptions
   alias PhxplateWeb.PageMeta
   alias Phxplate.PubSub.DataSync
+  require Logger
 
   @impl true
   def mount(_params, _session, socket) do
@@ -36,7 +37,7 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.PlatformSettingsLive do
     {:noreply, socket}
   end
 
-    @impl true
+  @impl true
   def handle_event("toggle_setting", %{"key" => key}, socket) do
     current_user = socket.assigns.current_user
 
@@ -77,6 +78,27 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.PlatformSettingsLive do
          |> assign(:loading, false)
          |> put_flash(:error, "Failed to update platform setting")}
     end
+  end
+
+  @impl true
+  def handle_event("seed_database", _params, socket) do
+    current_user = socket.assigns.current_user
+
+    Logger.info("Database seeding requested by user: #{current_user.email}")
+
+    # Run seeding as a supervised task using our simplified seeder
+    Task.Supervisor.start_child(Phxplate.TaskSupervisor, fn ->
+      case Phxplate.Tasks.Seeder.create_essential_data() do
+        {:ok, :completed} ->
+          Logger.info("✅ Database seeding completed successfully")
+        {:error, reason} ->
+          Logger.error("❌ Database seeding failed: #{inspect(reason)}")
+      end
+    end)
+
+    {:noreply,
+     socket
+     |> put_flash(:info, "Database seeding started! Creating essential test data with direct database calls. Check the logs for progress.")}
   end
 
   @impl true
@@ -174,6 +196,42 @@ defmodule PhxplateWeb.Dashboard.SuperAdmin.PlatformSettingsLive do
               </p>
             </div>
           <% end %>
+        </div>
+
+        <!-- Database Management Section -->
+        <div class="mt-8 bg-white shadow rounded-lg">
+          <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">Database Management</h3>
+            <p class="mt-1 text-sm text-gray-600">
+              Manage database content and seeding operations
+            </p>
+          </div>
+
+          <div class="px-6 py-4">
+            <div class="flex items-center justify-between">
+              <div class="flex-1">
+                <h4 class="text-sm font-medium text-gray-900">
+                  Create Test Data
+                </h4>
+                <p class="text-sm text-gray-600">
+                  Create essential test data including subscription plans, users, blog posts, and more.
+                  Safe for production - only creates data that doesn't already exist.
+                </p>
+              </div>
+              <div class="ml-6">
+                <.button
+                  type="button"
+                  phx-click="seed_database"
+                  disabled={@loading}
+                  class="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Lucideicons.database class="w-4 h-4 mr-2" />
+                  Create Test Data
+                </.button>
+              </div>
+            </div>
+
+          </div>
         </div>
       </div>
     </div>

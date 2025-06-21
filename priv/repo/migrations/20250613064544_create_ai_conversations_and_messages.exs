@@ -12,7 +12,7 @@ defmodule Phxplate.Repo.Migrations.CreateAiConversationsAndMessages do
       add :user_id, references(:users, on_delete: :delete_all), null: false
 
       # Selected prompt for the conversation (will be added as foreign key in later migration)
-      add :selected_prompt_id, :integer, null: true
+      add :selected_prompt_id, references(:ai_prompts, on_delete: :nilify_all), from: :integer
 
       # Advanced AI parameters for the conversation
       add :max_tokens, :integer, null: true
@@ -35,7 +35,7 @@ defmodule Phxplate.Repo.Migrations.CreateAiConversationsAndMessages do
       add :conversation_id, references(:ai_conversations, on_delete: :delete_all), null: false
 
       # Prompt used for this specific message (will be added as foreign key in later migration)
-      add :prompt_id, :integer, null: true
+      add :prompt_id, references(:ai_prompts, on_delete: :nilify_all), from: :integer
 
       # Advanced AI parameters used for this specific message (for performance tracking)
       add :max_tokens, :integer, null: true
@@ -49,6 +49,8 @@ defmodule Phxplate.Repo.Migrations.CreateAiConversationsAndMessages do
     create index(:ai_conversations, [:user_id])
     create index(:ai_conversations, [:archived])
     create index(:ai_conversations, [:inserted_at])
+    create index(:ai_conversations, [:selected_prompt_id])
+    create index(:ai_messages, [:prompt_id])
     create index(:ai_messages, [:conversation_id])
     create index(:ai_messages, [:model])
     create index(:ai_messages, [:inserted_at])
